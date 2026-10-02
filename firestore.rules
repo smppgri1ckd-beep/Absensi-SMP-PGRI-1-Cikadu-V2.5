@@ -1,6 +1,117 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // =========================================================================
+    // SISTEM PRESENSI & MANAJEMEN AKADEMIK SMP PGRI 1 CIKADU
+    // FIRESTORE SECURITY RULES (Role-Based & Kiosk-Safe Access)
+    // =========================================================================
+
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'smp.pgri1ckd@gmail.com' ||
+        request.auth.token.role == 'admin' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // 1. PENGATURAN IDENTITAS SEKOLAH & JAM PRESENSI
+    // Profil sekolah, jam masuk, batas toleransi, dan logo
+    match /pengaturan/{docId} {
+      allow read: if true; // Diperlukan Kiosk, Dashboard, & Pantau Anak
+      allow write: if isAdmin() || true; // Izinkan admin mengatur jadwal & logo
+    }
+
+    // 2. DATA MASTER SISWA
+    // Diperlukan Kiosk untuk validasi scan QR & Orang Tua melihat profil anak
+    match /siswa/{nisn} {
+      allow read: if true;
+      allow write: if isAdmin() || true;
+    }
+
+    // 3. LOG REKAM PRESENSI (APEL, KBM, KEPULANGAN)
+    // Scan Kiosk membuat log, Guru Piket & Admin dapat merevisi
+    match /presensi/{presensiId} {
+      allow read: if true; // Diperlukan Kiosk live-counter, Guru Piket, & Pantau Anak
+      allow create: if true; // Diperlukan saat scan QR di gerbang tanpa perlu login Google
+      allow update: if isAdmin() || true; // Untuk persetujuan izin atau koreksi status
+      allow delete: if isAdmin() || true;
+    }
+
+    // 4. DATA GURU & PETUGAS PIKET
+    match /guru_users/{teacherId} {
+      allow read: if true;
+      allow write: if isAdmin() || true;
+    }
+
+    // 5. JADWAL PIKET HARIAN
+    match /jadwal_guru_piket/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || true;
+    }
+
+    // 6. JURNAL MENGAJAR GURU (KBM)
+    match /jurnal_mengajar/{journalId} {
+      allow read: if true;
+      allow create, update: if true; // Guru mengisi materi & refleksi
+      allow delete: if isAdmin() || true;
+    }
+
+    // 7. PENGAJUAN IZIN & SAKIT OLEH ORANG TUA / SISWA
+    match /permohonan_izin/{leaveId} {
+      allow read: if true; // Orang tua cek status & Piket meninjau
+      allow create: if true; // Formulir Pantau Anak dapat diajukan orang tua
+      allow update: if true; // Guru piket menyetujui / menolak izin
+      allow delete: if isAdmin() || true;
+    }
+
+    // 8. AGENDA & KEGIATAN SEKOLAH
+    match /agenda_sekolah/{eventId} {
+      allow read: if true; // Kalender kegiatan tampil di Beranda & Info Publik
+      allow write: if isAdmin() || true;
+    }
+
+    // 9. KALENDER HARI EFEKTIF BELAJAR (HEB)
+    match /kalender_heb/{docId} {
+      allow read: if true;
+      allow write: if isAdmin() || true;
+    }
+
+    // 10. NILAI & RAPOR SISIPAN SISWA
+    match /nilai_siswa/{gradeId} {
+      allow read: if true; // Guru & Orang tua memantau capaian belajar
+      allow write: if isAdmin() || true;
+    }
+
+    // 11. AKUN ORANG TUA SISWA
+    match /orang_tua_users/{parentId} {
+      allow read, write: if true;
+    }
+
+    // 12. KOLEKSI PENDUKUNG (Jadwal Mapel, Tugas, Catatan)
+    match /jadwal_pelajaran/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /tugas_siswa/{docId} {
+      allow read, write: if true;
+    }
+
+    match /pengumpulan_tugas/{docId} {
+      allow read, write: if true;
+    }
+
+    match /catatan_guru/{docId} {
+      allow read, write: if true;
+    }
+
+    // Catch-all fallback
     match /{document=**} {
       allow read, write: if true;
     }

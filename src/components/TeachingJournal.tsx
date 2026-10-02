@@ -36,6 +36,7 @@ import { useAuth } from '../context/AuthContext';
 import { soundService } from '../utils/audio';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { getTeacherAccessibleClasses, isClassMatch, normalizeClassName } from '../utils/teacherFilter';
+import { DatabaseService } from '../services/db';
 
 interface TeachingJournalProps {
   journals: TeachingJournal[];
@@ -44,6 +45,7 @@ interface TeachingJournalProps {
   teachers: TeacherUser[];
   onSaveJournal: (journal: TeachingJournal, classAttendanceRecords?: AttendanceRecord[]) => Promise<void>;
   onDeleteJournal: (id: string) => Promise<void>;
+  onBulkDeleteJournals?: (ids: string[]) => Promise<void>;
 }
 
 export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
@@ -53,12 +55,15 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   teachers,
   onSaveJournal,
   onDeleteJournal,
+  onBulkDeleteJournals,
 }) => {
   const { user } = useAuth();
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Semua');
   const [onlyMyJournals, setOnlyMyJournals] = useState<boolean>(user?.role === 'guru');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewDetailJournal, setViewDetailJournal] = useState<TeachingJournal | null>(null);
+  const [selectedJournalIds, setSelectedJournalIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Form State
   const today = new Date().toISOString().split('T')[0];
@@ -603,6 +608,28 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
     return true;
   });
 
+  const handleBulkDelete = async () => {
+    if (selectedJournalIds.length === 0) return;
+    const count = selectedJournalIds.length;
+    if (!confirm(`YAKIN INGIN MENGHAPUS ${count} CATATAN JURNAL MENGAJAR TERPILIH?\n\nCatatan agenda dan absensi KBM terpilih akan benar-benar dihapus dari database (Firestore & Penyimpanan Lokal). Tindakan ini permanen.`)) {
+      return;
+    }
+    setIsBulkDeleting(true);
+    try {
+      if (onBulkDeleteJournals) {
+        await onBulkDeleteJournals(selectedJournalIds);
+      } else {
+        await DatabaseService.bulkDeleteTeachingJournals(selectedJournalIds);
+      }
+      setSelectedJournalIds([]);
+    } catch (err) {
+      console.error('Failed to bulk delete journals', err);
+      alert('Gagal menghapus jurnal mengajar. Silakan coba lagi.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   // Calculate live counters in form modal
   const countHadir = currentClassStudents.filter((s) => studentStatuses[s.nisn] === 'Hadir').length;
   const countTerlambat = currentClassStudents.filter((s) => studentStatuses[s.nisn] === 'Terlambat').length;
@@ -741,6 +768,59 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
         })}
       </div>
 
+      {/* Bulk Delete Floating/Action Bar */}
+      {selectedJournalIds.length > 0 && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-3xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5 text-rose-950 font-bold text-xs sm:text-sm">
+            <span className="w-3 h-3 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
+            <span>
+              <strong>{selectedJournalIds.length}</strong> catatan jurnal dipilih untuk tindakan massal
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedJournalIds([])}
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer transition-colors"
+            >
+              Batalkan Pilihan
+            </button>
+            <button
+              type="button"
+              disabled={isBulkDeleting}
+              onClick={handleBulkDelete}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-rose-600/25 cursor-pointer transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>
+                {isBulkDeleting ? 'Menghapus dari Database...' : `Hapus (${selectedJournalIds.length}) Jurnal Terpilih`}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Select All Toggle for Journals */}
+      {filteredJournals.length > 0 && (
+        <div className="flex items-center justify-between px-2">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={selectedJournalIds.length === filteredJournals.length}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedJournalIds(filteredJournals.map((j) => j.id));
+                } else {
+                  setSelectedJournalIds([]);
+                }
+              }}
+              className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+            <span>Pilih Semua Jurnal ({filteredJournals.length})</span>
+          </label>
+        </div>
+      )}
+
       {/* Journal Cards Feed */}
       <div className="space-y-4">
         {filteredJournals.length === 0 ? (
@@ -750,45 +830,66 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
             <p className="text-xs text-slate-400 mt-1">Klik "Buat Jurnal & Scan Presensi" untuk mencatat kegiatan tatap muka KBM.</p>
           </div>
         ) : (
-          filteredJournals.map((j) => (
-            <div
-              key={j.id}
-              className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs hover:border-blue-300 transition-all space-y-4"
-            >
-              {/* Top Meta Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-800 font-black text-xs border border-blue-200">
-                    Kelas {j.kelas}
-                  </span>
-                  <span className="px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-800 font-extrabold text-xs">
-                    {j.mapel}
-                  </span>
-                  <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">
-                    Pertemuan Ke-{j.pertemuanKe}
-                  </span>
-                </div>
+          filteredJournals.map((j) => {
+            const isSelected = selectedJournalIds.includes(j.id);
+            const canDeleteCard = user?.role === 'admin' || j.guruId === user?.id;
 
-                <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    {j.tanggal}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    {j.jamPelajaran}
-                  </span>
-                  {(user?.role === 'admin' || j.guruId === user?.id) && (
-                    <button
-                      onClick={() => onDeleteJournal(j.id)}
-                      className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                      title="Hapus Jurnal"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+            return (
+              <div
+                key={j.id}
+                className={`bg-white rounded-3xl p-6 border shadow-xs transition-all space-y-4 ${
+                  isSelected ? 'border-rose-400 ring-2 ring-rose-300/40 bg-rose-50/20' : 'border-slate-200 hover:border-blue-300'
+                }`}
+              >
+                {/* Top Meta Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {canDeleteCard && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedJournalIds((prev) => [...prev, j.id]);
+                          } else {
+                            setSelectedJournalIds((prev) => prev.filter((id) => id !== j.id));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer mr-1"
+                        title="Pilih jurnal ini"
+                      />
+                    )}
+                    <span className="px-2.5 py-1 rounded-xl bg-blue-50 text-blue-800 font-black text-xs border border-blue-200">
+                      Kelas {j.kelas}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-xl bg-indigo-50 text-indigo-800 font-extrabold text-xs">
+                      {j.mapel}
+                    </span>
+                    <span className="px-2.5 py-1 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">
+                      Pertemuan Ke-{j.pertemuanKe}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs text-slate-500 font-semibold">
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      {j.tanggal}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      {j.jamPelajaran}
+                    </span>
+                    {canDeleteCard && (
+                      <button
+                        onClick={() => onDeleteJournal(j.id)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        title="Hapus Jurnal"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
 
               {/* Lesson Core Information */}
               <div className="space-y-2">
@@ -861,7 +962,8 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                 </div>
               </div>
             </div>
-          ))
+          );
+        })
         )}
       </div>
 

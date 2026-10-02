@@ -24,10 +24,11 @@ import {
   AttendanceRecord, 
   SchoolConfig, 
   AttendanceStatus, 
-  AttendanceSession,
-  TeacherUser,
-  SchoolEventItem
+  AttendanceSession, 
+  TeacherUser, 
+  SchoolEventItem 
 } from '../types';
+import { DatabaseService } from '../services/db';
 import { exportDailyAttendanceExcel } from '../utils/exportExcel';
 import { generateDailyAttendancePdf } from '../utils/exportPdf';
 import { useAuth } from '../context/AuthContext';
@@ -48,6 +49,7 @@ interface DashboardProps {
   teachers?: TeacherUser[];
   onUpdateStatus: (id: string, status: AttendanceStatus, catatan?: string) => Promise<void>;
   onDeleteRecord: (id: string) => Promise<void>;
+  onBulkDeleteRecords?: (ids: string[]) => Promise<void>;
   onAddManualRecord: (record: AttendanceRecord) => Promise<void>;
   onRefresh: () => Promise<void>;
   onOpenLogin?: () => void;
@@ -66,6 +68,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   teachers = [],
   onUpdateStatus,
   onDeleteRecord,
+  onBulkDeleteRecords,
   onAddManualRecord,
   onRefresh,
   onOpenLogin,
@@ -95,6 +98,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
   const [tempStatus, setTempStatus] = useState<AttendanceStatus>('Hadir');
   const [tempNote, setTempNote] = useState<string>('');
+  const [selectedRecordIds, setSelectedRecordIds] = useState<string[]>([]);
+  const [isBulkDeletingRecords, setIsBulkDeletingRecords] = useState(false);
+
+  const handleBulkDeleteRecords = async () => {
+    if (selectedRecordIds.length === 0) return;
+    const count = selectedRecordIds.length;
+    if (!confirm(`YAKIN INGIN MENGHAPUS ${count} CATATAN PRESENSI TERPILIH?\n\nSetiap data yang dihapus akan benar-benar hilang dari database sekolah (Firestore & Penyimpanan Lokal). Tindakan ini permanen.`)) {
+      return;
+    }
+    setIsBulkDeletingRecords(true);
+    try {
+      if (onBulkDeleteRecords) {
+        await onBulkDeleteRecords(selectedRecordIds);
+      } else {
+        await DatabaseService.bulkDeleteAttendanceRecords(selectedRecordIds);
+      }
+      setSelectedRecordIds([]);
+    } catch (err) {
+      console.error('Failed to bulk delete attendance records', err);
+      alert('Gagal menghapus catatan presensi. Silakan coba lagi.');
+    } finally {
+      setIsBulkDeletingRecords(false);
+    }
+  };
 
   const canManage = user?.role === 'admin' || user?.role === 'piket' || (user?.role === 'guru' && actingAsPiket);
 
@@ -536,11 +563,62 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
+        {/* Bulk Delete Floating/Action Bar */}
+        {selectedRecordIds.length > 0 && (
+          <div className="m-4 bg-rose-50 border-2 border-rose-300 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2.5 text-rose-950 font-bold text-xs sm:text-sm">
+              <span className="w-3 h-3 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
+              <span>
+                <strong>{selectedRecordIds.length}</strong> catatan presensi dipilih untuk tindakan massal
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedRecordIds([])}
+                className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer transition-colors"
+              >
+                Batalkan Pilihan
+              </button>
+              {canManage && (
+                <button
+                  type="button"
+                  disabled={isBulkDeletingRecords}
+                  onClick={handleBulkDeleteRecords}
+                  className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-rose-600/25 cursor-pointer transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>
+                    {isBulkDeletingRecords ? 'Menghapus dari Database...' : `Hapus (${selectedRecordIds.length}) Presensi Terpilih`}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Table Content */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
               <tr>
+                {canManage && (
+                  <th className="py-3 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={displayedRecords.length > 0 && selectedRecordIds.length === displayedRecords.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedRecordIds(displayedRecords.map((r) => r.id));
+                        } else {
+                          setSelectedRecordIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      title="Pilih Semua Log yang Tampil"
+                    />
+                  </th>
+                )}
                 <th className="py-3 px-4">No</th>
                 <th className="py-3 px-4">Waktu</th>
                 <th className="py-3 px-4">NISN</th>
@@ -554,7 +632,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <tbody className="divide-y divide-slate-100">
               {displayedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 8 : 7} className="py-12 text-center text-slate-400">
+                  <td colSpan={canManage ? 9 : 8} className="py-12 text-center text-slate-400">
                     Tidak ada catatan presensi pada filter ini.
                   </td>
                 </tr>
@@ -563,7 +641,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   const isEditing = editingRecordId === r.id;
 
                   return (
-                    <tr key={r.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr 
+                      key={r.id} 
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        selectedRecordIds.includes(r.id) ? 'bg-rose-50/40' : ''
+                      }`}
+                    >
+                      {canManage && (
+                        <td className="py-3 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedRecordIds.includes(r.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedRecordIds((prev) => [...prev, r.id]);
+                              } else {
+                                setSelectedRecordIds((prev) => prev.filter((id) => id !== r.id));
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="py-3 px-4 font-medium text-slate-500">{idx + 1}</td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-800">{r.waktu}</td>
                       <td className="py-3 px-4 font-mono text-slate-600">{r.nisn}</td>

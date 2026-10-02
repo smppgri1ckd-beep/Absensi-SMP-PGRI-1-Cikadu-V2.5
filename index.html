@@ -9,6 +9,29 @@
     <meta property="og:description" content="Sistem presensi digital sekolah, jurnal mengajar guru, dan dashboard Pantau Anak untuk orang tua memonitor kehadiran, nilai, jadwal, dan tugas siswa." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Gracefully ignore Vite development HMR WebSocket notifications in iframe/cloud environments
+      window.addEventListener('unhandledrejection', function(event) {
+        var reason = event.reason;
+        if (
+          reason &&
+          (String(reason).includes('WebSocket') ||
+           String(reason.message || '').includes('WebSocket') ||
+           String(reason).includes('failed to connect to websocket'))
+        ) {
+          event.preventDefault();
+        }
+      });
+      window.addEventListener('error', function(event) {
+        var msg = event.message || '';
+        if (
+          msg.includes('WebSocket') ||
+          msg.includes('[vite] failed to connect to websocket')
+        ) {
+          event.preventDefault();
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

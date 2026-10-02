@@ -602,6 +602,30 @@ export class DatabaseService {
     }
   }
 
+  static async bulkDeleteStudents(nisns: string[]): Promise<void> {
+    if (!nisns || nisns.length === 0) return;
+    const nisnSet = new Set(nisns);
+    const students = await this.getStudents();
+    const filtered = students.filter((s) => !nisnSet.has(s.nisn));
+    setLocal('students', filtered);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < nisns.length; i += CHUNK_SIZE) {
+        const chunk = nisns.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((nisn) => {
+          const docRef = doc(db!, 'siswa', nisn);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkDeleteStudents offline cache used', e);
+    }
+  }
+
   static async bulkSaveStudents(newStudents: Student[]): Promise<void> {
     const students = await this.getStudents();
     const map = new Map<string, Student>();
@@ -714,6 +738,30 @@ export class DatabaseService {
       await deleteDoc(docRef);
     } catch (e) {
       console.warn('Firestore deleteAttendanceRecord offline cache used', e);
+    }
+  }
+
+  static async bulkDeleteAttendanceRecords(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const records = await this.getAttendanceRecords();
+    const filtered = records.filter((r) => !idSet.has(r.id));
+    setLocal('attendance', filtered);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((id) => {
+          const docRef = doc(db!, 'presensi', id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkDeleteAttendanceRecords offline cache used', e);
     }
   }
 
@@ -841,6 +889,30 @@ export class DatabaseService {
     }
   }
 
+  static async bulkDeleteTeachers(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const teachers = await this.getTeachers();
+    const filtered = teachers.filter((t) => !idSet.has(t.id));
+    setLocal('teachers', filtered);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((id) => {
+          const docRef = doc(db!, 'guru_users', id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkDeleteTeachers offline cache used', e);
+    }
+  }
+
   // --- TEACHING JOURNALS ---
   static async getTeachingJournals(): Promise<TeachingJournal[]> {
     const today = new Date().toISOString().split('T')[0];
@@ -926,6 +998,30 @@ export class DatabaseService {
       await deleteDoc(docRef);
     } catch (e) {
       console.warn('Firestore deleteTeachingJournal offline cache used', e);
+    }
+  }
+
+  static async bulkDeleteTeachingJournals(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const journals = await this.getTeachingJournals();
+    const filtered = journals.filter((j) => !idSet.has(j.id));
+    setLocal('teaching_journals', filtered);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((id) => {
+          const docRef = doc(db!, 'jurnal_mengajar', id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkDeleteTeachingJournals offline cache used', e);
     }
   }
 
@@ -1141,6 +1237,30 @@ export class DatabaseService {
     }
   }
 
+  static async bulkDeleteStudentGrades(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const list = await this.getStudentGrades();
+    const filtered = list.filter((g) => !idSet.has(g.id));
+    setLocal('student_grades', filtered);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((id) => {
+          const docRef = doc(db!, 'nilai_siswa', id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkDeleteStudentGrades offline cache used', e);
+    }
+  }
+
   static async bulkSaveStudentGrades(newGrades: StudentGradeItem[]): Promise<void> {
     const list = await this.getStudentGrades();
     const map = new Map<string, StudentGradeItem>();
@@ -1292,6 +1412,30 @@ export class DatabaseService {
       await deleteDoc(docRef);
     } catch (e) {
       console.warn('Firestore deleteLeaveRequest offline cache used', e);
+    }
+  }
+
+  static async bulkDeleteLeaveRequests(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const list = await this.getLeaveRequests();
+    const filtered = list.filter((r) => !idSet.has(r.id));
+    setLocal('leave_requests', filtered);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((id) => {
+          const docRef = doc(db!, 'permohonan_izin', id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkDeleteLeaveRequests offline cache used', e);
     }
   }
 
@@ -1761,6 +1905,30 @@ export class DatabaseService {
       } catch (e) {
         console.warn('Firestore deleteSchoolEvent error', e);
       }
+    }
+  }
+
+  static async bulkDeleteSchoolEvents(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const list = await this.getSchoolEvents();
+    const filtered = list.filter((e) => !idSet.has(e.id));
+    setLocal('school_events', filtered);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((id) => {
+          const docRef = doc(db!, 'agenda_sekolah', id);
+          batch.delete(docRef);
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkDeleteSchoolEvents error', e);
     }
   }
 

@@ -24,6 +24,7 @@ import {
   ToggleRight
 } from 'lucide-react';
 import { TeacherUser, SchoolConfig, TeachingAssignment, UserRole } from '../types';
+import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { generateTeacherListPdf } from '../utils/exportPdf';
@@ -32,6 +33,7 @@ interface TeacherManagementProps {
   teachers: TeacherUser[];
   onSaveTeacher: (teacher: TeacherUser) => Promise<void>;
   onDeleteTeacher: (id: string) => Promise<void>;
+  onBulkDeleteTeachers?: (ids: string[]) => Promise<void>;
   schoolConfig: SchoolConfig;
 }
 
@@ -71,6 +73,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
   teachers,
   onSaveTeacher,
   onDeleteTeacher,
+  onBulkDeleteTeachers,
   schoolConfig,
 }) => {
   const { user } = useAuth();
@@ -80,6 +83,8 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Form State
   const [teacherId, setTeacherId] = useState('');
@@ -274,8 +279,33 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
   const handleDelete = async (id: string, nama: string) => {
     if (confirm(`Apakah Anda yakin ingin menghapus akun guru "${nama}"?`)) {
       await onDeleteTeacher(id);
+      setSelectedTeacherIds((prev) => prev.filter((tId) => tId !== id));
       setFeedbackBanner(`Akun guru "${nama}" telah dihapus dari sistem.`);
       setTimeout(() => setFeedbackBanner(null), 4000);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTeacherIds.length === 0) return;
+    const count = selectedTeacherIds.length;
+    if (!confirm(`YAKIN INGIN MENGHAPUS ${count} AKUN GURU TERPILIH?\n\nSetiap data yang dihapus akan benar-benar hilang dari database sekolah (Firestore & Penyimpanan Lokal). Tindakan ini tidak dapat dibatalkan.`)) {
+      return;
+    }
+    setIsBulkDeleting(true);
+    try {
+      if (onBulkDeleteTeachers) {
+        await onBulkDeleteTeachers(selectedTeacherIds);
+      } else {
+        await DatabaseService.bulkDeleteTeachers(selectedTeacherIds);
+      }
+      setSelectedTeacherIds([]);
+      setFeedbackBanner(`${count} akun guru berhasil dihapus permanen dari database.`);
+      setTimeout(() => setFeedbackBanner(null), 4000);
+    } catch (err) {
+      console.error('Failed to bulk delete teachers', err);
+      alert('Gagal menghapus akun guru. Silakan coba lagi.');
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -452,12 +482,63 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
         </div>
       </div>
 
+      {/* Bulk Delete Floating/Action Bar */}
+      {selectedTeacherIds.length > 0 && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-3xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5 text-rose-950 font-bold text-xs sm:text-sm">
+            <span className="w-3 h-3 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
+            <span>
+              <strong>{selectedTeacherIds.length}</strong> guru dipilih untuk tindakan massal
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedTeacherIds([])}
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer transition-colors"
+            >
+              Batalkan Pilihan
+            </button>
+            {canManage && (
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleBulkDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-rose-600/25 cursor-pointer transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>
+                  {isBulkDeleting ? 'Menghapus dari Database...' : `Hapus (${selectedTeacherIds.length}) Guru Terpilih`}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Teachers List Table with Multi-Subject Cards */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
               <tr>
+                {canManage && (
+                  <th className="py-3.5 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={filteredTeachers.length > 0 && selectedTeacherIds.length === filteredTeachers.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedTeacherIds(filteredTeachers.map((t) => t.id));
+                        } else {
+                          setSelectedTeacherIds([]);
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      title="Pilih Semua Guru yang Tampil"
+                    />
+                  </th>
+                )}
                 <th className="py-3.5 px-4">No</th>
                 <th className="py-3.5 px-4 min-w-[200px]">Nama Guru & NIP</th>
                 <th className="py-3.5 px-4">Role & Hak Akses</th>
@@ -471,7 +552,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredTeachers.length === 0 ? (
                 <tr>
-                  <td colSpan={canManage ? 8 : 7} className="py-12 text-center text-slate-400">
+                  <td colSpan={canManage ? 9 : 8} className="py-12 text-center text-slate-400">
                     Tidak ada data guru yang cocok dengan pencarian.
                   </td>
                 </tr>
@@ -484,7 +565,28 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                   const totalJam = teacherAssignments.reduce((acc, a) => acc + (a.bebanJam || 0), 0);
 
                   return (
-                    <tr key={t.id} className="hover:bg-slate-50/80 transition-colors">
+                    <tr 
+                      key={t.id} 
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        selectedTeacherIds.includes(t.id) ? 'bg-rose-50/40' : ''
+                      }`}
+                    >
+                      {canManage && (
+                        <td className="py-3.5 px-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedTeacherIds.includes(t.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTeacherIds((prev) => [...prev, t.id]);
+                              } else {
+                                setSelectedTeacherIds((prev) => prev.filter((id) => id !== t.id));
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                          />
+                        </td>
+                      )}
                       <td className="py-3.5 px-4 font-medium text-slate-400">{idx + 1}</td>
                       
                       {/* Name & NIP */}

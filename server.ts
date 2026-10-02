@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'http';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -159,10 +160,15 @@ Berikan respon JSON: { "message": "isi teks whatsapp" }
 // Vite middleware setup
 async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
+  const httpServer = http.createServer(app);
 
   if (!isProd) {
+    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { 
+        middlewareMode: true,
+        hmr: isHmrDisabled ? false : { server: httpServer }
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -173,7 +179,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
   });
 }

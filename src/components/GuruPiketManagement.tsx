@@ -91,6 +91,10 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
   // Print Preview Modal
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
+  // Bulk delete state
+  const [selectedOfficerKeys, setSelectedOfficerKeys] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState<boolean>(false);
+
   // Ensure all 6 days exist in data
   const normalizedJadwal = useMemo<JadwalPiketHarian[]>(() => {
     return DAYS_LIST.map((day) => {
@@ -225,6 +229,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
       });
 
       await onSaveJadwalPiket(updated);
+      setSelectedOfficerKeys((prev) => prev.filter((k) => k !== `${day}___${officerId}`));
       setFeedbackBanner({
         text: `${officerName} telah dihapus dari jadwal piket hari ${day}.`,
         type: 'info',
@@ -232,6 +237,36 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
       setTimeout(() => setFeedbackBanner(null), 3500);
     } catch {
       alert('Gagal menghapus data petugas.');
+    }
+  };
+
+  // Bulk delete officers
+  const handleBulkDeleteOfficers = async () => {
+    if (selectedOfficerKeys.length === 0) return;
+    const count = selectedOfficerKeys.length;
+    if (!window.confirm(`YAKIN INGIN MENGHAPUS ${count} PENUGASAN GURU PIKET TERPILIH?\n\nData penugasan piket terpilih akan benar-benar dihapus permanen dari database (Firestore & Penyimpanan Lokal). Tindakan ini tidak dapat dibatalkan.`)) {
+      return;
+    }
+
+    setIsBulkDeleting(true);
+    try {
+      const selectedSet = new Set(selectedOfficerKeys);
+      const updated = normalizedJadwal.map((dayData) => ({
+        ...dayData,
+        petugas: dayData.petugas.filter((p) => !selectedSet.has(`${dayData.hari}___${p.id}`)),
+      }));
+
+      await onSaveJadwalPiket(updated);
+      setSelectedOfficerKeys([]);
+      setFeedbackBanner({
+        text: `${count} penugasan guru piket berhasil dihapus permanen dari jadwal database.`,
+        type: 'success',
+      });
+      setTimeout(() => setFeedbackBanner(null), 4000);
+    } catch {
+      alert('Gagal menghapus data guru piket terpilih.');
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -269,6 +304,23 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
       return true;
     });
   }, [normalizedJadwal, selectedDayFilter, searchQuery]);
+
+  const allVisibleOfficerKeys = useMemo(() => {
+    const keys: string[] = [];
+    displayedDays.forEach((dayData) => {
+      const dayPetugas = dayData.petugas.filter((p) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+          p.nama.toLowerCase().includes(q) ||
+          p.peran?.toLowerCase().includes(q) ||
+          p.nip?.includes(q)
+        );
+      });
+      dayPetugas.forEach((p) => keys.push(`${dayData.hari}___${p.id}`));
+    });
+    return keys;
+  }, [displayedDays, searchQuery]);
 
   const totalAllOfficers = useMemo(() => {
     return normalizedJadwal.reduce((acc, curr) => acc + curr.petugas.length, 0);
@@ -443,6 +495,59 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
         </div>
       </div>
 
+      {/* Bulk Delete Floating/Action Bar */}
+      {selectedOfficerKeys.length > 0 && isAdmin && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-3xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5 text-rose-950 font-bold text-xs sm:text-sm">
+            <span className="w-3 h-3 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
+            <span>
+              <strong>{selectedOfficerKeys.length}</strong> penugasan guru piket dipilih untuk tindakan massal
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedOfficerKeys([])}
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer transition-colors"
+            >
+              Batalkan Pilihan
+            </button>
+            <button
+              type="button"
+              disabled={isBulkDeleting}
+              onClick={handleBulkDeleteOfficers}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-rose-600/25 cursor-pointer transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>
+                {isBulkDeleting ? 'Menghapus dari Database...' : `Hapus (${selectedOfficerKeys.length}) Petugas Terpilih`}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Select All Toggle for All Visible Duty Officers */}
+      {isAdmin && allVisibleOfficerKeys.length > 0 && (
+        <div className="flex items-center justify-between px-2">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={allVisibleOfficerKeys.length > 0 && selectedOfficerKeys.length === allVisibleOfficerKeys.length}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  setSelectedOfficerKeys(allVisibleOfficerKeys);
+                } else {
+                  setSelectedOfficerKeys([]);
+                }
+              }}
+              className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+            />
+            <span>Pilih Semua Petugas Piket yang Tampil ({allVisibleOfficerKeys.length})</span>
+          </label>
+        </div>
+      )}
+
       {/* 3. Daily Duty Schedule Grid Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {displayedDays.map((dayData) => {
@@ -493,16 +598,38 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                   </div>
                 </div>
 
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddModal(dayData.hari)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Tambah</span>
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {isAdmin && dayPetugas.length > 0 && (
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold text-slate-600 cursor-pointer select-none mr-1 bg-white/70 px-2.5 py-1 rounded-lg border border-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={dayPetugas.every((p) => selectedOfficerKeys.includes(`${dayData.hari}___${p.id}`))}
+                        onChange={(e) => {
+                          const keys = dayPetugas.map((p) => `${dayData.hari}___${p.id}`);
+                          if (e.target.checked) {
+                            setSelectedOfficerKeys((prev) => Array.from(new Set([...prev, ...keys])));
+                          } else {
+                            setSelectedOfficerKeys((prev) => prev.filter((k) => !keys.includes(k)));
+                          }
+                        }}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+                        title={`Pilih semua petugas hari ${dayData.hari}`}
+                      />
+                      <span className="hidden sm:inline text-xs">Pilih Hari Ini</span>
+                    </label>
+                  )}
+
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenAddModal(dayData.hari)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Tambah</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Duty Teachers List */}
@@ -522,76 +649,99 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                     )}
                   </div>
                 ) : (
-                  dayPetugas.map((officer) => (
-                    <div
-                      key={officer.id}
-                      className="py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-                    >
-                      <div className="flex items-start gap-3 min-w-0">
-                        {/* Avatar */}
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
-                          {officer.nama.charAt(0)}
-                        </div>
+                  dayPetugas.map((officer) => {
+                    const officerKey = `${dayData.hari}___${officer.id}`;
+                    const isOfficerSelected = selectedOfficerKeys.includes(officerKey);
 
-                        <div className="min-w-0">
-                          <h4 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
-                            {officer.nama}
-                          </h4>
-                          
-                          <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
-                              {officer.peran || 'Petugas Piket'}
-                            </span>
-                            <span className="text-[10px] font-mono text-slate-400">
-                              NIP: {officer.nip || '-'}
-                            </span>
+                    return (
+                      <div
+                        key={officer.id}
+                        className={`py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group px-2 rounded-xl transition-colors ${
+                          isOfficerSelected ? 'bg-rose-50/60 ring-1 ring-rose-200' : ''
+                        }`}
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          {isAdmin && (
+                            <input
+                              type="checkbox"
+                              checked={isOfficerSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedOfficerKeys((prev) => [...prev, officerKey]);
+                                } else {
+                                  setSelectedOfficerKeys((prev) => prev.filter((k) => k !== officerKey));
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer shrink-0 mt-3"
+                              title="Pilih petugas ini"
+                            />
+                          )}
+
+                          {/* Avatar */}
+                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                            {officer.nama.charAt(0)}
                           </div>
 
-                          <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1.5 flex-wrap">
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-slate-400" />
-                              <span>{officer.jamMulai || '06:30'} - {officer.jamSelesai || '14:30'} WIB</span>
-                            </span>
+                          <div className="min-w-0">
+                            <h4 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                              {officer.nama}
+                            </h4>
+                            
+                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
+                                {officer.peran || 'Petugas Piket'}
+                              </span>
+                              <span className="text-[10px] font-mono text-slate-400">
+                                NIP: {officer.nip || '-'}
+                              </span>
+                            </div>
 
-                            {officer.nomorHp && (
-                              <a
-                                href={`https://wa.me/${officer.nomorHp.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold"
-                                title="Hubungi via WhatsApp"
-                              >
-                                <Phone className="w-3 h-3" />
-                                <span>{officer.nomorHp}</span>
-                              </a>
-                            )}
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1.5 flex-wrap">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-slate-400" />
+                                <span>{officer.jamMulai || '06:30'} - {officer.jamSelesai || '14:30'} WIB</span>
+                              </span>
+
+                              {officer.nomorHp && (
+                                <a
+                                  href={`https://wa.me/${officer.nomorHp.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="flex items-center gap-1 text-emerald-700 hover:text-emerald-800 font-semibold"
+                                  title="Hubungi via WhatsApp"
+                                >
+                                  <Phone className="w-3 h-3" />
+                                  <span>{officer.nomorHp}</span>
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
+
+                        {/* Action buttons */}
+                        {isAdmin && (
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(dayData.hari, officer)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors cursor-pointer"
+                              title="Edit Guru Piket"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteOfficer(dayData.hari, officer.id, officer.nama)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
+                              title="Hapus dari Jadwal"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        )}
                       </div>
-
-                      {/* Action buttons */}
-                      {isAdmin && (
-                        <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEditModal(dayData.hari, officer)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-200 transition-colors cursor-pointer"
-                            title="Edit Guru Piket"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteOfficer(dayData.hari, officer.id, officer.nama)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors cursor-pointer"
-                            title="Hapus dari Jadwal"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 

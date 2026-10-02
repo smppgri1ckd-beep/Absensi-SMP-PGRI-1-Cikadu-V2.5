@@ -16,6 +16,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { Student, StudentGradeItem } from '../types';
+import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { getTeacherAccessibleClasses, isClassMatch, isTeacherWaliKelas } from '../utils/teacherFilter';
 
@@ -26,6 +27,7 @@ interface GradeManagementModalProps {
   grades: StudentGradeItem[];
   onSaveGrade: (grade: StudentGradeItem) => Promise<void>;
   onDeleteGrade: (id: string) => Promise<void>;
+  onBulkDeleteGrades?: (ids: string[]) => Promise<void>;
   currentTeacherName?: string;
   defaultMapel?: string;
 }
@@ -54,11 +56,14 @@ export const GradeManagementModal: React.FC<GradeManagementModalProps> = ({
   grades,
   onSaveGrade,
   onDeleteGrade,
+  onBulkDeleteGrades,
   currentTeacherName,
   defaultMapel,
 }) => {
   const { user, actingAsPiket } = useAuth();
   const isTeacher = user?.role === 'guru' && !actingAsPiket;
+  const [selectedGradeIds, setSelectedGradeIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Teacher classes
   const teacherClasses = React.useMemo(() => {
@@ -173,6 +178,28 @@ export const GradeManagementModal: React.FC<GradeManagementModalProps> = ({
       g.mapel.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesClass && matchesSearch;
   });
+
+  const handleBulkDelete = async () => {
+    if (selectedGradeIds.length === 0) return;
+    const count = selectedGradeIds.length;
+    if (!confirm(`YAKIN INGIN MENGHAPUS ${count} DATA NILAI SISWA TERPILIH?\n\nData nilai terpilih akan benar-benar dihapus permanen dari database (Firestore & Penyimpanan Lokal). Tindakan ini tidak dapat dibatalkan.`)) {
+      return;
+    }
+    setIsBulkDeleting(true);
+    try {
+      if (onBulkDeleteGrades) {
+        await onBulkDeleteGrades(selectedGradeIds);
+      } else {
+        await DatabaseService.bulkDeleteStudentGrades(selectedGradeIds);
+      }
+      setSelectedGradeIds([]);
+    } catch (err) {
+      console.error('Failed to bulk delete student grades', err);
+      alert('Gagal menghapus data nilai. Silakan coba lagi.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   return (
     <div 
@@ -372,10 +399,55 @@ export const GradeManagementModal: React.FC<GradeManagementModalProps> = ({
               </div>
             </div>
 
+            {/* Bulk Delete Floating/Action Bar */}
+            {selectedGradeIds.length > 0 && (
+              <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2 shadow-sm animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-2 text-rose-950 font-bold text-xs">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
+                  <span>
+                    <strong>{selectedGradeIds.length}</strong> nilai dipilih
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedGradeIds([])}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isBulkDeleting}
+                    onClick={handleBulkDelete}
+                    className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1 shadow-xs cursor-pointer transition-all"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{isBulkDeleting ? 'Menghapus...' : `Hapus (${selectedGradeIds.length})`}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-2xl border border-slate-200 overflow-hidden max-h-[500px] overflow-y-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-200 font-bold uppercase tracking-wider text-[10px] text-slate-500 sticky top-0 z-10">
                   <tr>
+                    <th className="py-2.5 px-3 w-8 text-center">
+                      <input
+                        type="checkbox"
+                        checked={filteredGrades.length > 0 && selectedGradeIds.length === filteredGrades.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedGradeIds(filteredGrades.map((g) => g.id));
+                          } else {
+                            setSelectedGradeIds([]);
+                          }
+                        }}
+                        className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        title="Pilih Semua Nilai"
+                      />
+                    </th>
                     <th className="py-2.5 px-3">Siswa</th>
                     <th className="py-2.5 px-3">Mapel & Tugas</th>
                     <th className="py-2.5 px-3 text-center">Nilai</th>
@@ -385,15 +457,36 @@ export const GradeManagementModal: React.FC<GradeManagementModalProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {filteredGrades.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-slate-400 text-xs">
+                      <td colSpan={5} className="py-8 text-center text-slate-400 text-xs">
                         Belum ada data nilai di kelas ini.
                       </td>
                     </tr>
                   ) : (
                     filteredGrades.map((g) => {
                       const student = students.find((s) => s.nisn === g.nisn);
+                      const isSelected = selectedGradeIds.includes(g.id);
+
                       return (
-                        <tr key={g.id} className="hover:bg-slate-50 transition-colors">
+                        <tr 
+                          key={g.id} 
+                          className={`hover:bg-slate-50 transition-colors ${
+                            isSelected ? 'bg-rose-50/40' : ''
+                          }`}
+                        >
+                          <td className="py-2.5 px-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedGradeIds((prev) => [...prev, g.id]);
+                                } else {
+                                  setSelectedGradeIds((prev) => prev.filter((id) => id !== g.id));
+                                }
+                              }}
+                              className="w-3.5 h-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                          </td>
                           <td className="py-2.5 px-3">
                             <p className="font-bold text-slate-900">{student?.nama || g.nisn}</p>
                             <p className="text-[10px] text-slate-400 font-mono">Kelas {student?.kelas || '-'}</p>

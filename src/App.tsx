@@ -215,6 +215,68 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [schoolConfig, calculateCurrentSession]);
 
+  // =========================================================================
+  // DEBOUNCE MECHANISM UNTUK PENULISAN DATABASE (Mencegah lonjakan kueri Firestore)
+  // =========================================================================
+  interface PendingDebounce {
+    timer: NodeJS.Timeout;
+    fn: () => Promise<void>;
+    resolve: () => void;
+    reject: (err: unknown) => void;
+  }
+
+  const debounceMapRef = useRef<Map<string, PendingDebounce>>(new Map());
+
+  const debouncedDbWrite = useCallback((key: string, fn: () => Promise<void>, delayMs = 400): Promise<void> => {
+    const existing = debounceMapRef.current.get(key);
+    if (existing) {
+      clearTimeout(existing.timer);
+      existing.resolve(); // Selesaikan panggilan sebelumnya yang digantikan oleh input terbaru
+      debounceMapRef.current.delete(key);
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(async () => {
+        debounceMapRef.current.delete(key);
+        try {
+          await fn();
+          resolve();
+        } catch (err) {
+          console.error(`Gagal penulisan debounce Firestore untuk [${key}]:`, err);
+          reject(err);
+        }
+      }, delayMs);
+
+      debounceMapRef.current.set(key, { timer, fn, resolve, reject });
+    });
+  }, []);
+
+  const cancelDebouncedWrite = useCallback((key: string) => {
+    const existing = debounceMapRef.current.get(key);
+    if (existing) {
+      clearTimeout(existing.timer);
+      existing.resolve();
+      debounceMapRef.current.delete(key);
+    }
+  }, []);
+
+  // Flush seluruh penulisan yang tertunda saat aplikasi ditutup / unmount
+  useEffect(() => {
+    const flushAll = () => {
+      debounceMapRef.current.forEach((task) => {
+        clearTimeout(task.timer);
+        task.fn().catch((err) => console.error('Error saat flush penulisan:', err));
+      });
+      debounceMapRef.current.clear();
+    };
+
+    window.addEventListener('beforeunload', flushAll);
+    return () => {
+      window.removeEventListener('beforeunload', flushAll);
+      flushAll();
+    };
+  }, []);
+
   // Record handlers
   const handleAddRecord = async (record: AttendanceRecord) => {
     setRecords((prev) => {
@@ -237,12 +299,22 @@ function AppContent() {
     setRecords((prev) =>
       prev.map((r) => (r.id === id ? { ...r, status, catatan: catatan ?? r.catatan } : r))
     );
-    await DatabaseService.updateAttendanceStatus(id, status, catatan);
+    await debouncedDbWrite(`attendance_status_${id}`, async () => {
+      await DatabaseService.updateAttendanceStatus(id, status, catatan);
+    }, 350);
   };
 
   const handleDeleteRecord = async (id: string) => {
+    cancelDebouncedWrite(`attendance_status_${id}`);
     setRecords((prev) => prev.filter((r) => r.id !== id));
     await DatabaseService.deleteAttendanceRecord(id);
+  };
+
+  const handleBulkDeleteRecords = async (ids: string[]) => {
+    ids.forEach((id) => cancelDebouncedWrite(`attendance_status_${id}`));
+    const idSet = new Set(ids);
+    setRecords((prev) => prev.filter((r) => !idSet.has(r.id)));
+    await DatabaseService.bulkDeleteAttendanceRecords(ids);
   };
 
   const handleBulkSaveAttendance = async (recordsToSave: AttendanceRecord[]) => {
@@ -255,7 +327,7 @@ function AppContent() {
     await DatabaseService.bulkSaveAttendanceRecords(recordsToSave);
   };
 
-  // Student handlers
+  // Student handlers (Debounced pada penulisan database, State instan)
   const handleSaveStudent = async (student: Student) => {
     setStudents((prev) => {
       const idx = prev.findIndex((s) => s.nisn === student.nisn);
@@ -266,12 +338,22 @@ function AppContent() {
       }
       return [...prev, student];
     });
-    await DatabaseService.saveStudent(student);
+    await debouncedDbWrite(`student_${student.nisn}`, async () => {
+      await DatabaseService.saveStudent(student);
+    }, 400);
   };
 
   const handleDeleteStudent = async (nisn: string) => {
+    cancelDebouncedWrite(`student_${nisn}`);
     setStudents((prev) => prev.filter((s) => s.nisn !== nisn));
     await DatabaseService.deleteStudent(nisn);
+  };
+
+  const handleBulkDeleteStudents = async (nisns: string[]) => {
+    nisns.forEach((n) => cancelDebouncedWrite(`student_${n}`));
+    const nisnSet = new Set(nisns);
+    setStudents((prev) => prev.filter((s) => !nisnSet.has(s.nisn)));
+    await DatabaseService.bulkDeleteStudents(nisns);
   };
 
   const handleBulkSaveStudents = async (newStudents: Student[]) => {
@@ -280,7 +362,7 @@ function AppContent() {
     setStudents(updated);
   };
 
-  // Teacher handlers
+  // Teacher handlers (Debounced pada penulisan database, State instan)
   const handleSaveTeacher = async (teacher: TeacherUser) => {
     setTeachers((prev) => {
       const idx = prev.findIndex((t) => t.id === teacher.id);
@@ -291,15 +373,25 @@ function AppContent() {
       }
       return [...prev, teacher];
     });
-    await DatabaseService.saveTeacher(teacher);
+    await debouncedDbWrite(`teacher_${teacher.id}`, async () => {
+      await DatabaseService.saveTeacher(teacher);
+    }, 400);
   };
 
   const handleDeleteTeacher = async (id: string) => {
+    cancelDebouncedWrite(`teacher_${id}`);
     setTeachers((prev) => prev.filter((t) => t.id !== id));
     await DatabaseService.deleteTeacher(id);
   };
 
-  // Teaching Journal handlers
+  const handleBulkDeleteTeachers = async (ids: string[]) => {
+    ids.forEach((id) => cancelDebouncedWrite(`teacher_${id}`));
+    const idSet = new Set(ids);
+    setTeachers((prev) => prev.filter((t) => !idSet.has(t.id)));
+    await DatabaseService.bulkDeleteTeachers(ids);
+  };
+
+  // Teaching Journal handlers (Debounced pada penulisan database, State instan)
   const handleSaveJournal = async (journal: TeachingJournal, classAttendanceRecords?: AttendanceRecord[]) => {
     setJournals((prev) => {
       const idx = prev.findIndex((j) => j.id === journal.id);
@@ -310,32 +402,53 @@ function AppContent() {
       }
       return [journal, ...prev];
     });
-    await DatabaseService.saveTeachingJournal(journal);
 
     if (classAttendanceRecords && classAttendanceRecords.length > 0) {
-      await DatabaseService.bulkSaveAttendanceRecords(classAttendanceRecords);
-      const updatedRecords = await DatabaseService.getAttendanceRecords();
-      setRecords(updatedRecords);
+      setRecords((prev) => {
+        const map = new Map<string, AttendanceRecord>();
+        prev.forEach((r) => map.set(r.id, r));
+        classAttendanceRecords.forEach((r) => map.set(r.id, r));
+        return Array.from(map.values());
+      });
     }
+
+    await debouncedDbWrite(`journal_${journal.id}`, async () => {
+      await DatabaseService.saveTeachingJournal(journal);
+      if (classAttendanceRecords && classAttendanceRecords.length > 0) {
+        await DatabaseService.bulkSaveAttendanceRecords(classAttendanceRecords);
+      }
+    }, 400);
   };
 
   const handleDeleteJournal = async (id: string) => {
+    cancelDebouncedWrite(`journal_${id}`);
     setJournals((prev) => prev.filter((j) => j.id !== id));
     await DatabaseService.deleteTeachingJournal(id);
   };
 
-  // HEB & Config handlers
+  const handleBulkDeleteJournals = async (ids: string[]) => {
+    ids.forEach((id) => cancelDebouncedWrite(`journal_${id}`));
+    const idSet = new Set(ids);
+    setJournals((prev) => prev.filter((j) => !idSet.has(j.id)));
+    await DatabaseService.bulkDeleteTeachingJournals(ids);
+  };
+
+  // HEB & Config handlers (Debounced pada penulisan database, State instan)
   const handleSaveKalenderHeb = async (heb: KalenderHeb) => {
     setKalenderHeb(heb);
-    await DatabaseService.saveKalenderHeb(heb);
+    await debouncedDbWrite('kalender_heb', async () => {
+      await DatabaseService.saveKalenderHeb(heb);
+    }, 450);
   };
 
   const handleSaveConfig = async (newConfig: SchoolConfig) => {
     setSchoolConfig(newConfig);
-    await DatabaseService.saveSchoolConfig(newConfig);
+    await debouncedDbWrite('school_config', async () => {
+      await DatabaseService.saveSchoolConfig(newConfig);
+    }, 450);
   };
 
-  // Grade Handlers
+  // Grade Handlers (Debounced pada penulisan database, State instan)
   const handleSaveGrade = async (grade: StudentGradeItem) => {
     setGrades((prev) => {
       const idx = prev.findIndex((g) => g.id === grade.id);
@@ -346,18 +459,30 @@ function AppContent() {
       }
       return [grade, ...prev];
     });
-    await DatabaseService.saveStudentGrade(grade);
+    await debouncedDbWrite(`grade_${grade.id}`, async () => {
+      await DatabaseService.saveStudentGrade(grade);
+    }, 400);
   };
 
   const handleDeleteGrade = async (id: string) => {
+    cancelDebouncedWrite(`grade_${id}`);
     setGrades((prev) => prev.filter((g) => g.id !== id));
     await DatabaseService.deleteStudentGrade(id);
+  };
+
+  const handleBulkDeleteGrades = async (ids: string[]) => {
+    ids.forEach((id) => cancelDebouncedWrite(`grade_${id}`));
+    const idSet = new Set(ids);
+    setGrades((prev) => prev.filter((g) => !idSet.has(g.id)));
+    await DatabaseService.bulkDeleteStudentGrades(ids);
   };
 
   // Leave Request Handlers
   const handleSubmitLeaveRequest = async (req: LeaveRequest) => {
     setLeaveRequests((prev) => [req, ...prev]);
-    await DatabaseService.saveLeaveRequest(req);
+    await debouncedDbWrite(`leave_${req.id}`, async () => {
+      await DatabaseService.saveLeaveRequest(req);
+    }, 400);
   };
 
   const handleUpdateLeaveStatus = async (
@@ -375,18 +500,23 @@ function AppContent() {
   };
 
   const handleDeleteLeaveRequest = async (id: string) => {
+    cancelDebouncedWrite(`leave_${id}`);
     setLeaveRequests((prev) => prev.filter((r) => r.id !== id));
     await DatabaseService.deleteLeaveRequest(id);
   };
 
+  const handleBulkDeleteLeaveRequests = async (ids: string[]) => {
+    ids.forEach((id) => cancelDebouncedWrite(`leave_${id}`));
+    const idSet = new Set(ids);
+    setLeaveRequests((prev) => prev.filter((r) => !idSet.has(r.id)));
+    await DatabaseService.bulkDeleteLeaveRequests(ids);
+  };
+
   const handleSaveJadwalPiket = async (updated: JadwalPiketHarian[]) => {
-    try {
+    setJadwalPiket(updated);
+    await debouncedDbWrite('jadwal_piket', async () => {
       await DatabaseService.saveJadwalPiket(updated);
-      setJadwalPiket(updated);
-    } catch (e) {
-      console.error('Error saving jadwal piket', e);
-      throw e;
-    }
+    }, 400);
   };
 
   const pendingLeaveCount = leaveRequests.filter((r) => r.statusPengajuan === 'Menunggu').length;
@@ -547,6 +677,7 @@ function AppContent() {
                   teachers={teachers}
                   onUpdateStatus={handleUpdateRecordStatus}
                   onDeleteRecord={handleDeleteRecord}
+                  onBulkDeleteRecords={handleBulkDeleteRecords}
                   onAddManualRecord={handleAddRecord}
                   onRefresh={loadAllData}
                   onOpenLogin={() => setIsLoginOpen(true)}
@@ -638,6 +769,7 @@ function AppContent() {
                     teachers={teachers}
                     onSaveJournal={handleSaveJournal}
                     onDeleteJournal={handleDeleteJournal}
+                    onBulkDeleteJournals={handleBulkDeleteJournals}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
@@ -668,6 +800,7 @@ function AppContent() {
                     students={students}
                     onSaveStudent={handleSaveStudent}
                     onDeleteStudent={handleDeleteStudent}
+                    onBulkDeleteStudents={handleBulkDeleteStudents}
                     onBulkSaveStudents={handleBulkSaveStudents}
                     schoolConfig={schoolConfig}
                     onOpenWhatsApp={(st) => {
@@ -709,6 +842,7 @@ function AppContent() {
                     teachers={teachers}
                     onSaveTeacher={handleSaveTeacher}
                     onDeleteTeacher={handleDeleteTeacher}
+                    onBulkDeleteTeachers={handleBulkDeleteTeachers}
                     schoolConfig={schoolConfig}
                   />
                 ) : (
@@ -887,6 +1021,7 @@ function AppContent() {
           requests={leaveRequests}
           onUpdateStatus={handleUpdateLeaveStatus}
           onDeleteRequest={handleDeleteLeaveRequest}
+          onBulkDeleteRequests={handleBulkDeleteLeaveRequests}
           currentUserName={user?.nama || 'Petugas Piket'}
         />
 
@@ -898,6 +1033,7 @@ function AppContent() {
           grades={grades}
           onSaveGrade={handleSaveGrade}
           onDeleteGrade={handleDeleteGrade}
+          onBulkDeleteGrades={handleBulkDeleteGrades}
           currentTeacherName={user?.nama}
           defaultMapel={user?.mapel}
         />

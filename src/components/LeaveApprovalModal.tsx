@@ -19,6 +19,7 @@ import {
   GraduationCap
 } from 'lucide-react';
 import { LeaveRequest, LeaveRequestStatus } from '../types';
+import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { filterLeaveRequestsForTeacher, isTeacherWaliKelas } from '../utils/teacherFilter';
 
@@ -28,6 +29,7 @@ interface LeaveApprovalModalProps {
   requests: LeaveRequest[];
   onUpdateStatus: (id: string, status: LeaveRequestStatus, catatanPiket?: string) => Promise<void>;
   onDeleteRequest?: (id: string) => Promise<void>;
+  onBulkDeleteRequests?: (ids: string[]) => Promise<void>;
   currentUserName: string;
 }
 
@@ -37,6 +39,7 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
   requests,
   onUpdateStatus,
   onDeleteRequest,
+  onBulkDeleteRequests,
   currentUserName,
 }) => {
   const { user, actingAsPiket } = useAuth();
@@ -47,11 +50,35 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [actionNotes, setActionNotes] = useState<Record<string, string>>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Scoped requests for teacher
   const scopedRequests = useMemo(() => {
     return filterLeaveRequestsForTeacher(requests, user, actingAsPiket);
   }, [requests, user, actingAsPiket]);
+
+  const handleBulkDelete = async () => {
+    if (selectedRequestIds.length === 0) return;
+    const count = selectedRequestIds.length;
+    if (!confirm(`YAKIN INGIN MENGHAPUS ${count} PERMOHONAN IZIN/SAKIT TERPILIH?\n\nData permohonan akan benar-benar dihapus permanen dari database (Firestore & Penyimpanan Lokal). Tindakan ini tidak dapat dibatalkan.`)) {
+      return;
+    }
+    setIsBulkDeleting(true);
+    try {
+      if (onBulkDeleteRequests) {
+        await onBulkDeleteRequests(selectedRequestIds);
+      } else {
+        await DatabaseService.bulkDeleteLeaveRequests(selectedRequestIds);
+      }
+      setSelectedRequestIds([]);
+    } catch (err) {
+      console.error('Failed to bulk delete leave requests', err);
+      alert('Gagal menghapus permohonan. Silakan coba lagi.');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -169,6 +196,59 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
           </div>
         </div>
 
+        {/* Bulk Delete Floating/Action Bar */}
+        {selectedRequestIds.length > 0 && (
+          <div className="mx-4 sm:mx-6 mt-4 bg-rose-50 border-2 border-rose-300 rounded-3xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
+            <div className="flex items-center gap-2.5 text-rose-950 font-bold text-xs sm:text-sm">
+              <span className="w-3 h-3 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
+              <span>
+                <strong>{selectedRequestIds.length}</strong> permohonan dipilih untuk tindakan massal
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedRequestIds([])}
+                className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer transition-colors"
+              >
+                Batalkan Pilihan
+              </button>
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleBulkDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-rose-600/25 cursor-pointer transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>
+                  {isBulkDeleting ? 'Menghapus dari Database...' : `Hapus (${selectedRequestIds.length}) Permohonan Terpilih`}
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Select All Toggle for Requests */}
+        {filteredRequests.length > 0 && (
+          <div className="px-4 sm:px-6 pt-3 flex items-center justify-between">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={selectedRequestIds.length === filteredRequests.length}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedRequestIds(filteredRequests.map((r) => r.id));
+                  } else {
+                    setSelectedRequestIds([]);
+                  }
+                }}
+                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+              />
+              <span>Pilih Semua Permohonan ({filteredRequests.length})</span>
+            </label>
+          </div>
+        )}
+
         {/* Requests List */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4">
           {filteredRequests.length === 0 ? (
@@ -186,12 +266,15 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
               const isPending = req.statusPengajuan === 'Menunggu';
               const isApproved = req.statusPengajuan === 'Disetujui';
               const isRejected = req.statusPengajuan === 'Ditolak';
+              const isSelected = selectedRequestIds.includes(req.id);
 
               return (
                 <div
                   key={req.id}
                   className={`p-4 sm:p-5 rounded-3xl border transition-all ${
-                    isPending
+                    isSelected
+                      ? 'border-rose-400 ring-2 ring-rose-300/40 bg-rose-50/20'
+                      : isPending
                       ? 'bg-amber-50/40 border-amber-200 shadow-xs'
                       : isApproved
                       ? 'bg-white border-emerald-200'
@@ -203,6 +286,19 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
                     {/* Left: Student & Reason Info */}
                     <div className="space-y-2 flex-1">
                       <div className="flex items-center flex-wrap gap-2">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedRequestIds((prev) => [...prev, req.id]);
+                            } else {
+                              setSelectedRequestIds((prev) => prev.filter((id) => id !== req.id));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer mr-1"
+                          title="Pilih permohonan ini"
+                        />
                         <span className={`px-2.5 py-0.5 rounded-full font-bold text-xs border ${
                           req.jenis === 'Sakit'
                             ? 'bg-rose-100 text-rose-800 border-rose-200'

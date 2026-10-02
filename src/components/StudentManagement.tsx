@@ -25,6 +25,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import { Student, SchoolConfig } from '../types';
+import { DatabaseService } from '../services/db';
 import { downloadQrZipForStudents, generateQrDataUrl } from '../utils/qr';
 import { exportStudentTemplateExcel } from '../utils/exportExcel';
 import { generateStudentListPdf } from '../utils/exportPdf';
@@ -42,6 +43,7 @@ interface StudentManagementProps {
   students: Student[];
   onSaveStudent: (student: Student) => Promise<void>;
   onDeleteStudent: (nisn: string) => Promise<void>;
+  onBulkDeleteStudents?: (nisns: string[]) => Promise<void>;
   onBulkSaveStudents: (newStudents: Student[]) => Promise<void>;
   schoolConfig: SchoolConfig;
   onOpenWhatsApp?: (student: Student) => void;
@@ -52,6 +54,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   students,
   onSaveStudent,
   onDeleteStudent,
+  onBulkDeleteStudents,
   onBulkSaveStudents,
   schoolConfig,
   onOpenWhatsApp,
@@ -65,6 +68,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isEditingStudent, setIsEditingStudent] = useState(false);
+  const [selectedNisns, setSelectedNisns] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   // Form State
   const [formNisn, setFormNisn] = useState('');
@@ -226,6 +231,29 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const handleDelete = async (nisn: string, nama: string) => {
     if (confirm(`Yakin ingin menghapus data siswa "${nama}" (NISN: ${nisn})?`)) {
       await onDeleteStudent(nisn);
+      setSelectedNisns((prev) => prev.filter((n) => n !== nisn));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedNisns.length === 0) return;
+    const count = selectedNisns.length;
+    if (!confirm(`YAKIN INGIN MENGHAPUS ${count} DATA SISWA TERPILIH?\n\nSetiap data yang dihapus akan benar-benar hilang dari database sekolah (Firestore & Penyimpanan Lokal). Tindakan ini permanen.`)) {
+      return;
+    }
+    setIsBulkDeleting(true);
+    try {
+      if (onBulkDeleteStudents) {
+        await onBulkDeleteStudents(selectedNisns);
+      } else {
+        await DatabaseService.bulkDeleteStudents(selectedNisns);
+      }
+      setSelectedNisns([]);
+    } catch (err) {
+      console.error('Failed to bulk delete students', err);
+      alert('Gagal menghapus data siswa. Silakan coba lagi.');
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -427,12 +455,63 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
         </div>
       </div>
 
+      {/* Bulk Delete Floating/Action Bar */}
+      {selectedNisns.length > 0 && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-3xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-md animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5 text-rose-950 font-bold text-xs sm:text-sm">
+            <span className="w-3 h-3 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
+            <span>
+              <strong>{selectedNisns.length}</strong> siswa dipilih untuk tindakan massal
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedNisns([])}
+              className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 text-xs font-bold cursor-pointer transition-colors"
+            >
+              Batalkan Pilihan
+            </button>
+            {canManage && (
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={handleBulkDelete}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black flex items-center gap-1.5 shadow-md shadow-rose-600/25 cursor-pointer transition-all"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>
+                  {isBulkDeleting ? 'Menghapus dari Database...' : `Hapus (${selectedNisns.length}) Siswa Terpilih`}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Students Table */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
               <tr>
+                {canManage && (
+                  <th className="py-3 px-4 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={filteredStudents.length > 0 && selectedNisns.length === filteredStudents.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedNisns(filteredStudents.map((s) => s.nisn));
+                        } else {
+                          setSelectedNisns([]);
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                      title="Pilih Semua Siswa yang Tampil"
+                    />
+                  </th>
+                )}
                 <th className="py-3 px-4">No</th>
                 <th className="py-3 px-4">Foto</th>
                 <th className="py-3 px-4">NISN</th>
@@ -446,13 +525,34 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={canManage ? 9 : 8} className="py-12 text-center text-slate-400">
                     Tidak ada siswa yang sesuai kriteria pencarian.
                   </td>
                 </tr>
               ) : (
                 filteredStudents.map((s, idx) => (
-                  <tr key={s.nisn} className="hover:bg-slate-50/80 transition-colors">
+                  <tr 
+                    key={s.nisn} 
+                    className={`hover:bg-slate-50/80 transition-colors ${
+                      selectedNisns.includes(s.nisn) ? 'bg-rose-50/40' : ''
+                    }`}
+                  >
+                    {canManage && (
+                      <td className="py-3 px-4 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedNisns.includes(s.nisn)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedNisns((prev) => [...prev, s.nisn]);
+                            } else {
+                              setSelectedNisns((prev) => prev.filter((n) => n !== s.nisn));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                        />
+                      </td>
+                    )}
                     <td className="py-3 px-4 font-medium text-slate-500">{idx + 1}</td>
                     
                     {/* Student Profile Photo Preview */}
