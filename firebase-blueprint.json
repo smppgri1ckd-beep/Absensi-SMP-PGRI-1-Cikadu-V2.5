@@ -1,0 +1,211 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Master record of a student",
+      "type": "object",
+      "properties": {
+        "nisn": { "type": "string", "description": "Nomor Induk Siswa Nasional" },
+        "nama": { "type": "string", "description": "Nama lengkap siswa" },
+        "jk": { "type": "string", "enum": ["L", "P"], "description": "Jenis kelamin" },
+        "kelas": { "type": "string", "description": "Rombongan belajar" },
+        "fotoUrl": { "type": "string", "description": "URL foto siswa atau placeholder" }
+      },
+      "required": ["nisn", "nama", "jk", "kelas"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Log record of student attendance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique key PRESENSI_NISN_DATE_SESSION" },
+        "tanggal": { "type": "string", "description": "Format YYYY-MM-DD" },
+        "waktu": { "type": "string", "description": "Format HH:mm:ss" },
+        "nisn": { "type": "string", "description": "NISN siswa" },
+        "nama": { "type": "string", "description": "Nama siswa" },
+        "kelas": { "type": "string", "description": "Kelas siswa" },
+        "sesi": { "type": "string", "enum": ["Pagi", "Siang"], "description": "Sesi presensi" },
+        "status": { "type": "string", "description": "Status kehadiran siswa" },
+        "kategori": { "type": "string", "description": "APEL atau KELAS" },
+        "mapel": { "type": "string", "description": "Mata pelajaran KBM" },
+        "pertemuanKe": { "type": "number", "description": "Pertemuan ke-N" },
+        "materiPokok": { "type": "string", "description": "Materi pokok pembelajaran" }
+      },
+      "required": ["id", "tanggal", "waktu", "nisn", "nama", "kelas", "sesi", "status"]
+    },
+    "TeachingJournal": {
+      "title": "TeachingJournal",
+      "description": "Learning session and teacher journal log per meeting",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique key for journal" },
+        "guruId": { "type": "string" },
+        "guruNama": { "type": "string" },
+        "guruNip": { "type": "string" },
+        "kelas": { "type": "string" },
+        "mapel": { "type": "string" },
+        "tanggal": { "type": "string" },
+        "pertemuanKe": { "type": "number" },
+        "jamPelajaran": { "type": "string" },
+        "materiPokok": { "type": "string" },
+        "kegiatanPembelajaran": { "type": "string" },
+        "catatanRefleksi": { "type": "string" },
+        "totalSiswa": { "type": "number" },
+        "hadir": { "type": "number" },
+        "terlambat": { "type": "number" },
+        "izin": { "type": "number" },
+        "sakit": { "type": "number" },
+        "alpa": { "type": "number" },
+        "persentaseKehadiran": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "guruId", "guruNama", "kelas", "mapel", "tanggal", "pertemuanKe", "materiPokok"]
+    },
+    "TeacherUser": {
+      "title": "TeacherUser",
+      "description": "Teacher account and subject assignment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nip": { "type": "string" },
+        "nama": { "type": "string" },
+        "username": { "type": "string" },
+        "password": { "type": "string" },
+        "mapel": { "type": "string" },
+        "waliKelas": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["id", "nama", "username", "password", "mapel"]
+    },
+    "SchoolConfig": {
+      "title": "SchoolConfig",
+      "description": "School profile and attendance scheduling configuration",
+      "type": "object",
+      "properties": {
+        "namaSekolah": { "type": "string" },
+        "npsn": { "type": "string" },
+        "kota": { "type": "string" },
+        "alamat": { "type": "string" },
+        "kontak": { "type": "string" },
+        "namaKepsek": { "type": "string" },
+        "nipKepsek": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "sistemHariSekolah": { "type": "string" },
+        "jadwal": {
+          "type": "object",
+          "properties": {
+            "pagiMulai": { "type": "string" },
+            "pagiBatasTepatWaktu": { "type": "string" },
+            "pagiBatasAkhir": { "type": "string" },
+            "siangMulai": { "type": "string" },
+            "siangBatasTepatWaktu": { "type": "string" },
+            "siangBatasAkhir": { "type": "string" },
+            "toleransiMenit": { "type": "number" }
+          }
+        }
+      },
+      "required": ["namaSekolah", "npsn", "kota", "alamat"]
+    },
+    "KalenderHeb": {
+      "title": "KalenderHeb",
+      "description": "Effective school days mapping",
+      "type": "object",
+      "properties": {
+        "kalenderData": { "type": "object", "description": "Date YYYY-MM-DD to boolean flag" }
+      },
+      "required": ["kalenderData"]
+    },
+    "StudentGrade": {
+      "title": "StudentGrade",
+      "description": "Academic scores and grades of students",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nisn": { "type": "string" },
+        "mapel": { "type": "string" },
+        "jenisPenilaian": { "type": "string" },
+        "namaPenilaian": { "type": "string" },
+        "nilai": { "type": "number" },
+        "tanggal": { "type": "string" },
+        "komentarGuru": { "type": "string" }
+      },
+      "required": ["id", "nisn", "mapel", "jenisPenilaian", "namaPenilaian", "nilai", "tanggal"]
+    },
+    "LeaveRequest": {
+      "title": "LeaveRequest",
+      "description": "Student leave or sick notification with attachments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nisn": { "type": "string" },
+        "nama": { "type": "string" },
+        "kelas": { "type": "string" },
+        "jenis": { "type": "string" },
+        "tanggalMulai": { "type": "string" },
+        "tanggalSelesai": { "type": "string" },
+        "alasan": { "type": "string" },
+        "lampiranUrl": { "type": "string" },
+        "statusPengajuan": { "type": "string" },
+        "tanggalPengajuan": { "type": "string" },
+        "disetujuiOleh": { "type": "string" },
+        "catatanPiket": { "type": "string" },
+        "kontakOrtu": { "type": "string" }
+      },
+      "required": ["id", "nisn", "nama", "kelas", "jenis", "tanggalMulai", "tanggalSelesai", "alasan", "statusPengajuan"]
+    },
+    "SchoolEvent": {
+      "title": "SchoolEvent",
+      "description": "School agenda and calendar event item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "judul": { "type": "string" },
+        "tanggalMulai": { "type": "string" },
+        "tanggalSelesai": { "type": "string" },
+        "kategori": { "type": "string" },
+        "keterangan": { "type": "string" },
+        "waktu": { "type": "string" },
+        "lokasi": { "type": "string" }
+      },
+      "required": ["id", "judul", "tanggalMulai", "kategori"]
+    }
+  },
+  "firestore": {
+    "/agenda_sekolah/{eventId}": {
+      "schema": { "$ref": "#/entities/SchoolEvent" },
+      "description": "Collection of school agenda and events"
+    },
+    "/siswa/{nisn}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Collection of enrolled students"
+    },
+    "/presensi/{presensiId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Collection of recorded student attendance"
+    },
+    "/guru_users/{teacherId}": {
+      "schema": { "$ref": "#/entities/TeacherUser" },
+      "description": "Collection of teacher accounts"
+    },
+    "/jurnal_mengajar/{journalId}": {
+      "schema": { "$ref": "#/entities/TeachingJournal" },
+      "description": "Collection of teacher learning journals and meeting logs"
+    },
+    "/pengaturan/identitas_sekolah": {
+      "schema": { "$ref": "#/entities/SchoolConfig" },
+      "description": "Document holding school profile, schedule, and settings"
+    },
+    "/kalender_heb/active": {
+      "schema": { "$ref": "#/entities/KalenderHeb" },
+      "description": "Document storing active semester effective school days"
+    },
+    "/nilai_siswa/{gradeId}": {
+      "schema": { "$ref": "#/entities/StudentGrade" },
+      "description": "Collection of student assessment grades"
+    },
+    "/permohonan_izin/{leaveId}": {
+      "schema": { "$ref": "#/entities/LeaveRequest" },
+      "description": "Collection of student leave and medical requests"
+    }
+  }
+}
