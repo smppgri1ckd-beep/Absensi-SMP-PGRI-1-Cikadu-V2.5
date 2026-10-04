@@ -28,6 +28,7 @@ import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { generateTeacherListPdf } from '../utils/exportPdf';
+import { useToast } from '../context/ToastContext';
 
 interface TeacherManagementProps {
   teachers: TeacherUser[];
@@ -77,6 +78,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
   schoolConfig,
 }) => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<'Semua' | UserRole>('Semua');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -316,6 +318,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
         password: 'edudigital',
       };
       await onSaveTeacher(updated);
+      toast.info('Kata Sandi Direset', `Kata sandi akun @${t.username} berhasil direset ke "edudigital".`);
       setFeedbackBanner(`Kata sandi akun @${t.username} berhasil direset ke "edudigital".`);
       setTimeout(() => setFeedbackBanner(null), 4000);
     }
@@ -328,6 +331,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
       status: nextStatus,
     };
     await onSaveTeacher(updated);
+    toast.info('Status Akun Diubah', `Status akun @${t.username} diubah menjadi ${nextStatus}.`);
     setFeedbackBanner(`Status akun @${t.username} diubah menjadi ${nextStatus}.`);
     setTimeout(() => setFeedbackBanner(null), 3000);
   };
@@ -361,7 +365,10 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => generateTeacherListPdf(filteredTeachers, schoolConfig)}
+            onClick={() => {
+              generateTeacherListPdf(filteredTeachers, schoolConfig);
+              toast.success('Dokumen PDF Disiapkan', 'Daftar nama tenaga pendidik resmi siap dicetak.');
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-xs rounded-xl border border-rose-200 transition-all cursor-pointer"
             title="Cetak Berkas PDF Resmi Daftar Tenaga Pendidik"
           >

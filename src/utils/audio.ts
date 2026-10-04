@@ -192,6 +192,33 @@ class SoundService {
       osc.stop(now + idx * 0.09 + 0.32);
     });
   }
+
+  // Crisp, soft confirmation chime for saving data / uploading files
+  public playSaveNotification(): void {
+    if (this.isMuted) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const notes = [587.33, 880.00]; // D5, A5
+    notes.forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+
+      gain.gain.setValueAtTime(0.001, now + idx * 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + idx * 0.07 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.07 + 0.22);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + idx * 0.07);
+      osc.stop(now + idx * 0.07 + 0.23);
+    });
+  }
 }
 
 export const soundService = new SoundService();

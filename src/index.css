@@ -304,3 +304,12 @@
     margin: 0 !important;
   }
 }
+
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}

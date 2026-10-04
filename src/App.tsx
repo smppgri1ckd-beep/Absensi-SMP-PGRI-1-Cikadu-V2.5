@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider, useToast } from './context/ToastContext';
 import { 
   Student, 
   AttendanceRecord, 
@@ -52,6 +53,7 @@ import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles } from 'lucide-rea
 
 function AppContent() {
   const { user, actingAsPiket, effectiveRole } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('kiosk');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   
@@ -203,8 +205,7 @@ function AppContent() {
         prevSessionRef.current = detected;
         setCurrentSession(detected);
         soundService.playSessionSwitch();
-        setSessionSwitchToast(`Sesi presensi otomatis dialihkan ke Sesi ${detected}!`);
-        setTimeout(() => setSessionSwitchToast(null), 5000);
+        toast.info('Sesi Presensi Dialihkan', `Sesi presensi otomatis dialihkan ke Sesi ${detected}!`);
       } else {
         setCurrentSession(detected);
       }
@@ -289,6 +290,7 @@ function AppContent() {
       return [record, ...prev];
     });
     await DatabaseService.addAttendanceRecord(record);
+    toast.success('Presensi Tercatat', `${record.nama} (${record.kelas}) tercatat ${record.status} sesi ${record.sesi}.`);
   };
 
   const handleUpdateRecordStatus = async (
@@ -302,12 +304,14 @@ function AppContent() {
     await debouncedDbWrite(`attendance_status_${id}`, async () => {
       await DatabaseService.updateAttendanceStatus(id, status, catatan);
     }, 350);
+    toast.info('Status Presensi Diperbarui', `Status kehadiran berhasil diubah menjadi ${status}.`);
   };
 
   const handleDeleteRecord = async (id: string) => {
     cancelDebouncedWrite(`attendance_status_${id}`);
     setRecords((prev) => prev.filter((r) => r.id !== id));
     await DatabaseService.deleteAttendanceRecord(id);
+    toast.delete('Presensi Dihapus', 'Data presensi berhasil dihapus.');
   };
 
   const handleBulkDeleteRecords = async (ids: string[]) => {
@@ -315,6 +319,7 @@ function AppContent() {
     const idSet = new Set(ids);
     setRecords((prev) => prev.filter((r) => !idSet.has(r.id)));
     await DatabaseService.bulkDeleteAttendanceRecords(ids);
+    toast.delete('Presensi Massal Dihapus', `${ids.length} data presensi terpilih berhasil dihapus.`);
   };
 
   const handleBulkSaveAttendance = async (recordsToSave: AttendanceRecord[]) => {
@@ -325,6 +330,7 @@ function AppContent() {
       return Array.from(map.values());
     });
     await DatabaseService.bulkSaveAttendanceRecords(recordsToSave);
+    toast.success('Presensi Rombel Disimpan', `${recordsToSave.length} data presensi apel rombel berhasil disimpan.`);
   };
 
   // Student handlers (Debounced pada penulisan database, State instan)
@@ -341,12 +347,14 @@ function AppContent() {
     await debouncedDbWrite(`student_${student.nisn}`, async () => {
       await DatabaseService.saveStudent(student);
     }, 400);
+    toast.success('Data Siswa Disimpan', `Data siswa ${student.nama} (${student.kelas}) berhasil disimpan.`);
   };
 
   const handleDeleteStudent = async (nisn: string) => {
     cancelDebouncedWrite(`student_${nisn}`);
     setStudents((prev) => prev.filter((s) => s.nisn !== nisn));
     await DatabaseService.deleteStudent(nisn);
+    toast.delete('Data Siswa Dihapus', 'Data siswa berhasil dihapus dari sistem.');
   };
 
   const handleBulkDeleteStudents = async (nisns: string[]) => {
@@ -354,12 +362,14 @@ function AppContent() {
     const nisnSet = new Set(nisns);
     setStudents((prev) => prev.filter((s) => !nisnSet.has(s.nisn)));
     await DatabaseService.bulkDeleteStudents(nisns);
+    toast.delete('Siswa Dihapus Massal', `${nisns.length} data siswa berhasil dihapus dari database.`);
   };
 
   const handleBulkSaveStudents = async (newStudents: Student[]) => {
     await DatabaseService.bulkSaveStudents(newStudents);
     const updated = await DatabaseService.getStudents();
     setStudents(updated);
+    toast.upload('Impor Siswa Berhasil', `${newStudents.length} data siswa berhasil diimpor ke database.`);
   };
 
   // Teacher handlers (Debounced pada penulisan database, State instan)
@@ -376,12 +386,14 @@ function AppContent() {
     await debouncedDbWrite(`teacher_${teacher.id}`, async () => {
       await DatabaseService.saveTeacher(teacher);
     }, 400);
+    toast.success('Akun Guru Disimpan', `Data akun ${teacher.nama} (${teacher.role === 'admin' ? 'Administrator' : teacher.mapel || 'Guru'}) berhasil disimpan.`);
   };
 
   const handleDeleteTeacher = async (id: string) => {
     cancelDebouncedWrite(`teacher_${id}`);
     setTeachers((prev) => prev.filter((t) => t.id !== id));
     await DatabaseService.deleteTeacher(id);
+    toast.delete('Akun Guru Dihapus', 'Data akun guru berhasil dihapus.');
   };
 
   const handleBulkDeleteTeachers = async (ids: string[]) => {
@@ -389,6 +401,7 @@ function AppContent() {
     const idSet = new Set(ids);
     setTeachers((prev) => prev.filter((t) => !idSet.has(t.id)));
     await DatabaseService.bulkDeleteTeachers(ids);
+    toast.delete('Akun Guru Dihapus Massal', `${ids.length} akun guru berhasil dihapus.`);
   };
 
   // Teaching Journal handlers (Debounced pada penulisan database, State instan)
@@ -418,12 +431,14 @@ function AppContent() {
         await DatabaseService.bulkSaveAttendanceRecords(classAttendanceRecords);
       }
     }, 400);
+    toast.success('Jurnal KBM Disimpan', `Jurnal pembelajaran materi "${journal.materiPokok}" berhasil disimpan.`);
   };
 
   const handleDeleteJournal = async (id: string) => {
     cancelDebouncedWrite(`journal_${id}`);
     setJournals((prev) => prev.filter((j) => j.id !== id));
     await DatabaseService.deleteTeachingJournal(id);
+    toast.delete('Jurnal KBM Dihapus', 'Jurnal pembelajaran berhasil dihapus.');
   };
 
   const handleBulkDeleteJournals = async (ids: string[]) => {
@@ -431,6 +446,7 @@ function AppContent() {
     const idSet = new Set(ids);
     setJournals((prev) => prev.filter((j) => !idSet.has(j.id)));
     await DatabaseService.bulkDeleteTeachingJournals(ids);
+    toast.delete('Jurnal Dihapus Massal', `${ids.length} jurnal pembelajaran berhasil dihapus.`);
   };
 
   // HEB & Config handlers (Debounced pada penulisan database, State instan)
@@ -439,6 +455,7 @@ function AppContent() {
     await debouncedDbWrite('kalender_heb', async () => {
       await DatabaseService.saveKalenderHeb(heb);
     }, 450);
+    toast.success('Kalender HEB Disimpan', 'Rincian hari efektif belajar berhasil diperbarui.');
   };
 
   const handleSaveConfig = async (newConfig: SchoolConfig) => {
@@ -446,6 +463,7 @@ function AppContent() {
     await debouncedDbWrite('school_config', async () => {
       await DatabaseService.saveSchoolConfig(newConfig);
     }, 450);
+    toast.success('Pengaturan Sekolah Disimpan', 'Konfigurasi sekolah dan identitas berhasil diperbarui.');
   };
 
   // Grade Handlers (Debounced pada penulisan database, State instan)
@@ -462,12 +480,15 @@ function AppContent() {
     await debouncedDbWrite(`grade_${grade.id}`, async () => {
       await DatabaseService.saveStudentGrade(grade);
     }, 400);
+    const studentName = students.find((s) => s.nisn === grade.nisn)?.nama || grade.nisn;
+    toast.success('Nilai Siswa Disimpan', `Nilai ${grade.jenisPenilaian} (${grade.namaPenilaian}) untuk ${studentName} berhasil dicatat.`);
   };
 
   const handleDeleteGrade = async (id: string) => {
     cancelDebouncedWrite(`grade_${id}`);
     setGrades((prev) => prev.filter((g) => g.id !== id));
     await DatabaseService.deleteStudentGrade(id);
+    toast.delete('Nilai Siswa Dihapus', 'Data nilai berhasil dihapus.');
   };
 
   const handleBulkDeleteGrades = async (ids: string[]) => {
@@ -475,6 +496,7 @@ function AppContent() {
     const idSet = new Set(ids);
     setGrades((prev) => prev.filter((g) => !idSet.has(g.id)));
     await DatabaseService.bulkDeleteStudentGrades(ids);
+    toast.delete('Nilai Dihapus Massal', `${ids.length} data nilai siswa berhasil dihapus.`);
   };
 
   // Leave Request Handlers
@@ -483,6 +505,7 @@ function AppContent() {
     await debouncedDbWrite(`leave_${req.id}`, async () => {
       await DatabaseService.saveLeaveRequest(req);
     }, 400);
+    toast.upload('Permohonan Izin Terkirim', `Surat izin/sakit ${req.nama} berhasil dikirim ke guru piket.`);
   };
 
   const handleUpdateLeaveStatus = async (
@@ -497,12 +520,14 @@ function AppContent() {
     // Refresh attendance records because approved leaves auto-generate attendance records
     const updatedRecords = await DatabaseService.getAttendanceRecords();
     setRecords(updatedRecords);
+    toast.info('Status Permohonan Diperbarui', `Permohonan izin/sakit telah ${status.toLowerCase()}.`);
   };
 
   const handleDeleteLeaveRequest = async (id: string) => {
     cancelDebouncedWrite(`leave_${id}`);
     setLeaveRequests((prev) => prev.filter((r) => r.id !== id));
     await DatabaseService.deleteLeaveRequest(id);
+    toast.delete('Permohonan Dihapus', 'Surat permohonan izin berhasil dihapus.');
   };
 
   const handleBulkDeleteLeaveRequests = async (ids: string[]) => {
@@ -510,6 +535,7 @@ function AppContent() {
     const idSet = new Set(ids);
     setLeaveRequests((prev) => prev.filter((r) => !idSet.has(r.id)));
     await DatabaseService.bulkDeleteLeaveRequests(ids);
+    toast.delete('Permohonan Dihapus Massal', `${ids.length} permohonan izin berhasil dihapus.`);
   };
 
   const handleSaveJadwalPiket = async (updated: JadwalPiketHarian[]) => {
@@ -517,6 +543,7 @@ function AppContent() {
     await debouncedDbWrite('jadwal_piket', async () => {
       await DatabaseService.saveJadwalPiket(updated);
     }, 400);
+    toast.success('Jadwal Piket Disimpan', 'Jadwal penugasan guru piket mingguan berhasil diperbarui.');
   };
 
   const pendingLeaveCount = leaveRequests.filter((r) => r.statusPengajuan === 'Menunggu').length;
@@ -1110,7 +1137,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AuthProvider>
   );
 }

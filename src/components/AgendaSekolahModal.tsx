@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { SchoolEventItem } from '../types';
 import { DatabaseService } from '../services/db';
+import { useToast } from '../context/ToastContext';
 
 interface AgendaSekolahModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const AgendaSekolahModal: React.FC<AgendaSekolahModalProps> = ({
   onClose,
   canManage = true,
 }) => {
+  const { toast } = useToast();
   const [events, setEvents] = useState<SchoolEventItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [isAdding, setIsAdding] = useState<boolean>(false);
@@ -87,6 +89,7 @@ export const AgendaSekolahModal: React.FC<AgendaSekolahModalProps> = ({
     if (confirm('Hapus agenda kegiatan sekolah ini?')) {
       await DatabaseService.deleteSchoolEvent(id);
       setSelectedEventIds((prev) => prev.filter((eId) => eId !== id));
+      toast.delete('Agenda Dihapus', 'Agenda kegiatan sekolah berhasil dihapus.');
     }
   };
 
@@ -100,9 +103,10 @@ export const AgendaSekolahModal: React.FC<AgendaSekolahModalProps> = ({
     try {
       await DatabaseService.bulkDeleteSchoolEvents(selectedEventIds);
       setSelectedEventIds([]);
+      toast.delete('Agenda Dihapus Massal', `${count} agenda kegiatan terpilih berhasil dihapus.`);
     } catch (err) {
       console.error('Failed to bulk delete school events', err);
-      alert('Gagal menghapus agenda kegiatan. Silakan coba lagi.');
+      toast.error('Gagal Menghapus', 'Gagal menghapus agenda kegiatan. Silakan coba lagi.');
     } finally {
       setIsBulkDeleting(false);
     }
@@ -111,7 +115,7 @@ export const AgendaSekolahModal: React.FC<AgendaSekolahModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formJudul.trim()) {
-      alert('Nama agenda kegiatan tidak boleh kosong.');
+      toast.warning('Nama Kosong', 'Nama agenda kegiatan tidak boleh kosong.');
       return;
     }
 
@@ -128,6 +132,7 @@ export const AgendaSekolahModal: React.FC<AgendaSekolahModalProps> = ({
     };
 
     await DatabaseService.saveSchoolEvent(payload);
+    toast.success('Agenda Disimpan', `Agenda "${payload.judul}" berhasil disimpan.`);
     resetForm();
   };
 

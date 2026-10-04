@@ -35,6 +35,7 @@ import { exportApelRecapExcel, exportLearningRecapExcel } from '../utils/exportE
 import { generateApelRecapPdf, generateLearningRecapPdf, generateTeachingJournalsPdf } from '../utils/exportPdf';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface ReportsProps {
   students: Student[];
@@ -56,6 +57,7 @@ export const Reports: React.FC<ReportsProps> = ({
   initialReportType,
 }) => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const now = new Date();
 
   // Active Report Category: 'apel' (Absensi Apel Pagi & Siang) OR 'kbm' (Absensi Pembelajaran Guru)
@@ -337,6 +339,13 @@ export const Reports: React.FC<ReportsProps> = ({
 
   const showNotice = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
     setExportNotice({ text, type });
+    if (type === 'success') {
+      toast.success('Laporan Siap', text);
+    } else if (type === 'error') {
+      toast.error('Gagal Mengunduh', text);
+    } else {
+      toast.info('Menyiapkan Laporan', text);
+    }
     setTimeout(() => setExportNotice(null), 4500);
   };
 

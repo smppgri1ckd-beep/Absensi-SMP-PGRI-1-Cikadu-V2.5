@@ -14,6 +14,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { Student, LeaveRequest, LeaveRequestType } from '../types';
+import { useToast } from '../context/ToastContext';
 
 interface LeaveRequestModalProps {
   isOpen: boolean;
@@ -30,6 +31,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({
   initialStudent,
   onSubmit,
 }) => {
+  const { toast } = useToast();
   const todayStr = new Date().toISOString().split('T')[0];
   const [selectedNisn, setSelectedNisn] = useState<string>(initialStudent?.nisn || (students[0]?.nisn || ''));
   const [jenis, setJenis] = useState<LeaveRequestType>('Sakit');
@@ -59,7 +61,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Mohon pilih file foto gambar (JPG, PNG, atau WebP).');
+      toast.warning('Format Salah', 'Mohon pilih file foto gambar (JPG, PNG, atau WebP).');
       return;
     }
 
@@ -93,6 +95,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({
         } else {
           setLampiranUrl(dataUrl);
         }
+        toast.upload('Berkas Surat Diunggah', 'Foto surat dokter/izin berhasil dimuat.');
       };
       img.src = dataUrl;
     };
@@ -101,6 +104,7 @@ export const LeaveRequestModal: React.FC<LeaveRequestModalProps> = ({
 
   const handleUsePresetDoctorLetter = () => {
     setLampiranUrl('https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=600&auto=format&fit=crop&q=80');
+    toast.upload('Contoh Surat Dimuat', 'Surat keterangan dokter contoh berhasil diterapkan.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

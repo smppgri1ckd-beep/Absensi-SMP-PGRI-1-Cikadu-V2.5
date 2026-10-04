@@ -31,6 +31,7 @@ import { exportStudentTemplateExcel } from '../utils/exportExcel';
 import { generateStudentListPdf } from '../utils/exportPdf';
 import { useAuth } from '../context/AuthContext';
 import { SchoolLogo } from '../assets/schoolLogo';
+import { useToast } from '../context/ToastContext';
 import { 
   filterStudentsForTeacher, 
   getTeacherAccessibleClasses, 
@@ -61,6 +62,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   onOpenReportCard,
 }) => {
   const { user, actingAsPiket } = useAuth();
+  const { toast } = useToast();
   const isTeacher = user?.role === 'guru' && !actingAsPiket;
 
   // Filter State
@@ -146,6 +148,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
     if (file.size > 2 * 1024 * 1024) {
       setModalError('Ukuran foto maksimal 2MB. Silakan gunakan foto yang lebih kecil.');
+      toast.warning('Ukuran Foto Terlalu Besar', 'Maksimal ukuran foto adalah 2MB.');
       return;
     }
     setModalError(null);
@@ -154,6 +157,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     reader.onload = (uploadEvt) => {
       if (typeof uploadEvt.target?.result === 'string') {
         setFormFotoUrl(uploadEvt.target.result);
+        toast.upload('Foto Profil Diunggah', 'File foto profil siswa berhasil dipilih.');
       }
     };
     reader.readAsDataURL(file);
@@ -181,6 +185,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    toast.upload('Memproses Berkas Excel', 'Membaca dan memvalidasi baris data siswa...');
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
@@ -216,11 +221,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           setTimeout(() => setImportStatus(null), 5000);
         } else {
           setImportStatus('Tidak ada data valid yang ditemukan pada file.');
+          toast.warning('Berkas Kosong', 'Tidak ada data siswa valid yang ditemukan pada file Excel.');
           setTimeout(() => setImportStatus(null), 5000);
         }
       } catch (err) {
         console.error('Error importing file:', err);
         setImportStatus('Gagal membaca file Excel. Pastikan format kolom sesuai template.');
+        toast.error('Gagal Membaca File', 'Pastikan format kolom Excel sesuai dengan template.');
         setTimeout(() => setImportStatus(null), 5000);
       }
     };
@@ -263,11 +270,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     link.href = dataUrl;
     link.download = `QR_${student.kelas}_${student.nisn}_${student.nama.replace(/\s+/g, '_')}.png`;
     link.click();
+    toast.success('QR Code Diunduh', `Kartu QR barcode untuk ${student.nama} berhasil diunduh.`);
   };
 
   const handleDownloadClassZip = async () => {
     const label = selectedClass === 'Semua' ? 'SEMUA_KELAS' : `KELAS_${selectedClass}`;
+    toast.info('Menyiapkan ZIP QR Code', `Sedang mengompres seluruh barcode ${filteredStudents.length} siswa...`);
     await downloadQrZipForStudents(filteredStudents, label, schoolConfig.namaSekolah);
+    toast.success('ZIP QR Code Selesai', 'Berkas arsip QR Code siswa berhasil diunduh.');
   };
 
   const canManage = user?.role === 'admin';
@@ -301,7 +311,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={exportStudentTemplateExcel}
+            onClick={() => {
+              exportStudentTemplateExcel();
+              toast.success('Format Excel Diunduh', 'Template data siswa siap diisi dan diimpor.');
+            }}
             className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-colors cursor-pointer"
             title="Download Template Format Excel"
           >
@@ -311,7 +324,10 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
           {/* Export PDF Nominatif */}
           <button
-            onClick={() => generateStudentListPdf(filteredStudents, schoolConfig, selectedClass)}
+            onClick={() => {
+              generateStudentListPdf(filteredStudents, schoolConfig, selectedClass);
+              toast.success('Dokumen PDF Disiapkan', 'Daftar nominatif siswa siap dicetak atau disimpan.');
+            }}
             className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors cursor-pointer"
             title="Cetak Daftar Nominatif Siswa Resmi ke Dokumen PDF"
           >

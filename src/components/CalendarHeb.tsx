@@ -13,6 +13,7 @@ import {
 import { KalenderHeb, SchoolConfig } from '../types';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { generateHebCalendarPdf } from '../utils/exportPdf';
+import { useToast } from '../context/ToastContext';
 
 interface CalendarHebProps {
   kalenderHeb: KalenderHeb;
@@ -25,6 +26,7 @@ export const CalendarHeb: React.FC<CalendarHebProps> = ({
   onSaveKalender,
   schoolConfig,
 }) => {
+  const { toast } = useToast();
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [localMap, setLocalMap] = useState<Record<string, boolean>>(kalenderHeb.kalenderData || {});
   const [isSavedBanner, setIsSavedBanner] = useState(false);
@@ -112,7 +114,10 @@ export const CalendarHeb: React.FC<CalendarHebProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           {/* Export PDF Button */}
           <button
-            onClick={() => generateHebCalendarPdf(kalenderHeb, year, month, schoolConfig)}
+            onClick={() => {
+              generateHebCalendarPdf(kalenderHeb, year, month, schoolConfig);
+              toast.success('Kalender HEB Disiapkan', 'Berkas PDF kalender hari efektif belajar siap dicetak.');
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors shadow-2xs"
             title="Cetak Berkas PDF Resmi Kalender HEB"
           >
@@ -122,13 +127,19 @@ export const CalendarHeb: React.FC<CalendarHebProps> = ({
 
           {/* Preset Buttons */}
           <button
-            onClick={() => applyPreset('6_HARI')}
+            onClick={() => {
+              applyPreset('6_HARI');
+              toast.info('Pola 6 Hari Diterapkan', 'Klik tombol "Simpan Perubahan" untuk menyimpan ke database.');
+            }}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
           >
             Pola 6 Hari (Sen-Sab)
           </button>
           <button
-            onClick={() => applyPreset('5_HARI')}
+            onClick={() => {
+              applyPreset('5_HARI');
+              toast.info('Pola 5 Hari Diterapkan', 'Klik tombol "Simpan Perubahan" untuk menyimpan ke database.');
+            }}
             className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
           >
             Pola 5 Hari (Sen-Jum)

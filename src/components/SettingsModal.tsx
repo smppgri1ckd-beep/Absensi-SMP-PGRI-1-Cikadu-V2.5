@@ -20,6 +20,7 @@ import { SchoolConfig } from '../types';
 import { DatabaseService, DEFAULT_SCHOOL_CONFIG } from '../services/db';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onSaveConfig,
 }) => {
   const { user } = useAuth();
+  const { toast } = useToast();
 
   const getSafeConfig = (cfg: SchoolConfig): SchoolConfig => ({
     ...DEFAULT_SCHOOL_CONFIG,
@@ -113,8 +115,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       a.download = `Cadangan_Sistem_Lengkap_SMP_PGRI_1_Cikadu_${new Date().toISOString().split('T')[0]}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success('Cadangan Berhasil Diunduh', 'File cadangan lengkap (.json) berhasil disimpan.');
     } catch (e) {
-      alert('Gagal mengekspor data cadangan.');
+      toast.error('Gagal Mengunduh Cadangan', 'Terjadi kesalahan saat mengekspor database.');
     }
   };
 
@@ -126,16 +129,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       return;
     }
 
+    toast.upload('Memproses Berkas Cadangan', 'Membaca dan memvalidasi file JSON cadangan...');
     const reader = new FileReader();
     reader.onload = async (event) => {
       const content = event.target?.result as string;
       if (!content) return;
       const success = await DatabaseService.importAllData(content);
       if (success) {
-        alert('Data cadangan berhasil dipulihkan! Halaman akan dimuat ulang untuk memperbarui seluruh tampilan.');
-        window.location.reload();
+        toast.success('Data Berhasil Dipulihkan!', 'Halaman akan disegarkan untuk memuat seluruh data baru.');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
       } else {
-        alert('Gagal memulihkan cadangan. Pastikan format file JSON valid.');
+        toast.error('Gagal Memulihkan Cadangan', 'Format file JSON tidak sesuai dengan skema sistem.');
       }
     };
     reader.readAsText(file);
@@ -174,6 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
       if (file.type.includes('svg') || file.size < 400 * 1024) {
         handleChange('logoUrl', dataUrl);
+        toast.upload('Logo Sekolah Berhasil Diunggah', 'Logo baru telah diterapkan dan siap disimpan.');
         return;
       }
 
@@ -203,6 +210,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         } else {
           handleChange('logoUrl', dataUrl);
         }
+        toast.upload('Logo Sekolah Berhasil Diunggah', 'Logo baru telah dikompresi dan siap disimpan.');
       };
       img.src = dataUrl;
     };
@@ -211,6 +219,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const handleResetLogo = () => {
     handleChange('logoUrl', '');
+    toast.info('Logo Sekolah Direset', 'Logo sekolah dikembalikan ke logo bawaan.');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

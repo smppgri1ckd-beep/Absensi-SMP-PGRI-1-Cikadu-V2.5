@@ -24,6 +24,7 @@ import html2canvas from 'html2canvas-pro';
 import { IdCardFront } from './IdCardFront';
 import { IdCardBack } from './IdCardBack';
 import { IdCardPreviewModal } from './IdCardPreviewModal';
+import { useToast } from '../context/ToastContext';
 
 interface CardPrinterProps {
   students: Student[];
@@ -67,6 +68,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
   };
 
   const [paperSize, setPaperSize] = useState<'F4' | 'A4'>('F4');
+  const { toast } = useToast();
   const [cardSide, setCardSide] = useState<CardSideMode>('MOCKUP');
   const [cardTheme, setCardTheme] = useState<IdCardTheme>(() => DatabaseService.getIdCardTheme());
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
@@ -337,9 +339,10 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
       const filename = `Kartu-Absensi-${(config.namaSekolah || 'SMP-PGRI-1-CIKADU').replace(/\s+/g, '-')}-${classLabel}${studentTag}-${modeLabel}-${paperSize}-${dateStr}.pdf`;
 
       doc.save(filename);
+      toast.success('Berkas PDF Kartu Siap', `${listToExport.length} kartu siswa berhasil disimpan ke file PDF.`);
     } catch (err) {
       console.error('Gagal membuat PDF:', err);
-      alert('Terjadi kesalahan saat memproses dokumen PDF. Silakan coba lagi atau gunakan Cetak Printer.');
+      toast.error('Gagal Menyusun PDF', 'Terjadi kesalahan saat memproses kartu. Silakan gunakan tombol Cetak Printer.');
     } finally {
       setIsGeneratingPdf(false);
       setCurrentStagingPage(null);
@@ -351,10 +354,13 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
   const handleDownloadZipQr = async () => {
     try {
       setIsZippingQr(true);
+      toast.info('Menyiapkan ZIP QR Code', `Mengompres barcode QR kartu ${filtered.length} siswa...`);
       const nameLabel = selectedClass === 'ALL' ? 'SEMUA_KELAS' : `KELAS_${selectedClass}`;
       await downloadQrZipForStudents(filtered, nameLabel, config.namaSekolah);
+      toast.success('ZIP QR Code Selesai', 'Berkas arsip QR Code siswa berhasil diunduh.');
     } catch (err) {
       console.error('Failed to download QR ZIP:', err);
+      toast.error('Gagal Mengunduh ZIP', 'Terjadi gangguan saat membuat berkas arsip ZIP.');
     } finally {
       setIsZippingQr(false);
     }
