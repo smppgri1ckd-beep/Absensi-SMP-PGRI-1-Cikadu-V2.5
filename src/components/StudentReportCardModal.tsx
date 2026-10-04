@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   X, 
   Printer, 
+  Download,
+  Loader2,
   Award, 
   FileText, 
   Calendar, 
@@ -23,6 +25,7 @@ import {
 import { Student, StudentGradeItem, SchoolConfig, AttendanceRecord, TeacherUser, AssignmentItem, StudentAssignmentSubmission } from '../types';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { DatabaseService } from '../services/db';
+import { exportStudentReportCardPdf } from '../utils/exportPdf';
 
 interface StudentReportCardModalProps {
   isOpen: boolean;
@@ -45,10 +48,11 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
   attendanceRecords,
   teachers = [],
 }) => {
-  const [signatureLayout, setSignatureLayout] = useState<'3-column' | '2-tier'>('3-column');
+  const [signatureLayout, setSignatureLayout] = useState<'3-column' | '2-tier'>('2-tier');
   const [rekapFormula, setRekapFormula] = useState<RekapFormulaType>('kemendikbud');
   const [activeGrades, setActiveGrades] = useState<StudentGradeItem[]>(grades);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [syncFeedback, setSyncFeedback] = useState<string | null>(null);
   const [showBreakdownModal, setShowBreakdownModal] = useState(false);
   const [showFormulaModal, setShowFormulaModal] = useState(false);
@@ -267,6 +271,55 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
   // Total assessment items in database for this student
   const totalAssessmentItemsCount = dynamicSubjectRows.reduce((acc, row) => acc + row.rawItemCounts.total, 0) || 51;
 
+  // Direct High-Resolution PDF Download using standard official vector layout
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+      const subjectsForPdf = effectiveSubjectRows.map((s) => ({
+        no: s.no,
+        mapel: s.mapel,
+        tugas: s.tugas,
+        uh: s.uh,
+        uts: s.uts,
+        uas: s.uas,
+        nilaiAkhir: s.nilaiAkhir,
+        predikat: s.predikat,
+        deskripsi: s.deskripsi,
+      }));
+
+      exportStudentReportCardPdf({
+        student,
+        subjects: subjectsForPdf,
+        overallAvg,
+        overallPredikat,
+        attendance: {
+          hadir: hadirCount,
+          terlambat: terlambatCount,
+          sakit: sakitCount,
+          izin: izinCount,
+          alpa: alpaCount,
+          total: totalPresensi,
+          persentase: attendanceRate,
+        },
+        schoolConfig,
+        waliKelasNama,
+        waliKelasNip,
+        signatureLayout,
+        semester: 'Semester Ganjil',
+        tahunPelajaran: '2026/2027',
+      });
+
+      setSyncFeedback(`Rapor Digital ${student.nama} berhasil diunduh dalam format PDF resmi!`);
+      setTimeout(() => setSyncFeedback(null), 4000);
+    } catch (err) {
+      console.error('Gagal mengunduh rapor PDF:', err);
+      setSyncFeedback('Gagal menghasilkan berkas PDF. Silakan coba kembali.');
+      setTimeout(() => setSyncFeedback(null), 3000);
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -339,14 +392,31 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                 </button>
               </div>
 
-              {/* Print Button */}
+              {/* Direct PDF Download Button (Primary) */}
+              <button
+                type="button"
+                disabled={isDownloadingPdf}
+                onClick={handleDownloadPdf}
+                className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+                title="Langsung unduh berkas Rapor Digital siswa dalam format PDF resmi (A4)"
+              >
+                {isDownloadingPdf ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <Download className="w-4 h-4 text-white" />
+                )}
+                <span>{isDownloadingPdf ? 'Menyiapkan PDF...' : 'Unduh PDF Rapor'}</span>
+              </button>
+
+              {/* Print Button (Secondary) */}
               <button
                 type="button"
                 onClick={handlePrint}
-                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 cursor-pointer flex items-center gap-1.5 transition-colors"
+                title="Cetak langsung menggunakan printer fisik / dialog cetak"
               >
-                <Printer className="w-4 h-4" />
-                <span>Cetak / PDF</span>
+                <Printer className="w-3.5 h-3.5 text-slate-300" />
+                <span>Cetak</span>
               </button>
 
               {/* Close Button */}
@@ -425,20 +495,20 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
           {/* ========================================================= */}
           {/* 1. KOP SURAT RESMI LEMBAGA (OFFICIAL SCHOOL LETTERHEAD)    */}
           {/* ========================================================= */}
-          <div className="border-b-[3px] border-slate-950 pb-3 mb-5">
-            <div className="flex items-center justify-between gap-3">
+          <div className="pb-3 mb-5">
+            <div className="flex items-center justify-between gap-2 sm:gap-4">
               {/* Logo Kiri Resmi */}
-              <div className="w-20 sm:w-24 shrink-0 flex items-center justify-center">
+              <div className="w-18 sm:w-24 shrink-0 flex items-center justify-center">
                 <SchoolLogo 
                   src={schoolConfig.logoUrl} 
-                  className="w-18 h-18 sm:w-20 sm:h-20 object-contain drop-shadow-xs" 
+                  className="w-16 h-16 sm:w-20 sm:h-20 object-contain drop-shadow-xs" 
                 />
               </div>
 
               {/* Teks Kop Tengah */}
               <div className="flex-1 text-center font-serif text-slate-950 px-1">
                 <h4 className="text-[10px] sm:text-[11px] uppercase tracking-wider font-bold text-slate-800 leading-tight">
-                  PERWAKILAN YAYASAN PEMBINA LEMBAGA PENDIDIKAN DASAR DAN MENENGAH (YPLP DASMEN)
+                  PERWAKILAN YAYASAN PEMBINA LEMBAGA PENDIDIKAN
                 </h4>
                 <h3 className="text-[10.5px] sm:text-[11.5px] uppercase tracking-wider font-bold text-slate-900 leading-tight mt-0.5">
                   PERSATUAN GURU REPUBLIK INDONESIA (YPLP PGRI) KABUPATEN CIANJUR
@@ -446,26 +516,26 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                 <h2 className="text-xl sm:text-2xl font-black uppercase text-slate-950 tracking-tight my-0.5 font-sans">
                   {schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}
                 </h2>
-                <p className="text-[10.5px] sm:text-[11px] text-slate-700 font-sans leading-tight">
+                <p className="text-[10px] sm:text-[11px] text-slate-700 font-sans leading-tight">
                   {schoolConfig.alamat || 'Kp. Koleberes Blok D RT. 04 RW. 09 Desa Cikadu Kec. Cikadu Kab. Cianjur - 43284'}
                 </p>
-                <p className="text-[10px] text-slate-600 font-sans mt-0.5">
-                  NPSN: <strong className="font-mono">{schoolConfig.npsn || '69919136'}</strong> • Kontak: <strong className="font-mono">{schoolConfig.kontak || '0852 1258 7750'}</strong> • Email: <strong className="font-mono">smp.pgri1ckd@gmail.com</strong>
+                <p className="text-[9.5px] sm:text-[10px] text-slate-600 font-sans mt-0.5">
+                  {schoolConfig.kontak ? (schoolConfig.kontak.includes('Telp') ? schoolConfig.kontak : `Telp: ${schoolConfig.kontak}`) : 'Telp: 0852 1258 7750'} • e-mail: <strong className="font-mono">{schoolConfig.email || 'smp.pgri1ckd@gmail.com'}</strong> • NPSN: <strong className="font-mono">{schoolConfig.npsn || '69919136'}</strong>
                 </p>
               </div>
 
-              {/* Spacer Sisi Kanan Simetris untuk Menjaga Teks Kop Berada di Tengah */}
-              <div className="w-20 sm:w-24 shrink-0 hidden sm:flex items-center justify-center">
-                <div className="w-16 h-16 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-[8px] font-bold text-slate-400 uppercase text-center p-1 font-sans opacity-70">
-                  <School className="w-4 h-4 mb-0.5 text-slate-300" />
+              {/* Spacer Sisi Kanan Simetris untuk Menjaga Teks Kop Berada Tepat di Tengah */}
+              <div className="w-18 sm:w-24 shrink-0 flex items-center justify-center">
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-[7.5px] sm:text-[8px] font-bold text-slate-400 uppercase text-center p-1 font-sans opacity-70">
+                  <School className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 text-slate-300" />
                   <span>Akreditasi</span>
                   <span className="font-black text-slate-500">B</span>
                 </div>
               </div>
             </div>
 
-            {/* Garis Ganda Kop Surat Resmi */}
-            <div className="mt-2.5 border-t-[2.5px] border-slate-950"></div>
+            {/* Garis Ganda Kop Surat Resmi Kedinasan */}
+            <div className="mt-3 border-t-[2.5px] border-slate-950"></div>
             <div className="mt-[2px] border-t border-slate-950"></div>
           </div>
 
@@ -690,10 +760,10 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                     [ Cap / Stempel Sekolah ]
                   </div>
                   <p className="font-black underline text-slate-950 text-xs sm:text-sm tracking-tight">
-                    {schoolConfig.namaKepsek || 'H. Ahmad Hidayat, S.Pd., M.M.'}
+                    {schoolConfig.namaKepsek || 'CUNCUN MUHLISOH, S.Pd.'}
                   </p>
                   <p className="text-[11px] text-slate-700 font-mono font-bold mt-0.5">
-                    NIP. {schoolConfig.nipKepsek || '19700101 199501 1 001'}
+                    NUPTK. {schoolConfig.nipKepsek && schoolConfig.nipKepsek !== '-' ? schoolConfig.nipKepsek : '-'}
                   </p>
                 </div>
               </div>
@@ -713,7 +783,7 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                     {waliKelasNama}
                   </p>
                   <p className="text-[11px] text-slate-700 font-mono font-bold mt-0.5">
-                    NIP. {waliKelasNip}
+                    NUPTK. {waliKelasNip && waliKelasNip !== '-' ? waliKelasNip : '-'}
                   </p>
                 </div>
               </div>
@@ -752,7 +822,7 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                       {waliKelasNama}
                     </p>
                     <p className="text-[11px] text-slate-700 font-mono font-bold mt-0.5">
-                      NIP. {waliKelasNip}
+                      NUPTK. {waliKelasNip && waliKelasNip !== '-' ? waliKelasNip : '-'}
                     </p>
                   </div>
                 </div>
@@ -771,10 +841,10 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                     [ Cap / Stempel Sekolah ]
                   </div>
                   <p className="font-black underline text-slate-950 text-xs sm:text-sm tracking-tight">
-                    {schoolConfig.namaKepsek || 'H. Ahmad Hidayat, S.Pd., M.M.'}
+                    {schoolConfig.namaKepsek || 'CUNCUN MUHLISOH, S.Pd.'}
                   </p>
                   <p className="text-[11px] text-slate-700 font-mono font-bold mt-0.5">
-                    NIP. {schoolConfig.nipKepsek || '19700101 199501 1 001'}
+                    NUPTK. {schoolConfig.nipKepsek && schoolConfig.nipKepsek !== '-' ? schoolConfig.nipKepsek : '-'}
                   </p>
                 </div>
               </div>
@@ -785,17 +855,32 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
         </div>
 
         {/* Modal Bottom Footer Note (Non-Print) */}
-        <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between no-print shrink-0 text-xs text-slate-500">
-          <p className="text-[11px]">
-            *Dokumen ini merupakan Rekapitulasi Rapor Sisipan resmi dari {schoolConfig.namaSekolah || 'SMP PGRI 1 Cikadu'}. Siap dicetak langsung atau disimpan ke format PDF.
+        <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 no-print shrink-0 text-xs text-slate-500">
+          <p className="text-[11px] text-center sm:text-left">
+            *Dokumen ini merupakan Rekapitulasi Rapor Sisipan resmi dari {schoolConfig.namaSekolah || 'SMP PGRI 1 Cikadu'}. Siap langsung diunduh dalam format PDF resmi atau dicetak langsung.
           </p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs cursor-pointer transition-colors"
-          >
-            Tutup
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              disabled={isDownloadingPdf}
+              onClick={handleDownloadPdf}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5 transition-colors"
+            >
+              {isDownloadingPdf ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-white" />
+              )}
+              <span>{isDownloadingPdf ? 'Mengunduh...' : 'Unduh PDF Rapor'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold text-xs cursor-pointer transition-colors"
+            >
+              Tutup
+            </button>
+          </div>
         </div>
 
       </div>

@@ -89,6 +89,11 @@
 
 /* Print Media Styles - Precision Sizing to Prevent Clipping & Ensure Neat Layout */
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm 12mm;
+  }
+
   /* Hide non-print application UI and controls */
   aside,
   header,
@@ -105,13 +110,18 @@
     display: none !important;
   }
 
-  /* Universal high-fidelity print color adjustment */
+  /* Universal high-fidelity print color adjustment and crisp image rendering */
   *,
   *::before,
   *::after {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     box-sizing: border-box !important;
+  }
+
+  img, svg {
+    image-rendering: -webkit-optimize-contrast !important;
+    image-rendering: crisp-edges !important;
   }
 
   /* Release viewport limits and scroll containers so content flows naturally */

@@ -116,6 +116,7 @@ export interface SchoolConfig {
   kota: string;
   alamat: string;
   kontak: string;
+  email?: string;
   namaKepsek: string;
   nipKepsek: string;
   namaPetugasPiket: string;

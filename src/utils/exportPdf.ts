@@ -70,19 +70,24 @@ function drawOfficialKop(
 
   // Baris 5: Kontak & Identitas Resmi
   const npsn = schoolConfig.npsn || '69919136';
+  const kontak = schoolConfig.kontak || '0852 1258 7750';
+  const email = schoolConfig.email || 'smp.pgri1ckd@gmail.com';
+  const kontakStr = kontak.includes('Telp') ? kontak : `Telp: ${kontak}`;
   doc.text(
-    `Telp: 0852 1258 7750 | e-mail: smp.pgri1ckd@gmail.com | NPSN: ${npsn}`,
+    `${kontakStr} | e-mail: ${email} | NPSN: ${npsn}`,
     centerX,
     31.5,
     { align: 'center' }
   );
 
-  // Garis Pemisah Kop Tebal (Solid 0.8mm)
+  // Garis Pemisah Kop Resmi (Double Line: Garis Tebal 0.8mm + Garis Tipis 0.25mm)
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.8);
-  doc.line(leftX, 34.5, rightX, 34.5);
+  doc.line(leftX, 34.2, rightX, 34.2);
+  doc.setLineWidth(0.25);
+  doc.line(leftX, 35.2, rightX, 35.2);
 
-  return 42;
+  return 41;
 }
 
 /**
@@ -129,7 +134,7 @@ function drawSignatures(
 
   doc.setFont('helvetica', 'normal');
   const kepsekNip = schoolConfig.nipKepsek && schoolConfig.nipKepsek !== '-' ? schoolConfig.nipKepsek : '-';
-  doc.text(`NIP/NUPTK: ${kepsekNip}`, leftX, startY + 27.5);
+  doc.text(`NUPTK: ${kepsekNip}`, leftX, startY + 27.5);
 
   // Kolom Kanan: Guru Piket / Guru Pengampu
   doc.text(`${kota}, ${dateStr}`, rightX, startY);
@@ -141,7 +146,7 @@ function drawSignatures(
 
   doc.setFont('helvetica', 'normal');
   const rNip = rightNip && rightNip !== '-' ? rightNip : '-';
-  doc.text(`NIP/NUPTK: ${rNip}`, rightX, startY + 27.5);
+  doc.text(`NUPTK: ${rNip}`, rightX, startY + 27.5);
 }
 
 /**
@@ -1664,4 +1669,534 @@ export async function generateStudentIdCardsPdf(
   }
 
   doc.save(`Kartu_Siswa_${format}_${schoolConfig.namaSekolah.replace(/\s+/g, '_')}.pdf`);
+}
+
+/**
+ * Interface parameter untuk Cetak & Unduh Rapor Digital Siswa PDF
+ */
+export interface ExportReportCardParams {
+  student: Student;
+  subjects: Array<{
+    no: number;
+    mapel: string;
+    tugas: number | string;
+    uh: number | string;
+    uts: number | string;
+    uas: number | string;
+    nilaiAkhir: number;
+    predikat: string;
+    deskripsi: string;
+  }>;
+  overallAvg: number;
+  overallPredikat: string;
+  attendance: {
+    hadir: number;
+    terlambat: number;
+    sakit: number;
+    izin: number;
+    alpa: number;
+    total: number;
+    persentase: number;
+  };
+  schoolConfig: SchoolConfig;
+  waliKelasNama: string;
+  waliKelasNip: string;
+  signatureLayout?: '3-column' | '2-tier';
+  catatanWaliKelas?: string;
+  semester?: string;
+  tahunPelajaran?: string;
+}
+
+/**
+ * Unduh Rapor Digital Siswa Resmi (Format PDF A4 Resmi Kedinasan)
+ * Menggunakan Kop Surat Resmi, Garis Ganda, Tabel Nilai Auto-Rekap,
+ * Rekap Presensi, Catatan Wali Kelas, dan TTD Kepala Sekolah di Tengah.
+ */
+export function exportStudentReportCardPdf({
+  student,
+  subjects,
+  overallAvg,
+  overallPredikat,
+  attendance,
+  schoolConfig,
+  waliKelasNama,
+  waliKelasNip,
+  signatureLayout = '2-tier',
+  catatanWaliKelas,
+  semester = 'Semester Ganjil',
+  tahunPelajaran = '2026/2027',
+}: ExportReportCardParams): void {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = 210;
+  const leftX = 14;
+  const rightX = pageWidth - 14; // 196mm
+  const contentWidth = rightX - leftX; // 182mm
+
+  // 1. Kop Surat Resmi Kedinasan
+  let y = drawOfficialKop(doc, schoolConfig, false);
+
+  // 2. Judul Rapor
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text('LAPORAN HASIL BELAJAR SISWA (RAPOR SISIPAN DIGITAL)', 105, y, { align: 'center' });
+
+  // Subtitle
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`${semester.toUpperCase()} • TAHUN PELAJARAN ${tahunPelajaran}`, 105, y + 4.5, { align: 'center' });
+
+  y += 8.5;
+
+  // 3. Kotak Biodata Siswa
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(leftX, y, contentWidth, 18, 1.5, 1.5, 'FD');
+
+  doc.setFontSize(7.5);
+  doc.setTextColor(30, 41, 59);
+
+  // Kolom Kiri
+  const leftColX = leftX + 4;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nama Peserta Didik', leftColX, y + 5);
+  doc.text('Nomor Induk / NISN', leftColX, y + 10);
+  doc.text('Jenis Kelamin', leftColX, y + 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(`: ${student.nama.toUpperCase()}`, leftColX + 33, y + 5);
+  doc.text(`: ${student.nisn}`, leftColX + 33, y + 10);
+  doc.text(`: ${student.jk === 'L' ? 'Laki-Laki (L)' : 'Perempuan (P)'}`, leftColX + 33, y + 15);
+
+  // Kolom Kanan
+  const rightColX = leftX + 100;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Kelas / Rombel', rightColX, y + 5);
+  doc.text('Wali Kelas', rightColX, y + 10);
+  doc.text('Rata-Rata Capaian', rightColX, y + 15);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(`: Kelas ${student.kelas}`, rightColX + 30, y + 5);
+  doc.text(`: ${waliKelasNama}`, rightColX + 30, y + 10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 58, 138);
+  doc.text(`: ${overallAvg} / 100 (${overallPredikat})`, rightColX + 30, y + 15);
+
+  y += 22;
+
+  // 4. Tabel A: Capaian Nilai Pembelajaran & Keterampilan
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('A. Capaian Nilai Pembelajaran & Keterampilan (Auto-Rekap Database)', leftX, y + 1);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(100, 116, 139);
+  doc.text('KKM Satuan: 75', rightX, y + 1, { align: 'right' });
+
+  y += 4;
+
+  // Kolom Tabel: total 182mm (Margin kiri 14mm, Margin kanan 14mm)
+  const cols = [
+    { title: 'No', width: 7, align: 'center' as const },
+    { title: 'Mata Pelajaran', width: 49, align: 'left' as const },
+    { title: 'Tugas', width: 11, align: 'center' as const },
+    { title: 'UH', width: 11, align: 'center' as const },
+    { title: 'PTS', width: 11, align: 'center' as const },
+    { title: 'PAS', width: 11, align: 'center' as const },
+    { title: 'Nilai Akhir', width: 15, align: 'center' as const },
+    { title: 'Predikat', width: 12, align: 'center' as const },
+    { title: 'Deskripsi Capaian Pembelajaran', width: 55, align: 'left' as const },
+  ];
+
+  const headerHeight = 6;
+  const drawTableHeader = (curY: number) => {
+    doc.setDrawColor(148, 163, 184);
+    doc.setLineWidth(0.3);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(15, 23, 42);
+    doc.setFillColor(241, 245, 249);
+
+    let curX = leftX;
+    cols.forEach((c) => {
+      doc.rect(curX, curY, c.width, headerHeight, 'FD');
+      const textX = c.align === 'center' ? curX + c.width / 2 : curX + 2;
+      doc.text(c.title, textX, curY + 4.2, { align: c.align });
+      curX += c.width;
+    });
+  };
+
+  drawTableHeader(y);
+  y += headerHeight;
+
+  // Baris Nilai Mata Pelajaran
+  subjects.forEach((row) => {
+    const descLines = doc.splitTextToSize(row.deskripsi, 52);
+    const mapelLines = doc.splitTextToSize(row.mapel, 46);
+    const lineCount = Math.max(descLines.length, mapelLines.length);
+    const rowH = Math.max(5.0, lineCount * 3.1 + 2);
+
+    if (y + rowH > 275) {
+      doc.addPage();
+      y = 18;
+      drawTableHeader(y);
+      y += headerHeight;
+    }
+
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.2);
+
+    let curX = leftX;
+    cols.forEach((c) => {
+      if (c.title === 'Nilai Akhir') {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(curX, y, c.width, rowH, 'FD');
+      } else {
+        doc.rect(curX, y, c.width, rowH);
+      }
+      curX += c.width;
+    });
+
+    // Isi Teks
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(7);
+
+    // No
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(row.no), leftX + cols[0].width / 2, y + 3.6, { align: 'center' });
+
+    // Mapel
+    doc.setFont('helvetica', 'bold');
+    doc.text(mapelLines, leftX + cols[0].width + 2, y + 3.6);
+
+    // Nilai Komponen
+    let xOffset = leftX + cols[0].width + cols[1].width;
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(row.tugas), xOffset + cols[2].width / 2, y + 3.6, { align: 'center' });
+    xOffset += cols[2].width;
+    doc.text(String(row.uh), xOffset + cols[3].width / 2, y + 3.6, { align: 'center' });
+    xOffset += cols[3].width;
+    doc.text(String(row.uts), xOffset + cols[4].width / 2, y + 3.6, { align: 'center' });
+    xOffset += cols[4].width;
+    doc.text(String(row.uas), xOffset + cols[5].width / 2, y + 3.6, { align: 'center' });
+    xOffset += cols[5].width;
+
+    // Nilai Akhir
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(row.nilaiAkhir), xOffset + cols[6].width / 2, y + 3.6, { align: 'center' });
+    xOffset += cols[6].width;
+
+    // Predikat
+    doc.text(row.predikat, xOffset + cols[7].width / 2, y + 3.6, { align: 'center' });
+    xOffset += cols[7].width;
+
+    // Deskripsi
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text(descLines, xOffset + 2, y + 3.3);
+
+    y += rowH;
+  });
+
+  // Table Footer: Rata-Rata Nilai Akhir Siswa
+  const footerH = 5.8;
+  if (y + footerH > 275) {
+    doc.addPage();
+    y = 18;
+  }
+
+  doc.setFillColor(241, 245, 249);
+  doc.setDrawColor(148, 163, 184);
+  doc.setLineWidth(0.3);
+
+  const leftWidth = cols[0].width + cols[1].width + cols[2].width + cols[3].width + cols[4].width + cols[5].width;
+  doc.rect(leftX, y, leftWidth, footerH, 'FD');
+  doc.rect(leftX + leftWidth, y, cols[6].width, footerH, 'FD');
+  doc.rect(leftX + leftWidth + cols[6].width, y, cols[7].width, footerH, 'FD');
+  doc.rect(leftX + leftWidth + cols[6].width + cols[7].width, y, cols[8].width, footerH, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('RATA-RATA NILAI AKHIR SISWA', leftX + leftWidth - 3, y + 4.1, { align: 'right' });
+  doc.text(String(overallAvg), leftX + leftWidth + cols[6].width / 2, y + 4.1, { align: 'center' });
+  doc.setTextColor(30, 58, 138);
+  doc.text(overallAvg >= 90 ? 'A' : overallAvg >= 80 ? 'B' : 'C', leftX + leftWidth + cols[6].width + cols[7].width / 2, y + 4.1, { align: 'center' });
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(6.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Ketuntasan: Terlampaui (${overallPredikat})`, leftX + leftWidth + cols[6].width + cols[7].width + 2, y + 4.1);
+
+  y += footerH + 1.5;
+
+  // Catatan Auto-Rekap
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(6);
+  doc.setTextColor(148, 163, 184);
+  doc.text('*Nilai Akhir dan Predikat dikompilasi secara otomatis (Auto-Rekap) dari data penilaian harian tugas, UH, PTS, dan PAS di database sekolah.', leftX, y + 2);
+
+  y += 5.5;
+
+  // 5. Tabel B: Rekapitulasi Presensi & Disiplin Belajar
+  if (y + 18 > 275) {
+    doc.addPage();
+    y = 18;
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('B. Rekapitulasi Presensi & Disiplin Belajar', leftX, y + 1);
+
+  y += 3.5;
+
+  const presensiItems = [
+    { label: 'Hadir', value: `${attendance.hadir} Hari` },
+    { label: 'Terlambat', value: `${attendance.terlambat} Hari` },
+    { label: 'Sakit (S)', value: `${attendance.sakit} Hari` },
+    { label: 'Izin (I)', value: `${attendance.izin} Hari` },
+    { label: 'Tanpa Ket. (A)', value: `${attendance.alpa} Hari` },
+    { label: 'Persentase', value: `${attendance.persentase}%` },
+  ];
+
+  const boxW = contentWidth / 6;
+  const boxH = 9.5;
+  let curBoxX = leftX;
+
+  presensiItems.forEach((p, idx) => {
+    const isHighlight = idx === 5;
+    doc.setFillColor(isHighlight ? 238 : 248, isHighlight ? 242 : 250, isHighlight ? 255 : 252);
+    doc.setDrawColor(isHighlight ? 129 : 203, isHighlight ? 140 : 213, isHighlight ? 248 : 225);
+    doc.setLineWidth(isHighlight ? 0.35 : 0.2);
+    doc.roundedRect(curBoxX, y, boxW - 1.5, boxH, 1, 1, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6);
+    doc.setTextColor(isHighlight ? 49 : 100, isHighlight ? 46 : 116, isHighlight ? 129 : 139);
+    doc.text(p.label.toUpperCase(), curBoxX + (boxW - 1.5) / 2, y + 3.6, { align: 'center' });
+
+    doc.setFontSize(7.5);
+    doc.setTextColor(isHighlight ? 30 : 15, isHighlight ? 58 : 23, isHighlight ? 138 : 42);
+    doc.text(p.value, curBoxX + (boxW - 1.5) / 2, y + 7.6, { align: 'center' });
+
+    curBoxX += boxW;
+  });
+
+  y += boxH + 3.5;
+
+  // 6. Catatan Wali Kelas
+  if (y + 15 > 275) {
+    doc.addPage();
+    y = 18;
+  }
+
+  const defaultNote = `Ananda ${student.nama} memiliki tingkat kehadiran yang sangat baik (${attendance.persentase}%) dan capaian belajar memuaskan. Pertahankan kedisiplinan belajar, tingkatkan keaktifan dalam diskusi kelompok, serta terus asah minat bakat pada kegiatan ekstrakurikuler sekolah.`;
+  const noteText = catatanWaliKelas || defaultNote;
+  const noteLines = doc.splitTextToSize(`"${noteText}"`, contentWidth - 8);
+  const noteBoxH = Math.max(10, noteLines.length * 3.1 + 5);
+
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(leftX, y, contentWidth, noteBoxH, 1.5, 1.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text('Catatan & Saran Wali Kelas:', leftX + 4, y + 3.6);
+
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(6.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(noteLines, leftX + 4, y + 7.2);
+
+  y += noteBoxH + 4.5;
+
+  // 7. Lembar Pengesahan / Tanda Tangan (Kepala Sekolah di Bagian Tengah Bawah Dokumen)
+  if (y + 36 > 280) {
+    doc.addPage();
+    y = 20;
+  }
+
+  const now = new Date();
+  const formattedDate = now.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const kota = schoolConfig.kota || 'Cianjur';
+  const kepsekNama = (schoolConfig.namaKepsek || 'CUNCUN MUHLISOH, S.Pd.').toUpperCase();
+  const kepsekNip = schoolConfig.nipKepsek && schoolConfig.nipKepsek !== '-' ? schoolConfig.nipKepsek : '-';
+  const waliNama = (waliKelasNama || 'AI SITI ROSITA').toUpperCase();
+  const waliNip = waliKelasNip && waliKelasNip !== '-' ? waliKelasNip : '-';
+
+  if (signatureLayout === '3-column') {
+    // 3 KOLOM SEJAJAR: KEPALA SEKOLAH DI TENGAH
+    const col1X = leftX + contentWidth / 6;       // ~44mm
+    const col2X = leftX + contentWidth / 2;       // 105mm (TENGAH)
+    const col3X = leftX + (contentWidth * 5) / 6; // ~166mm
+
+    // Kolom 1 (Kiri): Orang Tua / Wali Siswa
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Mengetahui,', col1X, y, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Orang Tua / Wali Siswa', col1X, y + 4.5, { align: 'center' });
+
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.3);
+    doc.line(col1X - 22, y + 23, col1X + 22, y + 23);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('( .................................................. )', col1X, y + 26.5, { align: 'center' });
+
+    // Kolom 2 (Tengah): Kepala Sekolah
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(col2X - 28, y - 2, 56, 32, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Mengetahui & Mengesahkan,', col2X, y + 2, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, col2X, y + 6, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text('[ Cap / Stempel Sekolah ]', col2X, y + 14, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(kepsekNama, col2X, y + 22, { align: 'center' });
+    const kWidth = doc.getTextWidth(kepsekNama);
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.3);
+    doc.line(col2X - kWidth / 2, y + 22.8, col2X + kWidth / 2, y + 22.8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`NUPTK. ${kepsekNip}`, col2X, y + 26.5, { align: 'center' });
+
+    // Kolom 3 (Kanan): Wali Kelas
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`${kota}, ${formattedDate}`, col3X, y, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Wali Kelas ${student.kelas}`, col3X, y + 4.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(waliNama, col3X, y + 22, { align: 'center' });
+    const wWidth = doc.getTextWidth(waliNama);
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.3);
+    doc.line(col3X - wWidth / 2, y + 22.8, col3X + wWidth / 2, y + 22.8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`NUPTK. ${waliNip}`, col3X, y + 26.5, { align: 'center' });
+  } else {
+    // 2 TINGKAT: Orang Tua di Kiri & Wali Kelas di Kanan (Atas), Kepala Sekolah Rapi di TENGAH BAWAH DOKUMEN
+    const leftTTDX = leftX + 35;
+    const rightTTDX = rightX - 35;
+    const centerTTDX = 105; // Titik tengah A4
+
+    // Tingkat 1: Orang Tua (Kiri) & Wali Kelas (Kanan)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Mengetahui,', leftTTDX, y, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text('Orang Tua / Wali Siswa', leftTTDX, y + 4.5, { align: 'center' });
+
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.3);
+    doc.line(leftTTDX - 22, y + 21, leftTTDX + 22, y + 21);
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('( .................................................. )', leftTTDX, y + 24.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`${kota}, ${formattedDate}`, rightTTDX, y, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Wali Kelas ${student.kelas}`, rightTTDX, y + 4.5, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text(waliNama, rightTTDX, y + 20, { align: 'center' });
+    const wWidth = doc.getTextWidth(waliNama);
+    doc.line(rightTTDX - wWidth / 2, y + 20.8, rightTTDX + wWidth / 2, y + 20.8);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`NUPTK. ${waliNip}`, rightTTDX, y + 24.5, { align: 'center' });
+
+    y += 27;
+
+    // Tingkat 2: Kepala Sekolah di TENGAH BAWAH DOKUMEN
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(centerTTDX - 34, y - 2, 68, 30, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Mengetahui & Mengesahkan,', centerTTDX, y + 2, { align: 'center' });
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, centerTTDX, y + 6, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6);
+    doc.setTextColor(148, 163, 184);
+    doc.text('[ Cap / Stempel Sekolah ]', centerTTDX, y + 13, { align: 'center' });
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.text(kepsekNama, centerTTDX, y + 20, { align: 'center' });
+    const kWidth = doc.getTextWidth(kepsekNama);
+    doc.setDrawColor(15, 23, 42);
+    doc.setLineWidth(0.3);
+    doc.line(centerTTDX - kWidth / 2, y + 20.8, centerTTDX + kWidth / 2, y + 20.8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`NUPTK. ${kepsekNip}`, centerTTDX, y + 24.5, { align: 'center' });
+  }
+
+  // Unduh Berkas PDF Langsung
+  const cleanName = (student.nama || 'Siswa').replace(/[^a-zA-Z0-9]/g, '_');
+  const cleanKelas = (student.kelas || '').replace(/[^a-zA-Z0-9]/g, '_');
+  doc.save(`Rapor_Digital_${cleanName}_${student.nisn}_Kelas_${cleanKelas}.pdf`);
 }
