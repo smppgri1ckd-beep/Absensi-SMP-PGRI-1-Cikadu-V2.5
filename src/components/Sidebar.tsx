@@ -80,7 +80,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logout, 
     actingAsPiket, 
     setActingAsPiket, 
-    effectiveRole 
+    effectiveRole,
+    isAssignedPiketToday,
+    todayPiketRole,
+    todayPiketAssignment
   } = useAuth();
 
   // Functional Menu Grouping customized per role (Menu dipisah & dikelompokkan sesuai fungsi)
@@ -280,6 +283,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
               tag: 'Utama',
               tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
             },
+            ...(isAssignedPiketToday ? [
+              {
+                id: 'kiosk',
+                label: 'Scanner Gerbang Hari Ini',
+                desc: 'Pindai kartu presensi siswa (Tugas Piket)',
+                icon: QrCode,
+                tag: 'Piket Hari Ini',
+                tagColor: 'bg-emerald-600 text-white font-black',
+              },
+              {
+                id: 'apel-attendance',
+                label: 'Absensi Apel Petugas',
+                desc: 'Input kehadiran apel per kelas (Tugas Piket)',
+                icon: UserCheck,
+                tag: 'Piket',
+                tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
+              },
+            ] : []),
             {
               id: 'action-grades',
               label: 'Kelola Nilai Siswa',
@@ -705,6 +726,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <span>Kembali ke Menu Guru</span>
                         </button>
                       </div>
+                    ) : isAssignedPiketToday ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActingAsPiket(true);
+                          setActiveTab('apel-attendance');
+                        }}
+                        className="w-full p-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs flex items-center justify-between gap-2 transition-all cursor-pointer shadow-md shadow-emerald-950/20 group ring-2 ring-emerald-400/80 animate-pulse"
+                        title="Anda terjadwal piket hari ini! Klik untuk mengaktifkan operasional piket"
+                      >
+                        <div className="flex items-center gap-2 text-left min-w-0">
+                          <div className="p-1 rounded-lg bg-amber-400 text-slate-950 font-black shrink-0">
+                            <Sparkles className="w-4 h-4 text-slate-950" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-black leading-tight flex items-center gap-1.5">
+                              <span className="truncate">Tugas Piket Hari Ini!</span>
+                              <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full shrink-0">AKTIF</span>
+                            </div>
+                            <div className="text-[10px] text-emerald-100 font-medium truncate">
+                              {todayPiketRole || 'Operasional presensi & apel'}
+                            </div>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-emerald-200 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                      </button>
                     ) : (
                       <button
                         type="button"
@@ -713,7 +760,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           setActiveTab('apel-attendance');
                         }}
                         className="w-full p-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs flex items-center justify-between gap-2 transition-all cursor-pointer shadow-xs group"
-                        title="Klik untuk bertindak sebagai Petugas Piket harian sekolah"
+                        title="Klik untuk bertindak sebagai Petugas Piket Pengganti"
                       >
                         <div className="flex items-center gap-2 text-left">
                           <div className="p-1 rounded-lg bg-white/20 text-white group-hover:scale-110 transition-transform">

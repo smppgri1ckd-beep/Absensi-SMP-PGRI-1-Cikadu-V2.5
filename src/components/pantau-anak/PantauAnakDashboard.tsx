@@ -464,6 +464,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
               grades={grades}
               schoolConfig={schoolConfig}
               attendanceRecords={records}
+              teachers={teachers}
             />
           )}
 

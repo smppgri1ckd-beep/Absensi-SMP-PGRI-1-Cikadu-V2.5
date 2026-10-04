@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   GraduationCap, 
   Plus, 
@@ -23,7 +23,7 @@ import {
   ToggleLeft,
   ToggleRight
 } from 'lucide-react';
-import { TeacherUser, SchoolConfig, TeachingAssignment, UserRole } from '../types';
+import { TeacherUser, SchoolConfig, TeachingAssignment, UserRole, JadwalPiketHarian } from '../types';
 import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { SchoolLogo } from '../assets/schoolLogo';
@@ -36,6 +36,8 @@ interface TeacherManagementProps {
   onDeleteTeacher: (id: string) => Promise<void>;
   onBulkDeleteTeachers?: (ids: string[]) => Promise<void>;
   schoolConfig: SchoolConfig;
+  jadwalPiket?: JadwalPiketHarian[];
+  setActiveTab?: (tab: string) => void;
 }
 
 const STANDARD_MAPEL_LIST = [
@@ -76,17 +78,41 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
   onDeleteTeacher,
   onBulkDeleteTeachers,
   schoolConfig,
+  jadwalPiket = [],
+  setActiveTab,
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterRole, setFilterRole] = useState<'Semua' | UserRole>('Semua');
+  const [filterRole, setFilterRole] = useState<'Semua' | UserRole | 'piket_terjadwal'>('Semua');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  // Helper to get piket duties for a teacher
+  const getTeacherPiketDuties = useCallback((t: TeacherUser) => {
+    if (!jadwalPiket || jadwalPiket.length === 0) return [];
+    const duties: { hari: string; peran: string; jam: string }[] = [];
+    jadwalPiket.forEach((j) => {
+      j.petugas.forEach((p) => {
+        if (
+          (p.teacherId && p.teacherId === t.id) ||
+          (p.nama && t.nama && p.nama.toLowerCase().trim() === t.nama.toLowerCase().trim()) ||
+          (p.nip && t.nip && p.nip.trim() === t.nip.trim())
+        ) {
+          duties.push({
+            hari: j.hari,
+            peran: p.peran || 'Petugas Piket',
+            jam: `${p.jamMulai || '06:30'} - ${p.jamSelesai || '14:30'}`,
+          });
+        }
+      });
+    });
+    return duties;
+  }, [jadwalPiket]);
 
   // Form State
   const [teacherId, setTeacherId] = useState('');
@@ -108,7 +134,10 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
 
   // Filtered teachers list
   const filteredTeachers = teachers.filter((t) => {
-    if (filterRole !== 'Semua' && (t.role || 'guru') !== filterRole) {
+    if (filterRole === 'piket_terjadwal') {
+      const duties = getTeacherPiketDuties(t);
+      if (duties.length === 0) return false;
+    } else if (filterRole !== 'Semua' && (t.role || 'guru') !== filterRole) {
       return false;
     }
     if (!searchQuery.trim()) return true;
@@ -136,7 +165,10 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
   }, 0);
 
   const totalWaliKelas = teachers.filter((t) => !!t.waliKelas).length;
-  const totalPiket = teachers.filter((t) => t.role === 'piket').length;
+  const totalPiket = teachers.filter((t) => {
+    const duties = getTeacherPiketDuties(t);
+    return t.role === 'piket' || duties.length > 0;
+  }).length;
 
   const handleOpenAdd = () => {
     setIsEditing(false);
@@ -481,6 +513,15 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
             >
               Petugas Piket
             </button>
+            <button
+              onClick={() => setFilterRole('piket_terjadwal')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1 ${
+                filterRole === 'piket_terjadwal' ? 'bg-white text-emerald-800 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Sparkles className="w-3 h-3 text-emerald-600" />
+              <span>Terjadwal Piket</span>
+            </button>
           </div>
         </div>
 
@@ -614,22 +655,44 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
 
                       {/* Role & Privileges */}
                       <td className="py-3.5 px-4">
-                        {t.role === 'admin' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-100 text-blue-900 border border-blue-200 font-black text-[10px] uppercase">
-                            <ShieldCheck className="w-3 h-3 text-blue-700" />
-                            <span>Admin Sistem</span>
-                          </span>
-                        ) : t.role === 'piket' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-200 font-black text-[10px] uppercase">
-                            <UserCheck className="w-3 h-3 text-emerald-700" />
-                            <span>Petugas Piket</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[10px] uppercase">
-                            <GraduationCap className="w-3 h-3 text-indigo-700" />
-                            <span>Guru Mapel</span>
-                          </span>
-                        )}
+                        <div>
+                          {t.role === 'admin' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-blue-100 text-blue-900 border border-blue-200 font-black text-[10px] uppercase">
+                              <ShieldCheck className="w-3 h-3 text-blue-700" />
+                              <span>Admin Sistem</span>
+                            </span>
+                          ) : t.role === 'piket' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-200 font-black text-[10px] uppercase">
+                              <UserCheck className="w-3 h-3 text-emerald-700" />
+                              <span>Petugas Piket</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-100 text-indigo-900 border border-indigo-200 font-black text-[10px] uppercase">
+                              <GraduationCap className="w-3 h-3 text-indigo-700" />
+                              <span>Guru Mapel</span>
+                            </span>
+                          )}
+
+                          {/* Piket Duties Badge */}
+                          {(() => {
+                            const duties = getTeacherPiketDuties(t);
+                            if (duties.length === 0) return null;
+                            return (
+                              <div className="mt-1.5 flex flex-col gap-1">
+                                {duties.map((pd: { hari: string; peran: string; jam: string }, pidx: number) => (
+                                  <span
+                                    key={pidx}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200 text-[10px] font-bold"
+                                    title={`Tugas: ${pd.peran} (${pd.jam} WIB)`}
+                                  >
+                                    <Clock className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    <span>Piket {pd.hari}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </td>
 
                       {/* Penugasan Mapel (Hingga 10 Mapel dengan Rombel Berbeda) */}
@@ -734,6 +797,15 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                             >
                               <KeyRound className="w-4 h-4" />
                             </button>
+                            {setActiveTab && (
+                              <button
+                                onClick={() => setActiveTab('guru-piket')}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                                title="Lihat / Kelola Penugasan Guru Piket"
+                              >
+                                <UserCheck className="w-4 h-4" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenEdit(t)}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
@@ -871,9 +943,9 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                       onChange={(e) => setTeacherRole(e.target.value as UserRole)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-extrabold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                     >
-                      <option value="guru">Guru Pengajar / Wali Kelas (Akses KBM & Jurnal)</option>
-                      <option value="piket">Petugas Piket Harian (Scan Gerbang & Absensi Harian)</option>
-                      <option value="admin">Administrator Sistem (Hak Akses Penuh)</option>
+                      <option value="guru">Guru Pengajar / Wali Kelas (Dual-Role: KBM & Otomatis Piket Saat Terjadwal)</option>
+                      <option value="piket">Petugas Piket Khusus (Fokus Utama Kiosk Gerbang & Presensi Apel)</option>
+                      <option value="admin">Administrator Sistem (Hak Akses Penuh Konfigurasi)</option>
                     </select>
                   </div>
 
@@ -891,6 +963,59 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                     </select>
                   </div>
                 </div>
+
+                {/* Status Tugas Piket Sekolah */}
+                {(() => {
+                  const currentTeacherObj = isEditing ? teachers.find((t) => t.id === teacherId) : null;
+                  const duties = currentTeacherObj ? getTeacherPiketDuties(currentTeacherObj) : [];
+                  return (
+                    <div className="p-3.5 bg-emerald-50/70 border border-emerald-200/80 rounded-2xl space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                          <UserCheck className="w-4 h-4 text-emerald-600" />
+                          <span>Status Penugasan Guru Piket</span>
+                        </span>
+                        {setActiveTab && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsModalOpen(false);
+                              setActiveTab('guru-piket');
+                            }}
+                            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 underline cursor-pointer"
+                          >
+                            Atur Jadwal Piket →
+                          </button>
+                        )}
+                      </div>
+                      {duties.length > 0 ? (
+                        <div className="space-y-1.5">
+                          <p className="text-[11px] text-emerald-800 leading-tight">
+                            Guru ini terdaftar piket pada:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {duties.map((pd, pidx) => (
+                              <span
+                                key={pidx}
+                                className="px-2.5 py-1 rounded-xl bg-white border border-emerald-300 text-emerald-900 text-xs font-bold shadow-2xs flex items-center gap-1.5"
+                              >
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <strong>Hari {pd.hari}:</strong> {pd.peran} ({pd.jam} WIB)
+                              </span>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-emerald-700 italic pt-0.5">
+                            *Pada hari piket tersebut, akun guru ini otomatis memegang wewenang operasional Petugas Piket (Scanner Kiosk, Presensi Apel, Verifikasi Izin/Sakit) melalui fitur Dual-Role Cerdas.
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500 leading-tight">
+                          Guru ini belum terjadwal sebagai Petugas Piket mingguan. Penugasan dapat diatur melalui menu <strong>Jadwal & Guru Piket</strong>.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* SECTION: PENUGASAN MATA PELAJARAN (Hingga 10 Mapel dengan Rombel Berbeda) */}

@@ -12,7 +12,10 @@ import {
   BookOpen,
   QrCode,
   Settings,
-  Info
+  Info,
+  Calendar,
+  Zap,
+  CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SchoolLogo } from '../assets/schoolLogo';
@@ -28,7 +31,16 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
   onOpenSettings,
   setActiveTab,
 }) => {
-  const { user, logout, actingAsPiket, setActingAsPiket } = useAuth();
+  const { 
+    user, 
+    logout, 
+    actingAsPiket, 
+    setActingAsPiket,
+    isAssignedPiketToday,
+    todayPiketAssignment,
+    todayPiketRole,
+    userPiketDays 
+  } = useAuth();
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   if (!user) {
@@ -145,11 +157,23 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
                     setActingAsPiket(false);
                     setActiveTab?.('journal');
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black ring-2 ring-emerald-300 transition-all shadow-xs cursor-pointer animate-pulse"
-                  title="Klik untuk kembali ke peran Guru Pengajar"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black ring-2 ring-emerald-300 transition-all shadow-xs cursor-pointer"
+                  title="Klik untuk kembali ke peran Guru Pengajar (KBM)"
                 >
                   <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Mode Piket Aktif (Kembali ke Guru)</span>
+                  <span>Mode Piket Aktif (Beralih ke KBM)</span>
+                </button>
+              ) : isAssignedPiketToday ? (
+                <button
+                  onClick={() => {
+                    setActingAsPiket(true);
+                    setActiveTab?.('apel-attendance');
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 text-xs font-black ring-2 ring-emerald-300 shadow-md shadow-emerald-950/40 transition-all cursor-pointer animate-pulse hover:scale-105"
+                  title="Klik untuk mengaktifkan operasional Petugas Piket Presensi Hari Ini"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                  <span>Mulai Piket Hari Ini</span>
                 </button>
               ) : (
                 <button
@@ -157,11 +181,11 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
                     setActingAsPiket(true);
                     setActiveTab?.('apel-attendance');
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-bold border border-emerald-400/60 transition-all shadow-xs cursor-pointer"
-                  title="Klik untuk bertindak sebagai Petugas Piket Presensi"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold border border-emerald-400/50 transition-all shadow-xs cursor-pointer"
+                  title="Bertindak sebagai Petugas Piket Pengganti"
                 >
                   <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
-                  <span>Bertindak Sebagai Piket</span>
+                  <span>Piket Pengganti</span>
                 </button>
               )
             )}
@@ -230,6 +254,63 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
           </div>
 
         </div>
+
+        {/* Dedicated Teacher Piket Duty Callout */}
+        {user.role === 'guru' && isAssignedPiketToday && (
+          <div className="mt-2.5 pt-2 border-t border-white/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-emerald-950/40 p-2.5 rounded-2xl border border-emerald-400/30">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-3 w-3 relative shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400"></span>
+              </span>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-400 text-slate-950">
+                    Tugas Piket Hari Ini
+                  </span>
+                  <span className="text-xs font-black text-white">
+                    {todayPiketRole || 'Petugas Piket'}
+                  </span>
+                  <span className="text-[11px] text-emerald-300 font-mono">
+                    ({todayPiketAssignment?.jamMulai || '06:30'} - {todayPiketAssignment?.jamSelesai || '14:30'} WIB)
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Anda terjadwal dalam operasional presensi gerbang, absensi apel kelas, dan verifikasi izin/sakit hari ini.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+              {!actingAsPiket ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActingAsPiket(true);
+                    setActiveTab?.('apel-attendance');
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-xs shadow-md shadow-emerald-950/40 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>Buka Operasional Piket</span>
+                </button>
+              ) : (
+                <span className="px-3 py-1 rounded-xl bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Sedang Mengoperasikan Piket</span>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Regular Weekly Piket Info for other days */}
+        {user.role === 'guru' && !isAssignedPiketToday && userPiketDays.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-white/10 flex items-center gap-2 text-[11px] text-slate-300">
+            <Calendar className="w-3.5 h-3.5 text-indigo-300 shrink-0" />
+            <span>Jadwal Piket Mingguan Anda: <strong className="text-emerald-300 font-bold">{userPiketDays.join(', ')}</strong></span>
+          </div>
+        )}
 
         {/* Expandable Details Tray */}
         {isExpanded && (

@@ -368,6 +368,8 @@ export const GlobalStudentSearch: React.FC<GlobalStudentSearchProps> = ({
             <img
               src={student.fotoUrl}
               alt={student.nama}
+              loading="lazy"
+              decoding="async"
               className="w-9 h-9 rounded-full object-cover shrink-0 border border-slate-200 shadow-2xs"
             />
           ) : (
@@ -637,6 +639,8 @@ export const GlobalStudentSearch: React.FC<GlobalStudentSearchProps> = ({
                   <img
                     src={selectedStudentModal.fotoUrl}
                     alt={selectedStudentModal.nama}
+                    loading="lazy"
+                    decoding="async"
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-white shadow-md shrink-0"
                   />
                 ) : (

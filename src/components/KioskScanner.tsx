@@ -1152,7 +1152,9 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
                       <img
                         src={lastScannedResult.student.fotoUrl}
                         alt={lastScannedResult.student.nama}
-                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        className="absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-300"
                         onError={(e) => {
                           (e.currentTarget as HTMLElement).style.display = 'none';
                         }}
@@ -1249,7 +1251,9 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
                             <img
                               src={studentObj.fotoUrl}
                               alt={r.nama}
-                              className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
+                              className="absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-300"
                               onError={(e) => {
                                 (e.currentTarget as HTMLElement).style.display = 'none';
                               }}

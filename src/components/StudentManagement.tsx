@@ -582,7 +582,9 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <img
                             src={s.fotoUrl}
                             alt={s.nama}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            loading="lazy"
+                            decoding="async"
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform z-10"
                             onError={(e) => {
                               (e.currentTarget as HTMLElement).style.display = 'none';
                             }}
@@ -594,7 +596,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                           <span>{s.nama.substring(0, 2).toUpperCase()}</span>
                         </div>
                         
-                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity">
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity z-20">
                           <Eye className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -783,6 +785,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                       <img
                         src={formFotoUrl}
                         alt="Preview"
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.currentTarget as HTMLElement).style.display = 'none';
@@ -880,6 +884,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                 <img
                   src={previewStudent.fotoUrl}
                   alt={previewStudent.nama}
+                  loading="lazy"
+                  decoding="async"
                   className="w-full h-full object-cover"
                 />
               ) : (

@@ -30,29 +30,33 @@ interface GuruPiketManagementProps {
   jadwalPiket: JadwalPiketHarian[];
   onSaveJadwalPiket: (jadwal: JadwalPiketHarian[]) => Promise<void>;
   teachers: TeacherUser[];
+  onSaveTeacher?: (teacher: TeacherUser) => Promise<void>;
   schoolConfig: SchoolConfig;
+  setActiveTab?: (tab: string) => void;
 }
 
 const DAYS_LIST: DayOfWeek[] = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
 const PERAN_PRESETS = [
-  'Koordinator Piket & Apel Pagi',
-  'Piket Gerbang & Pemindai QR',
-  'Piket Apel Pagi & Siang',
-  'Piket Pemindai QR & Ketertiban',
-  'Piket Pemeriksaan Izin & Sakit',
-  'Piket Ketertiban Sholat Dhuha / Jumat',
-  'Piket Pengawasan Istirahat & Kantin',
-  'Piket Kepulangan Siswa',
+  'Koordinator Piket & Apel Utama',
+  'Piket Gerbang & Pemindai QR Pagi',
+  'Piket Apel Pagi & Siang per Rombel',
+  'Piket Pemeriksaan Izin & Surat Dokter',
+  'Piket Ketertiban, Disiplin & Kerapian',
+  'Piket Pengawasan KBM & Jam Efektif',
+  'Piket Ketertiban Sholat Dhuha / Dzuhur',
+  'Piket Pemantau Kepulangan Siswa',
 ];
 
 export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
   jadwalPiket,
   onSaveJadwalPiket,
   teachers,
+  onSaveTeacher,
   schoolConfig,
+  setActiveTab,
 }) => {
-  const { user } = useAuth();
+  const { user, actingAsPiket, setActingAsPiket } = useAuth();
   const isAdmin = user?.role === 'admin';
 
   // Determine current day of week in Indonesian
@@ -70,6 +74,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
   }, []);
 
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>('Semua');
+  const [viewMode, setViewMode] = useState<'jadwal' | 'distribusi'>('jadwal');
   const [searchQuery, setSearchQuery] = useState('');
   const [feedbackBanner, setFeedbackBanner] = useState<{ text: string; type: 'success' | 'info' } | null>(null);
 
@@ -83,9 +88,10 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
   const [formNama, setFormNama] = useState<string>('');
   const [formNip, setFormNip] = useState<string>('');
   const [formNomorHp, setFormNomorHp] = useState<string>('');
-  const [formPeran, setFormPeran] = useState<string>('Koordinator Piket & Apel Pagi');
+  const [formPeran, setFormPeran] = useState<string>('Koordinator Piket & Apel Utama');
   const [formJamMulai, setFormJamMulai] = useState<string>('06:30');
   const [formJamSelesai, setFormJamSelesai] = useState<string>('14:30');
+  const [formRoleAuthorityMode, setFormRoleAuthorityMode] = useState<'dual_role' | 'permanent_piket' | 'schedule_only'>('dual_role');
   const [formError, setFormError] = useState<string | null>(null);
 
   // Print Preview Modal
@@ -112,18 +118,51 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
     return dayData?.petugas || [];
   }, [normalizedJadwal, currentDayOfWeek]);
 
+  // Teacher Piket Distribution Summary across all teachers
+  const teacherDistribution = useMemo(() => {
+    return teachers.map((t) => {
+      const duties: { hari: DayOfWeek; peran: string; jam: string }[] = [];
+      normalizedJadwal.forEach((j) => {
+        j.petugas.forEach((p) => {
+          if (
+            (p.teacherId && p.teacherId === t.id) ||
+            (p.nama && t.nama && p.nama.toLowerCase().trim() === t.nama.toLowerCase().trim()) ||
+            (p.nip && t.nip && p.nip.trim() === t.nip.trim())
+          ) {
+            duties.push({
+              hari: j.hari,
+              peran: p.peran || 'Petugas Piket',
+              jam: `${p.jamMulai || '06:30'} - ${p.jamSelesai || '14:30'}`,
+            });
+          }
+        });
+      });
+      return {
+        teacher: t,
+        duties,
+        totalDays: duties.length,
+      };
+    });
+  }, [teachers, normalizedJadwal]);
+
   // Open modal to add new officer
-  const handleOpenAddModal = (targetDay?: DayOfWeek) => {
+  const handleOpenAddModal = (targetDay?: DayOfWeek, preselectedTeacherId?: string) => {
     setEditingItem(null);
     setFormHari(targetDay || (currentDayOfWeek || 'Senin'));
-    setFormTeacherId('');
-    setFormNama('');
-    setFormNip('');
-    setFormNomorHp('');
-    setFormPeran('Koordinator Piket & Apel Pagi');
+    setFormPeran('Koordinator Piket & Apel Utama');
     setFormJamMulai('06:30');
     setFormJamSelesai(targetDay === 'Jumat' ? '11:45' : '14:30');
+    setFormRoleAuthorityMode('dual_role');
     setFormError(null);
+
+    if (preselectedTeacherId) {
+      handleTeacherSelect(preselectedTeacherId);
+    } else {
+      setFormTeacherId('');
+      setFormNama('');
+      setFormNip('');
+      setFormNomorHp('');
+    }
     setIsFormModalOpen(true);
   };
 
@@ -135,9 +174,23 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
     setFormNama(item.nama);
     setFormNip(item.nip || '');
     setFormNomorHp(item.nomorHp || '');
-    setFormPeran(item.peran || 'Koordinator Piket');
+    setFormPeran(item.peran || 'Koordinator Piket & Apel Utama');
     setFormJamMulai(item.jamMulai || '06:30');
     setFormJamSelesai(item.jamSelesai || '14:30');
+
+    // Determine initial authority mode
+    const matchedTeacher = teachers.find(
+      (t) => (item.teacherId && t.id === item.teacherId) || 
+      (t.nama && item.nama && t.nama.toLowerCase().trim() === item.nama.toLowerCase().trim())
+    );
+    if (matchedTeacher?.role === 'piket') {
+      setFormRoleAuthorityMode('permanent_piket');
+    } else if (item.syncUserRole === false) {
+      setFormRoleAuthorityMode('schedule_only');
+    } else {
+      setFormRoleAuthorityMode('dual_role');
+    }
+
     setFormError(null);
     setIsFormModalOpen(true);
   };
@@ -151,6 +204,11 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
       setFormNama(selected.nama);
       setFormNip(selected.nip || '');
       setFormNomorHp(selected.nomorHp || '');
+      if (selected.role === 'piket') {
+        setFormRoleAuthorityMode('permanent_piket');
+      } else {
+        setFormRoleAuthorityMode('dual_role');
+      }
     }
   };
 
@@ -180,9 +238,10 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
             nama: formNama.trim(),
             nip: formNip.trim() || undefined,
             nomorHp: formNomorHp.trim() || undefined,
-            peran: formPeran.trim() || 'Petugas Piket',
+            peran: formPeran.trim() || 'Koordinator Piket & Apel Utama',
             jamMulai: formJamMulai || '06:30',
             jamSelesai: formJamSelesai || '14:30',
+            syncUserRole: formRoleAuthorityMode !== 'schedule_only',
           };
 
           if (editingItem && editingItem.day === formHari) {
@@ -202,9 +261,33 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
       });
 
       await onSaveJadwalPiket(updated);
+
+      // Handle role updates based on formRoleAuthorityMode
+      if (formTeacherId && onSaveTeacher) {
+        const foundT = teachers.find((t) => t.id === formTeacherId);
+        if (foundT && foundT.role !== 'admin') {
+          if (formRoleAuthorityMode === 'permanent_piket' && foundT.role !== 'piket') {
+            await onSaveTeacher({
+              ...foundT,
+              role: 'piket',
+            }).catch(() => {});
+          } else if (formRoleAuthorityMode === 'dual_role' && foundT.role === 'piket') {
+            await onSaveTeacher({
+              ...foundT,
+              role: 'guru',
+            }).catch(() => {});
+          }
+        }
+      }
+
       setIsFormModalOpen(false);
+      const authorityDesc = formRoleAuthorityMode === 'permanent_piket' 
+        ? 'Petugas Piket Utama (Permanen)' 
+        : formRoleAuthorityMode === 'dual_role'
+        ? 'Dual-Role Cerdas (Guru Mapel + Piket Otomatis)'
+        : 'Pencatatan Jadwal Saja';
       setFeedbackBanner({
-        text: `Petugas Guru Piket (${formNama}) berhasil disimpan untuk hari ${formHari}!`,
+        text: `Petugas Guru Piket (${formNama}) berhasil disimpan untuk hari ${formHari} dengan model: ${authorityDesc}!`,
         type: 'success',
       });
       setTimeout(() => setFeedbackBanner(null), 4000);
@@ -438,61 +521,93 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
       )}
 
       {/* 2. Controls & Filter Bar */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col md:flex-row items-center justify-between gap-3">
-        {/* Days Tab Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
-          <button
-            type="button"
-            onClick={() => setSelectedDayFilter('Semua')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-              selectedDayFilter === 'Semua'
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            Semua Hari
-          </button>
-          {DAYS_LIST.map((day) => {
-            const count = normalizedJadwal.find((j) => j.hari === day)?.petugas.length || 0;
-            const isToday = currentDayOfWeek === day;
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => setSelectedDayFilter(day)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
-                  selectedDayFilter === day
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : isToday
-                    ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <span>{day}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                  selectedDayFilter === day ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {count}
-                </span>
-                {isToday && (
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Hari Ini" />
-                )}
-              </button>
-            );
-          })}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-xs flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+          {/* Mode Switcher: Jadwal Harian vs Distribusi Beban Guru */}
+          <div className="inline-flex p-1 bg-slate-100 rounded-2xl border border-slate-200 text-xs font-bold w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => setViewMode('jadwal')}
+              className={`flex-1 md:flex-initial px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                viewMode === 'jadwal'
+                  ? 'bg-emerald-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Jadwal Harian (Senin - Sabtu)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('distribusi')}
+              className={`flex-1 md:flex-initial px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                viewMode === 'distribusi'
+                  ? 'bg-emerald-600 text-white shadow-xs font-black'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Distribusi & Rekap Wewenang Guru</span>
+            </button>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative w-full md:w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nama guru, peran, atau NIP..."
+              className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white transition-colors"
+            />
+          </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative w-full md:w-64">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nama guru / peran piket..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white transition-colors"
-          />
-        </div>
+        {/* Days Tab Filters (Hanya pada mode Jadwal) */}
+        {viewMode === 'jadwal' && (
+          <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto w-full pb-1 scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setSelectedDayFilter('Semua')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                selectedDayFilter === 'Semua'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Semua Hari
+            </button>
+            {DAYS_LIST.map((day) => {
+              const count = normalizedJadwal.find((j) => j.hari === day)?.petugas.length || 0;
+              const isToday = currentDayOfWeek === day;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => setSelectedDayFilter(day)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
+                    selectedDayFilter === day
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : isToday
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{day}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                    selectedDayFilter === day ? 'bg-white/25 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {count}
+                  </span>
+                  {isToday && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" title="Hari Ini" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Bulk Delete Floating/Action Bar */}
@@ -652,12 +767,22 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                   dayPetugas.map((officer) => {
                     const officerKey = `${dayData.hari}___${officer.id}`;
                     const isOfficerSelected = selectedOfficerKeys.includes(officerKey);
+                    const matchedTeacher = teachers.find(
+                      (t) => (officer.teacherId && t.id === officer.teacherId) ||
+                      (t.nama && officer.nama && t.nama.toLowerCase().trim() === officer.nama.toLowerCase().trim()) ||
+                      (t.nip && officer.nip && t.nip.trim() === officer.nip.trim())
+                    );
+                    const isTodayDuty = dayData.hari === currentDayOfWeek;
+                    const isCurrentUser = user && (
+                      (officer.teacherId && user.id === officer.teacherId) ||
+                      (user.nama && officer.nama && user.nama.toLowerCase().trim() === officer.nama.toLowerCase().trim())
+                    );
 
                     return (
                       <div
                         key={officer.id}
-                        className={`py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group px-2 rounded-xl transition-colors ${
-                          isOfficerSelected ? 'bg-rose-50/60 ring-1 ring-rose-200' : ''
+                        className={`py-3.5 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group px-2.5 rounded-2xl transition-all ${
+                          isOfficerSelected ? 'bg-rose-50/70 ring-1 ring-rose-200' : isTodayDuty ? 'bg-emerald-50/40 hover:bg-emerald-50/70' : 'hover:bg-slate-50/80'
                         }`}
                       >
                         <div className="flex items-start gap-3 min-w-0">
@@ -678,22 +803,62 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                           )}
 
                           {/* Avatar */}
-                          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          <div className={`w-10 h-10 rounded-2xl font-black text-xs flex items-center justify-center shrink-0 shadow-xs text-white ${
+                            matchedTeacher?.role === 'piket'
+                              ? 'bg-gradient-to-br from-blue-600 to-indigo-700'
+                              : isTodayDuty
+                              ? 'bg-gradient-to-br from-emerald-500 to-teal-600 ring-2 ring-emerald-400'
+                              : 'bg-gradient-to-br from-teal-500 to-emerald-600'
+                          }`}>
                             {officer.nama.charAt(0)}
                           </div>
 
-                          <div className="min-w-0">
-                            <h4 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
-                              {officer.nama}
-                            </h4>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-black text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 transition-colors truncate">
+                                {officer.nama}
+                              </h4>
+                              {isTodayDuty && (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-400 text-slate-950 shadow-2xs">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-ping" />
+                                  Piket Hari Ini
+                                </span>
+                              )}
+                            </div>
                             
-                            <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap mt-1">
                               <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold">
-                                {officer.peran || 'Petugas Piket'}
+                                {officer.peran || 'Koordinator Piket & Apel Utama'}
                               </span>
-                              <span className="text-[10px] font-mono text-slate-400">
-                                NIP: {officer.nip || '-'}
-                              </span>
+
+                              {/* Authority Mode Badge */}
+                              {matchedTeacher?.role === 'piket' ? (
+                                <span className="px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-800 border border-blue-200 text-[9px] font-bold flex items-center gap-1" title="Akun bertugas utama sebagai Petugas Piket Presensi">
+                                  <UserCheck className="w-2.5 h-2.5 text-blue-600" />
+                                  <span>Petugas Piket Utama</span>
+                                </span>
+                              ) : officer.syncUserRole !== false ? (
+                                <span className="px-1.5 py-0.5 rounded-md bg-emerald-100/70 text-emerald-900 border border-emerald-200 text-[9px] font-extrabold flex items-center gap-1" title="Dual-Role: Tetap Guru Mapel/Wali Kelas & Otomatis Memegang Hak Piket di Hari Ini">
+                                  <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                                  <span>Dual-Role Aktif</span>
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 text-[9px] font-medium" title="Penugasan dicatat pada papan informasi sekolah">
+                                  Papan Jadwal
+                                </span>
+                              )}
+
+                              {matchedTeacher?.mapel && (
+                                <span className="text-[10px] text-slate-500 font-medium truncate">
+                                  • {matchedTeacher.mapel}
+                                </span>
+                              )}
+
+                              {officer.nip && (
+                                <span className="text-[10px] font-mono text-slate-400">
+                                  • NIP: {officer.nip}
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1.5 flex-wrap">
@@ -713,6 +878,30 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                                   <Phone className="w-3 h-3" />
                                   <span>{officer.nomorHp}</span>
                                 </a>
+                              )}
+
+                              {/* Interactive quick action for the logged in teacher */}
+                              {isCurrentUser && isTodayDuty && (
+                                <div className="ml-auto sm:ml-0">
+                                  {!actingAsPiket ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActingAsPiket(true);
+                                        setActiveTab?.('apel-attendance');
+                                      }}
+                                      className="px-2.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-black shadow-xs flex items-center gap-1 cursor-pointer transition-transform hover:scale-105"
+                                    >
+                                      <Sparkles className="w-3 h-3" />
+                                      <span>Buka Lembar Apel Sekarang</span>
+                                    </button>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-bold flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                      <span>Mode Piket Sedang Berjalan</span>
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -827,14 +1016,40 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                   onChange={(e) => handleTeacherSelect(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white"
                 >
-                  <option value="">-- Pilih Guru (Otomatis isi Nama & NIP) --</option>
+                  <option value="">-- Pilih Guru (Otomatis isi Nama, NIP & Akun) --</option>
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.nama} {t.mapel ? `(${t.mapel})` : ''}
+                      {t.nama} {t.mapel ? `(${t.mapel})` : ''} - @{t.username}
                     </option>
                   ))}
                 </select>
               </div>
+
+              {/* Selected Teacher Account Preview */}
+              {(() => {
+                const selectedTeacher = teachers.find((t) => t.id === formTeacherId);
+                if (!selectedTeacher) return null;
+                return (
+                  <div className="p-3 bg-indigo-50/70 border border-indigo-200/80 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold shrink-0 shadow-xs">
+                        <UserCheck className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-slate-900 truncate">
+                          Akun Terhubung: <span className="font-mono text-indigo-700">@{selectedTeacher.username}</span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 truncate">
+                          Mapel: {selectedTeacher.mapel || 'Guru'} • Status: <strong className="text-emerald-700">{selectedTeacher.status || 'Aktif'}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-xl text-[10px] font-black uppercase bg-white text-indigo-900 border border-indigo-200 shrink-0">
+                      {selectedTeacher.role === 'admin' ? 'Admin' : selectedTeacher.role === 'piket' ? 'Petugas Piket' : 'Guru Mapel'}
+                    </span>
+                  </div>
+                );
+              })()}
 
               {/* Nama Guru Piket */}
               <div>
@@ -934,6 +1149,101 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                     onChange={(e) => setFormJamSelesai(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white font-mono"
                   />
+                </div>
+              </div>
+
+              {/* Otoritas & Integrasi Peran Akun Guru */}
+              <div className="space-y-2">
+                <label className="block text-xs font-black text-slate-700">
+                  Model Wewenang & Hak Akses Akun Guru <span className="text-rose-500">*</span>
+                </label>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Mode 1: Dual-Role Cerdas */}
+                  <div
+                    onClick={() => setFormRoleAuthorityMode('dual_role')}
+                    className={`p-3 rounded-2xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
+                      formRoleAuthorityMode === 'dual_role'
+                        ? 'bg-emerald-50/90 border-emerald-500 shadow-xs ring-1 ring-emerald-400'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="p-1.5 rounded-xl bg-emerald-600 text-white shrink-0">
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                          Rekomendasi
+                        </span>
+                      </div>
+                      <h5 className="font-black text-xs text-slate-900">Dual-Role Cerdas</h5>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                        Tetap sebagai Guru Mapel/Wali Kelas. Di hari piketnya, otomatis memegang hak akses operasional Petugas Piket lengkap.
+                      </p>
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold text-emerald-700 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>KBM & Piket Terintegrasi</span>
+                    </div>
+                  </div>
+
+                  {/* Mode 2: Petugas Piket Utama */}
+                  <div
+                    onClick={() => setFormRoleAuthorityMode('permanent_piket')}
+                    className={`p-3 rounded-2xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
+                      formRoleAuthorityMode === 'permanent_piket'
+                        ? 'bg-blue-50/90 border-blue-500 shadow-xs ring-1 ring-blue-400'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="p-1.5 rounded-xl bg-blue-600 text-white shrink-0">
+                          <UserCheck className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300">
+                          Peran Utama
+                        </span>
+                      </div>
+                      <h5 className="font-black text-xs text-slate-900">Petugas Piket Utama</h5>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                        Menetapkan peran akun login guru ini sebagai Petugas Piket permanen untuk operasional gerbang & apel harian.
+                      </p>
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold text-blue-700 flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>Fokus Presensi Apel</span>
+                    </div>
+                  </div>
+
+                  {/* Mode 3: Pencatatan Jadwal Saja */}
+                  <div
+                    onClick={() => setFormRoleAuthorityMode('schedule_only')}
+                    className={`p-3 rounded-2xl border-2 transition-all cursor-pointer select-none flex flex-col justify-between ${
+                      formRoleAuthorityMode === 'schedule_only'
+                        ? 'bg-slate-100 border-slate-400 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="p-1.5 rounded-xl bg-slate-500 text-white shrink-0">
+                          <Calendar className="w-3.5 h-3.5" />
+                        </span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                          Jadwal Saja
+                        </span>
+                      </div>
+                      <h5 className="font-black text-xs text-slate-900">Penugasan Jadwal</h5>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-snug">
+                        Hanya dicatat pada papan jadwal piket sekolah tanpa sinkronisasi hak akses akun sistem.
+                      </p>
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold text-slate-600 flex items-center gap-1">
+                      <span>Pencatatan Papan Informasi</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 

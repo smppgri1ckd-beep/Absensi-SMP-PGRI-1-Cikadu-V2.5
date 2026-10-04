@@ -349,8 +349,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </button>
           )}
 
-          {/* Presensi Apel Petugas per Kelas Button (Only for Admin & Piket) */}
-          {(user?.role === 'admin' || user?.role === 'piket') && (
+          {/* Presensi Apel Petugas per Kelas Button (For Admin, Piket, and Teacher acting as Piket) */}
+          {canManage && (
             <button
               onClick={() => setActiveTab?.('apel-attendance')}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
@@ -361,8 +361,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </button>
           )}
 
-          {/* Manual Add Button (Only for Admin & Piket) */}
-          {(user?.role === 'admin' || user?.role === 'piket') && (
+          {/* Manual Add Button (For Admin, Piket, and Teacher acting as Piket) */}
+          {canManage && (
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"

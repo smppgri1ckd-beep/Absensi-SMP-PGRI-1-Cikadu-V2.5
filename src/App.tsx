@@ -49,7 +49,7 @@ import { AgendaSekolahModal } from './components/AgendaSekolahModal';
 import { AiAttendanceAnalysisModal } from './components/AiAttendanceAnalysisModal';
 import { StudentReportCardModal } from './components/StudentReportCardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
-import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles } from 'lucide-react';
+import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School } from 'lucide-react';
 
 function AppContent() {
   const { user, actingAsPiket, effectiveRole } = useAuth();
@@ -69,6 +69,8 @@ function AppContent() {
   const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>([]);
   const [schoolEvents, setSchoolEvents] = useState<SchoolEventItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadingProgress, setLoadingProgress] = useState<number>(15);
+  const [loadingStepText, setLoadingStepText] = useState<string>('Menghubungkan ke pangkalan data sekolah...');
   const [selectedPantauStudent, setSelectedPantauStudent] = useState<Student | null>(null);
 
   // Modals
@@ -111,9 +113,23 @@ function AppContent() {
     prevUserRoleRef.current = currentRole;
   }, [effectiveRole]);
 
-  // Load all initial data from database service
+  // Load all initial data from database service with smooth progress tracking
   const loadAllData = useCallback(async () => {
     try {
+      setLoadingProgress(15);
+      setLoadingStepText('Menghubungkan ke pangkalan data sekolah...');
+
+      let completedCount = 0;
+      const totalSteps = 10;
+      const trackStep = async <T,>(promise: Promise<T>, stepName: string): Promise<T> => {
+        const result = await promise;
+        completedCount += 1;
+        const targetPct = Math.min(95, Math.round(15 + (completedCount / totalSteps) * 80));
+        setLoadingProgress(targetPct);
+        setLoadingStepText(stepName);
+        return result;
+      };
+
       const [
         cfg, 
         studentList, 
@@ -126,16 +142,16 @@ function AppContent() {
         piketList,
         eventList
       ] = await Promise.all([
-        DatabaseService.getSchoolConfig(),
-        DatabaseService.getStudents(),
-        DatabaseService.getAttendanceRecords(),
-        DatabaseService.getKalenderHeb(),
-        DatabaseService.getTeachers(),
-        DatabaseService.getTeachingJournals(),
-        DatabaseService.getStudentGrades(),
-        DatabaseService.getLeaveRequests(),
-        DatabaseService.getJadwalPiket(),
-        DatabaseService.getSchoolEvents(),
+        trackStep(DatabaseService.getSchoolConfig(), 'Memuat konfigurasi & jadwal sekolah...'),
+        trackStep(DatabaseService.getStudents(), 'Sinkronisasi profil & data siswa...'),
+        trackStep(DatabaseService.getAttendanceRecords(), 'Memuat rekap presensi & kehadiran apel...'),
+        trackStep(DatabaseService.getKalenderHeb(), 'Sinkronisasi kalender hari efektif belajar...'),
+        trackStep(DatabaseService.getTeachers(), 'Memuat akun pendidik & petugas piket...'),
+        trackStep(DatabaseService.getTeachingJournals(), 'Menyiapkan agenda & jurnal mengajar...'),
+        trackStep(DatabaseService.getStudentGrades(), 'Memuat rekap penilaian & rapor digital...'),
+        trackStep(DatabaseService.getLeaveRequests(), 'Sinkronisasi surat izin & permohonan...'),
+        trackStep(DatabaseService.getJadwalPiket(), 'Memeriksa penugasan piket hari ini...'),
+        trackStep(DatabaseService.getSchoolEvents(), 'Memuat agenda kegiatan sekolah...'),
       ]);
 
       setSchoolConfig(cfg);
@@ -148,8 +164,14 @@ function AppContent() {
       setLeaveRequests(leaveList);
       setJadwalPiket(piketList);
       setSchoolEvents(eventList);
+
+      setLoadingProgress(100);
+      setLoadingStepText('Data berhasil disinkronkan, menyiapkan antarmuka...');
+      // Brief pause to let the 100% transition animation complete smoothly
+      await new Promise((resolve) => setTimeout(resolve, 300));
     } catch (e) {
       console.error('Error loading data', e);
+      setLoadingStepText('Melanjutkan dengan data lokal...');
     } finally {
       setIsLoading(false);
     }
@@ -634,10 +656,78 @@ function AppContent() {
         {/* Main Content Body */}
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {isLoading ? (
-            <div className="py-32 flex flex-col items-center justify-center text-slate-400">
-              <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
-              <p className="font-extrabold text-slate-700 text-sm">Menyiapkan Sistem Presensi Digital...</p>
-              <p className="text-xs text-slate-400 mt-1">{schoolConfig.namaSekolah}</p>
+            <div className="py-16 sm:py-24 flex flex-col items-center justify-center px-4">
+              <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl relative overflow-hidden">
+                {/* Decorative background glow */}
+                <div className="absolute -top-16 -right-16 w-40 h-40 bg-blue-100/70 rounded-full blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-16 -left-16 w-40 h-40 bg-indigo-100/70 rounded-full blur-3xl pointer-events-none" />
+
+                {/* Header branding */}
+                <div className="flex flex-col items-center text-center relative z-10 mb-6">
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-700 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 mb-3.5 relative">
+                    <School className="w-8 h-8 text-white" />
+                    <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-2 border-white rounded-full flex items-center justify-center shadow-sm">
+                      <Sparkles className="w-2.5 h-2.5 text-white animate-spin" />
+                    </span>
+                  </div>
+                  <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                    {schoolConfig.namaSekolah || 'SMP PGRI 1 CIBINONG'}
+                  </h2>
+                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                    Sistem Manajemen & Presensi Digital Terpadu
+                  </p>
+                </div>
+
+                {/* Smooth Progress Bar Container */}
+                <div className="relative z-10 space-y-2 mb-6">
+                  <div className="flex items-center justify-between text-xs font-bold gap-2">
+                    <span className="text-slate-600 flex items-center gap-1.5 truncate">
+                      <Loader2 className="w-3.5 h-3.5 text-blue-600 animate-spin shrink-0" />
+                      <span className="truncate">{loadingStepText}</span>
+                    </span>
+                    <span className="px-2.5 py-0.5 bg-blue-50 text-blue-700 rounded-full font-black text-[11px] border border-blue-200/70 shrink-0 shadow-xs">
+                      {loadingProgress}%
+                    </span>
+                  </div>
+
+                  {/* Outer track */}
+                  <div className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200/80 shadow-inner">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-emerald-500 transition-all duration-300 ease-out relative overflow-hidden"
+                      style={{ width: `${loadingProgress}%` }}
+                    >
+                      {/* Animated Shimmer Bar overlay */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full animate-pulse rounded-full" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Module loading status checklist */}
+                <div className="relative z-10 grid grid-cols-2 gap-2.5 pt-3 border-t border-slate-100 text-[11px]">
+                  <div className="flex items-center gap-2 text-slate-500 font-medium bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100">
+                    <span className={`w-2 h-2 rounded-full shrink-0 transition-colors duration-300 ${loadingProgress >= 30 ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-slate-300 animate-pulse'}`} />
+                    <span className={`truncate ${loadingProgress >= 30 ? 'text-slate-800 font-bold' : ''}`}>Siswa & Rombel</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 font-medium bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100">
+                    <span className={`w-2 h-2 rounded-full shrink-0 transition-colors duration-300 ${loadingProgress >= 50 ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-slate-300 animate-pulse'}`} />
+                    <span className={`truncate ${loadingProgress >= 50 ? 'text-slate-800 font-bold' : ''}`}>Presensi & Apel</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 font-medium bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100">
+                    <span className={`w-2 h-2 rounded-full shrink-0 transition-colors duration-300 ${loadingProgress >= 75 ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-slate-300 animate-pulse'}`} />
+                    <span className={`truncate ${loadingProgress >= 75 ? 'text-slate-800 font-bold' : ''}`}>Jurnal & Rapor</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-slate-500 font-medium bg-slate-50/80 px-2.5 py-1.5 rounded-xl border border-slate-100">
+                    <span className={`w-2 h-2 rounded-full shrink-0 transition-colors duration-300 ${loadingProgress >= 90 ? 'bg-emerald-500 ring-2 ring-emerald-200' : 'bg-slate-300 animate-pulse'}`} />
+                    <span className={`truncate ${loadingProgress >= 90 ? 'text-slate-800 font-bold' : ''}`}>Piket & Izin</span>
+                  </div>
+                </div>
+
+                {/* Footer security & status info */}
+                <div className="relative z-10 mt-5 pt-3 border-t border-slate-100 flex items-center justify-center gap-2 text-[11px] text-slate-400 font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Koneksi Aman & Sinkronisasi Cloud Real-Time</span>
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -871,6 +961,8 @@ function AppContent() {
                     onDeleteTeacher={handleDeleteTeacher}
                     onBulkDeleteTeachers={handleBulkDeleteTeachers}
                     schoolConfig={schoolConfig}
+                    jadwalPiket={jadwalPiket}
+                    setActiveTab={setActiveTab}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
@@ -901,7 +993,9 @@ function AppContent() {
                     jadwalPiket={jadwalPiket}
                     onSaveJadwalPiket={handleSaveJadwalPiket}
                     teachers={teachers}
+                    onSaveTeacher={handleSaveTeacher}
                     schoolConfig={schoolConfig}
+                    setActiveTab={setActiveTab}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
@@ -1110,6 +1204,7 @@ function AppContent() {
             grades={grades}
             schoolConfig={schoolConfig}
             attendanceRecords={records}
+            teachers={teachers}
           />
         )}
 

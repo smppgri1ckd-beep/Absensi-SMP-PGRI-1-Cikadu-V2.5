@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { AuthUser, TeacherUser, UserRole } from '../types';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import { AuthUser, TeacherUser, UserRole, JadwalPiketHarian, DayOfWeek, PetugasPiketItem } from '../types';
 import { DatabaseService, INITIAL_TEACHERS } from '../services/db';
 
 interface LoginResult {
@@ -14,6 +14,10 @@ interface AuthContextType {
   setActingAsPiket: (val: boolean) => void;
   toggleActingAsPiket: () => void;
   effectiveRole: UserRole | 'public';
+  isAssignedPiketToday: boolean;
+  todayPiketAssignment: PetugasPiketItem | null;
+  todayPiketRole: string | null;
+  userPiketDays: DayOfWeek[];
   login: (username: string, pass: string) => Promise<LoginResult>;
   logout: () => void;
   refreshTeachers: () => Promise<void>;
@@ -26,6 +30,10 @@ const AuthContext = createContext<AuthContextType>({
   setActingAsPiket: () => {},
   toggleActingAsPiket: () => {},
   effectiveRole: 'public',
+  isAssignedPiketToday: false,
+  todayPiketAssignment: null,
+  todayPiketRole: null,
+  userPiketDays: [],
   login: async () => ({ success: false }),
   logout: () => {},
   refreshTeachers: async () => {},
@@ -33,6 +41,7 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [teachers, setTeachers] = useState<TeacherUser[]>(INITIAL_TEACHERS);
+  const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>([]);
   
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
@@ -50,6 +59,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   });
+
+  // Subscribe to Jadwal Piket
+  useEffect(() => {
+    DatabaseService.getJadwalPiket().then((res) => {
+      if (res && res.length > 0) setJadwalPiket(res);
+    }).catch(() => {});
+
+    const unsubscribe = DatabaseService.subscribeJadwalPiket((data) => {
+      if (data && data.length > 0) setJadwalPiket(data);
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  const currentDayOfWeek = useMemo<DayOfWeek | null>(() => {
+    const dayIdx = new Date().getDay();
+    const map: Record<number, DayOfWeek> = {
+      1: 'Senin',
+      2: 'Selasa',
+      3: 'Rabu',
+      4: 'Kamis',
+      5: 'Jumat',
+      6: 'Sabtu',
+    };
+    return map[dayIdx] || null;
+  }, []);
+
+  // Today's piket assignment for the logged in user
+  const todayPiketAssignment = useMemo<PetugasPiketItem | null>(() => {
+    if (!user || !currentDayOfWeek || !jadwalPiket.length) return null;
+    const dayData = jadwalPiket.find((j) => j.hari === currentDayOfWeek);
+    if (!dayData) return null;
+    return dayData.petugas.find((p) => {
+      if (p.teacherId && p.teacherId === user.id) return true;
+      if (p.nama && user.nama && p.nama.toLowerCase().trim() === user.nama.toLowerCase().trim()) return true;
+      if (p.nip && user.nip && p.nip.trim() === user.nip.trim()) return true;
+      return false;
+    }) || null;
+  }, [user, currentDayOfWeek, jadwalPiket]);
+
+  // All days of the week this user has piket duties
+  const userPiketDays = useMemo<DayOfWeek[]>(() => {
+    if (!user || !jadwalPiket.length) return [];
+    const days: DayOfWeek[] = [];
+    jadwalPiket.forEach((j) => {
+      const match = j.petugas.some((p) => {
+        if (p.teacherId && p.teacherId === user.id) return true;
+        if (p.nama && user.nama && p.nama.toLowerCase().trim() === user.nama.toLowerCase().trim()) return true;
+        if (p.nip && user.nip && p.nip.trim() === user.nip.trim()) return true;
+        return false;
+      });
+      if (match) days.push(j.hari);
+    });
+    return days;
+  }, [user, jadwalPiket]);
+
+  const isAssignedPiketToday = Boolean(todayPiketAssignment);
+  const todayPiketRole = todayPiketAssignment?.peran || null;
 
   const setActingAsPiket = useCallback((val: boolean) => {
     setActingAsPiketState(val);
@@ -237,6 +306,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActingAsPiket, 
       toggleActingAsPiket, 
       effectiveRole, 
+      isAssignedPiketToday,
+      todayPiketAssignment,
+      todayPiketRole,
+      userPiketDays,
       login, 
       logout, 
       refreshTeachers 

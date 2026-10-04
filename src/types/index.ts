@@ -136,6 +136,7 @@ export interface PetugasPiketItem {
   peran?: string; // misal: 'Koordinator Piket', 'Piket Gerbang & Apel', 'Piket Pemindai QR & Ketertiban'
   jamMulai?: string; // misal '06:30'
   jamSelesai?: string; // misal '14:30'
+  syncUserRole?: boolean; // Berikan hak akses akun guru sebagai Petugas Piket
 }
 
 export interface JadwalPiketHarian {
@@ -175,6 +176,8 @@ export interface AuthUser {
   status?: string;
   loginAt?: string;
   avatarColor?: string;
+  isAssignedPiketToday?: boolean;
+  piketScheduleInfo?: string;
 }
 
 // Model Pantau Anak: Jadwal Pelajaran Kelas
