@@ -433,6 +433,13 @@ function AppContent() {
     toast.delete('Akun Guru Dihapus Massal', `${ids.length} akun guru berhasil dihapus.`);
   };
 
+  const handleBulkSaveTeachers = async (newTeachers: TeacherUser[]) => {
+    await DatabaseService.bulkSaveTeachers(newTeachers);
+    const updated = await DatabaseService.getTeachers();
+    setTeachers(updated);
+    toast.upload('Impor Data Guru Berhasil', `${newTeachers.length} data guru berhasil diimpor ke database.`);
+  };
+
   // Teaching Journal handlers (Debounced pada penulisan database, State instan)
   const handleSaveJournal = async (journal: TeachingJournal, classAttendanceRecords?: AttendanceRecord[]) => {
     setJournals((prev) => {
@@ -1010,6 +1017,7 @@ function AppContent() {
                     onSaveTeacher={handleSaveTeacher}
                     onDeleteTeacher={handleDeleteTeacher}
                     onBulkDeleteTeachers={handleBulkDeleteTeachers}
+                    onBulkSaveTeachers={handleBulkSaveTeachers}
                     schoolConfig={schoolConfig}
                     jadwalPiket={jadwalPiket}
                     setActiveTab={setActiveTab}

@@ -399,3 +399,167 @@ export function exportStudentTemplateExcel(): void {
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Siswa');
   XLSX.writeFile(workbook, 'Template_Import_Siswa_SMP_PGRI_1_CIKADU.xlsx');
 }
+
+/**
+ * 8. TEMPLATE RESMI IMPORT DATA GURU & 3 PENUGASAN (GURU MAPEL, WALI KELAS, GURU PIKET)
+ */
+export function exportTeacherTemplateExcel(): void {
+  const sample = [
+    {
+      'No': 1,
+      'Nama Lengkap Guru': 'SURYADI',
+      'NUPTK': '-',
+      'Penugasan Guru Mapel (Ya/Tidak)': 'Ya',
+      'Mata Pelajaran Utama': 'Pendidikan Pancasila & PKN',
+      'Rombel / Kelas Ajar': '9A, 9B',
+      'Beban Jam (JP/Minggu)': 6,
+      'Penugasan Wali Kelas (Kelas / -)': '9A',
+      'Penugasan Guru Piket (Ya/Tidak)': 'Tidak',
+      'Hari Tugas Piket (Opsional)': '-',
+      'Nomor WhatsApp': '085212587750',
+      'Username Akun': 'suryadi',
+      'Password Akun': 'edudigital',
+      'Status': 'Aktif'
+    },
+    {
+      'No': 2,
+      'Nama Lengkap Guru': 'Hj. Siti Maryam, S.Pd.',
+      'NUPTK': '197509182005012006',
+      'Penugasan Guru Mapel (Ya/Tidak)': 'Ya',
+      'Mata Pelajaran Utama': 'Ilmu Pengetahuan Alam (IPA)',
+      'Rombel / Kelas Ajar': '7A, 7B',
+      'Beban Jam (JP/Minggu)': 8,
+      'Penugasan Wali Kelas (Kelas / -)': '7A',
+      'Penugasan Guru Piket (Ya/Tidak)': 'Ya',
+      'Hari Tugas Piket (Opsional)': 'Senin',
+      'Nomor WhatsApp': '08123456701',
+      'Username Akun': 'guru.ipa',
+      'Password Akun': 'edudigital',
+      'Status': 'Aktif'
+    },
+    {
+      'No': 3,
+      'Nama Lengkap Guru': 'Asep Saepudin, S.Pd.',
+      'NUPTK': '198103142008011009',
+      'Penugasan Guru Mapel (Ya/Tidak)': 'Ya',
+      'Mata Pelajaran Utama': 'Matematika',
+      'Rombel / Kelas Ajar': '8A, 8B, 9A, 9B',
+      'Beban Jam (JP/Minggu)': 24,
+      'Penugasan Wali Kelas (Kelas / -)': '8A',
+      'Penugasan Guru Piket (Ya/Tidak)': 'Tidak',
+      'Hari Tugas Piket (Opsional)': '-',
+      'Nomor WhatsApp': '08123456702',
+      'Username Akun': 'guru.matematika',
+      'Password Akun': 'edudigital',
+      'Status': 'Aktif'
+    },
+    {
+      'No': 4,
+      'Nama Lengkap Guru': 'Dedi Kurniawan, S.Pd.',
+      'NUPTK': '199002152014021003',
+      'Penugasan Guru Mapel (Ya/Tidak)': 'Ya',
+      'Mata Pelajaran Utama': 'Bahasa Inggris',
+      'Rombel / Kelas Ajar': '7A, 7B, 8A, 8B',
+      'Beban Jam (JP/Minggu)': 16,
+      'Penugasan Wali Kelas (Kelas / -)': '7B',
+      'Penugasan Guru Piket (Ya/Tidak)': 'Ya',
+      'Hari Tugas Piket (Opsional)': 'Selasa, Kamis',
+      'Nomor WhatsApp': '08123456704',
+      'Username Akun': 'guru.inggris',
+      'Password Akun': 'edudigital',
+      'Status': 'Aktif'
+    },
+    {
+      'No': 5,
+      'Nama Lengkap Guru': 'Petugas Piket Gerbang Khusus',
+      'NUPTK': '-',
+      'Penugasan Guru Mapel (Ya/Tidak)': 'Tidak',
+      'Mata Pelajaran Utama': '-',
+      'Rombel / Kelas Ajar': '-',
+      'Beban Jam (JP/Minggu)': 0,
+      'Penugasan Wali Kelas (Kelas / -)': '-',
+      'Penugasan Guru Piket (Ya/Tidak)': 'Ya',
+      'Hari Tugas Piket (Opsional)': 'Senin, Rabu, Jumat',
+      'Nomor WhatsApp': '081234567809',
+      'Username Akun': 'piket.khusus',
+      'Password Akun': 'edudigital',
+      'Status': 'Aktif'
+    }
+  ];
+
+  const worksheet = XLSX.utils.json_to_sheet(sample);
+  worksheet['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 32 }, // Nama Lengkap
+    { wch: 22 }, // NUPTK
+    { wch: 28 }, // Penugasan Guru Mapel
+    { wch: 30 }, // Mapel Utama
+    { wch: 24 }, // Rombel Kelas
+    { wch: 22 }, // Beban Jam (JP)
+    { wch: 28 }, // Penugasan Wali Kelas
+    { wch: 28 }, // Penugasan Guru Piket
+    { wch: 26 }, // Hari Tugas Piket
+    { wch: 20 }, // No WA
+    { wch: 20 }, // Username
+    { wch: 18 }, // Password
+    { wch: 14 }, // Status
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Format Import Guru');
+  XLSX.writeFile(workbook, 'Template_Import_Data_Guru_SMP_PGRI_1_CIKADU.xlsx');
+}
+
+/**
+ * 9. EKSPOR DAFTAR LENGKAP TENAGA PENDIDIK KE EXCEL
+ */
+export function exportTeacherListExcel(teachers: any[], schoolConfig: SchoolConfig): void {
+  const rows = teachers.map((t, idx) => {
+    const classes = Array.from(new Set(t.penugasanMapel?.flatMap((p: any) => p.kelas) || [])).join(', ');
+    const totalJP = t.penugasanMapel?.reduce((sum: number, p: any) => sum + (p.bebanJam || 0), 0) || t.totalJamMengajar || 0;
+    const isMapel = t.isGuruMapel !== false && (Boolean(t.mapel) || (t.penugasanMapel && t.penugasanMapel.length > 0));
+    const isWali = Boolean(t.isWaliKelas) && Boolean(t.waliKelas && t.waliKelas !== '-' && t.waliKelas !== '');
+    const isPiket = Boolean(t.isGuruPiket) || t.role === 'piket';
+    const piketDaysStr = t.piketDays && t.piketDays.length > 0 ? t.piketDays.join(', ') : (isPiket ? 'Aktif' : '-');
+
+    return {
+      'No': idx + 1,
+      'Nama Lengkap Guru': t.nama,
+      'NUPTK': t.nip || '-',
+      'Guru Mapel': isMapel ? 'Ya' : 'Tidak',
+      'Mata Pelajaran': isMapel ? (t.mapel || (t.penugasanMapel?.[0]?.mapel || '-')) : '-',
+      'Rombel / Kelas Ajar': isMapel ? (classes || '-') : '-',
+      'Total Beban JP': totalJP,
+      'Wali Kelas': isWali ? `Kelas ${t.waliKelas}` : '-',
+      'Guru Piket': isPiket ? 'Ya' : 'Tidak',
+      'Hari Piket': piketDaysStr,
+      'Nomor WhatsApp': t.nomorHp || '-',
+      'Hak Akses': t.role === 'admin' ? 'Administrator' : t.role === 'piket' ? 'Petugas Piket' : 'Guru',
+      'Username Akun': t.username,
+      'Status Kepegawaian': t.status || 'Aktif'
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 32 },
+    { wch: 22 },
+    { wch: 14 },
+    { wch: 30 },
+    { wch: 24 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 22 },
+    { wch: 20 },
+    { wch: 18 },
+    { wch: 20 },
+    { wch: 16 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Guru');
+  const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
+  XLSX.writeFile(workbook, `Daftar_Guru_${cleanSchool}.xlsx`);
+}

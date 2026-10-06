@@ -152,12 +152,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             (t) => t.id === currentUser.id || t.username.toLowerCase() === currentUser.username.toLowerCase()
           );
           if (found) {
+            const isGuruMapel = found.isGuruMapel ?? (found.role === 'guru' || !!found.mapel || (found.penugasanMapel && found.penugasanMapel.length > 0));
+            const isWaliKelas = found.isWaliKelas ?? (!!found.waliKelas && found.waliKelas !== '-' && found.waliKelas !== '');
+            const isGuruPiket = found.isGuruPiket ?? (found.role === 'piket' || (found.piketDays && found.piketDays.length > 0));
             return {
               ...currentUser,
               mapel: found.mapel,
               penugasanMapel: found.penugasanMapel || [],
               waliKelas: found.waliKelas,
               nama: found.nama,
+              isGuruMapel,
+              isWaliKelas,
+              isGuruPiket,
+              piketDays: found.piketDays,
+              piketRole: found.piketRole,
             };
           }
           return currentUser;
@@ -238,6 +246,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const expectedPass = found.password || 'edudigital';
       if (pass === expectedPass || pass === 'edudigital') {
         const userRole = found.role || 'guru';
+        const isGuruMapel = found.isGuruMapel ?? (userRole === 'guru' || !!found.mapel || (found.penugasanMapel && found.penugasanMapel.length > 0));
+        const isWaliKelas = found.isWaliKelas ?? (!!found.waliKelas && found.waliKelas !== '-' && found.waliKelas !== '');
+        const isGuruPiket = found.isGuruPiket ?? (userRole === 'piket' || (found.piketDays && found.piketDays.length > 0));
+
         const guruUser: AuthUser = {
           id: found.id,
           username: found.username,
@@ -251,6 +263,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           status: found.status || 'Aktif',
           loginAt: nowTime,
           avatarColor: userRole === 'admin' ? 'bg-blue-700' : userRole === 'piket' ? 'bg-emerald-600' : 'bg-indigo-600',
+          isGuruMapel,
+          isWaliKelas,
+          isGuruPiket,
+          piketDays: found.piketDays,
+          piketRole: found.piketRole,
         };
         setUser(guruUser);
         return { success: true };

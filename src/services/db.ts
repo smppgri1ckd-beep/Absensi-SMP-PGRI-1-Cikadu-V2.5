@@ -125,6 +125,9 @@ export const INITIAL_TEACHERS: TeacherUser[] = [
     waliKelas: '9A',
     nomorHp: '085212587750',
     status: 'Aktif',
+    isGuruMapel: true,
+    isWaliKelas: true,
+    isGuruPiket: false,
     penugasanMapel: [
       { id: 'ASGN_SURYADI_1', mapel: 'Pendidikan Pancasila & PKN', kelas: ['9A', '9B'], bebanJam: 6 },
     ],
@@ -141,6 +144,11 @@ export const INITIAL_TEACHERS: TeacherUser[] = [
     waliKelas: '7A',
     nomorHp: '08123456701',
     status: 'Aktif',
+    isGuruMapel: true,
+    isWaliKelas: true,
+    isGuruPiket: true,
+    piketDays: ['Senin'],
+    piketRole: 'Koordinator Piket & Scanner Gerbang',
     penugasanMapel: [
       { id: 'ASGN_1_1', mapel: 'Ilmu Pengetahuan Alam (IPA)', kelas: ['7A', '7B'], bebanJam: 8 },
       { id: 'ASGN_1_2', mapel: 'Prakarya & Kewirausahaan', kelas: ['8A', '8B'], bebanJam: 4 },
@@ -159,6 +167,9 @@ export const INITIAL_TEACHERS: TeacherUser[] = [
     waliKelas: '8A',
     nomorHp: '08123456702',
     status: 'Aktif',
+    isGuruMapel: true,
+    isWaliKelas: true,
+    isGuruPiket: false,
     penugasanMapel: [
       { id: 'ASGN_2_1', mapel: 'Matematika', kelas: ['8A', '8B'], bebanJam: 10 },
       { id: 'ASGN_2_2', mapel: 'Matematika', kelas: ['9A', '9B'], bebanJam: 10 },
@@ -177,6 +188,9 @@ export const INITIAL_TEACHERS: TeacherUser[] = [
     waliKelas: '9A',
     nomorHp: '08123456703',
     status: 'Aktif',
+    isGuruMapel: true,
+    isWaliKelas: true,
+    isGuruPiket: false,
     penugasanMapel: [
       { id: 'ASGN_3_1', mapel: 'Bahasa Indonesia', kelas: ['9A', '9B'], bebanJam: 12 },
       { id: 'ASGN_3_2', mapel: 'Bahasa Sunda (Mulok)', kelas: ['7A', '7B', '8A'], bebanJam: 6 },
@@ -194,6 +208,11 @@ export const INITIAL_TEACHERS: TeacherUser[] = [
     waliKelas: '7B',
     nomorHp: '08123456704',
     status: 'Aktif',
+    isGuruMapel: true,
+    isWaliKelas: true,
+    isGuruPiket: true,
+    piketDays: ['Selasa', 'Kamis'],
+    piketRole: 'Piket Gerbang & Pemindai QR',
     penugasanMapel: [
       { id: 'ASGN_4_1', mapel: 'Bahasa Inggris', kelas: ['7A', '7B'], bebanJam: 8 },
       { id: 'ASGN_4_2', mapel: 'Pendidikan Jasmani & Olahraga (PJOK)', kelas: ['8A', '8B'], bebanJam: 6 },
@@ -212,6 +231,9 @@ export const INITIAL_TEACHERS: TeacherUser[] = [
     waliKelas: '8B',
     nomorHp: '08123456705',
     status: 'Aktif',
+    isGuruMapel: true,
+    isWaliKelas: true,
+    isGuruPiket: false,
     penugasanMapel: [
       { id: 'ASGN_5_1', mapel: 'Pendidikan Agama Islam (PAI)', kelas: ['7A', '7B', '8A', '8B'], bebanJam: 12 },
       { id: 'ASGN_5_2', mapel: 'Seni Budaya', kelas: ['8A', '8B'], bebanJam: 4 },
@@ -872,6 +894,32 @@ export class DatabaseService {
       await setDoc(docRef, cleanData(teacher));
     } catch (e) {
       console.warn('Firestore saveTeacher offline cache used', e);
+    }
+  }
+
+  static async bulkSaveTeachers(newTeachers: TeacherUser[]): Promise<void> {
+    const teachers = await this.getTeachers();
+    const map = new Map<string, TeacherUser>();
+    teachers.forEach((t) => map.set(t.id, t));
+    newTeachers.forEach((t) => map.set(t.id, t));
+
+    const combined = Array.from(map.values());
+    setLocal('teachers', combined);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < newTeachers.length; i += CHUNK_SIZE) {
+        const chunk = newTeachers.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((t) => {
+          const docRef = doc(db!, 'guru_users', t.id);
+          batch.set(docRef, cleanData(t));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkSaveTeachers offline cache used', e);
     }
   }
 

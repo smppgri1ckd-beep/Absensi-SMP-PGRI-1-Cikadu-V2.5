@@ -71,6 +71,12 @@ export interface TeacherUser {
   nomorHp?: string; // no WhatsApp / telepon
   status?: 'Aktif' | 'Non-Aktif' | string;
   totalJamMengajar?: number;
+  // 3 Peran Terfokus
+  isGuruMapel?: boolean; // Penugasan 1: Guru Mapel
+  isWaliKelas?: boolean; // Penugasan 2: Wali Kelas
+  isGuruPiket?: boolean; // Penugasan 3: Guru Piket
+  piketDays?: DayOfWeek[]; // Hari Penugasan Piket (e.g. ['Senin', 'Kamis'])
+  piketRole?: string; // Peran saat bertugas piket
 }
 
 export interface AttendanceTimeSettings {
@@ -179,6 +185,12 @@ export interface AuthUser {
   avatarColor?: string;
   isAssignedPiketToday?: boolean;
   piketScheduleInfo?: string;
+  // 3 Peran Terfokus
+  isGuruMapel?: boolean;
+  isWaliKelas?: boolean;
+  isGuruPiket?: boolean;
+  piketDays?: DayOfWeek[];
+  piketRole?: string;
 }
 
 // Model Jadwal Pelajaran Kelas & Guru

@@ -334,29 +334,44 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                            user.role === 'admin'
-                              ? 'bg-blue-100 text-blue-900 border border-blue-200'
-                              : user.role === 'guru' && actingAsPiket
-                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold'
-                              : user.role === 'guru'
-                              ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                              : user.role === 'ortu'
-                              ? 'bg-amber-100 text-amber-900 border border-amber-200'
-                              : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                          }`}>
-                            {user.role === 'admin' 
-                              ? 'Administrator' 
-                              : user.role === 'guru' && actingAsPiket
-                              ? 'Petugas Piket (Tugas Guru)'
-                              : user.role === 'guru' 
-                              ? 'Guru Mapel' 
-                              : user.role === 'ortu'
-                              ? 'Orang Tua / Wali'
-                              : 'Petugas Piket'}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-1 mb-1">
+                            {user.role === 'admin' && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
+                                Administrator
+                              </span>
+                            )}
+                            {user.role === 'ortu' && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-200">
+                                Orang Tua / Wali
+                              </span>
+                            )}
+                            {user.role === 'piket' && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                Petugas Piket
+                              </span>
+                            )}
+                            {user.role === 'guru' && (
+                              <>
+                                {(user.isGuruMapel ?? (!!user.mapel || (user.penugasanMapel && user.penugasanMapel.length > 0))) && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-indigo-100 text-indigo-900 border border-indigo-200">
+                                    Guru Mapel
+                                  </span>
+                                )}
+                                {(user.isWaliKelas ?? !!user.waliKelas) && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-amber-100 text-amber-900 border border-amber-200">
+                                    Wali {user.waliKelas || 'Kelas'}
+                                  </span>
+                                )}
+                                {(user.isGuruPiket ?? (user.piketDays && user.piketDays.length > 0)) && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-200">
+                                    Piket {user.piketDays?.join(', ') || ''}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
                           
-                          <h4 className="font-extrabold text-xs text-slate-900 mt-1 truncate">
+                          <h4 className="font-extrabold text-xs text-slate-900 truncate">
                             {user.nama}
                           </h4>
                           <p className="text-[10px] text-slate-500 font-mono truncate">

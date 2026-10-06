@@ -178,129 +178,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ];
     }
 
-    // 3. PETUGAS PIKET HARIAN (Termasuk Guru yang sedang Bertindak Sebagai Piket)
-    if (effectiveRole === 'piket') {
-      return [
-        {
-          groupTitle: user.role === 'guru' && actingAsPiket 
-            ? 'Operasional Piket (Tugas Guru)' 
-            : 'Operasional Presensi Apel',
-          items: [
-            {
-              id: 'apel-attendance',
-              label: 'Absensi Apel Petugas',
-              desc: 'Input apel pagi & siang per kelas',
-              icon: UserCheck,
-              tag: 'Harian',
-              tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
-            },
-            {
-              id: 'kiosk',
-              label: 'Pindai Presensi Siswa',
-              desc: 'Pindai kartu QR apel pagi & siang',
-              icon: QrCode,
-              tag: 'Presensi',
-              tagColor: 'bg-blue-100 text-blue-800 font-bold',
-            },
-            {
-              id: 'dashboard',
-              label: 'Monitoring Presensi Apel',
-              desc: 'Kelola presensi apel pagi & siang',
-              icon: LayoutDashboard,
-            },
-            {
-              id: 'action-leave-approval',
-              label: 'Verifikasi Izin & Sakit',
-              desc: 'Pemeriksaan berkas surat ortu',
-              icon: FileText,
-              isAction: true,
-              tag: pendingLeaveCount > 0 ? `${pendingLeaveCount} Menunggu` : 'Piket',
-              tagColor: pendingLeaveCount > 0 ? 'bg-rose-500 text-white font-bold' : 'bg-amber-100 text-amber-800',
-            },
-            {
-              id: 'pantau-anak',
-              label: 'Pantau Siswa',
-              desc: 'Perkembangan, nilai & presensi',
-              icon: Sparkles,
-            },
-            {
-              id: 'guru-piket',
-              label: 'Jadwal Guru Piket',
-              desc: 'Jadwal penugasan piket Senin - Sabtu',
-              icon: UserCheck,
-              tag: 'Piket',
-              tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
-            },
-          ],
-        },
-        {
-          groupTitle: 'Dokumen & Rekap Laporan',
-          items: [
-            {
-              id: 'reports-apel',
-              label: 'Rekap Laporan Apel',
-              desc: 'Laporan resmi apel pagi & siang (HEB)',
-              icon: FileSpreadsheet,
-              tag: 'Apel',
-              tagColor: 'bg-amber-100 text-amber-900 font-bold',
-            },
-            {
-              id: 'reports-kbm',
-              label: 'Rekap Laporan Pembelajaran',
-              desc: 'Laporan absensi KBM mata pelajaran',
-              icon: BookOpen,
-              tag: 'KBM',
-              tagColor: 'bg-indigo-100 text-indigo-900 font-bold',
-            },
-            {
-              id: 'cards',
-              label: 'Cetak Kartu Siswa',
-              desc: 'Cetak kartu baru / hilang',
-              icon: Printer,
-            },
-            {
-              id: 'heb-calendar',
-              label: 'Kalender Efektif (HEB)',
-              desc: 'Jadwal hari aktif sekolah',
-              icon: CalendarDays,
-            },
-          ],
-        },
-      ];
-    }
+    // 3 & 4. GURU & PETUGAS PIKET (Modular Per 3 Peran: Guru Mapel, Wali Kelas, Guru Piket)
+    if (user.role === 'guru' || user.role === 'piket') {
+      const isMapelAssigned = user.isGuruMapel !== false && (Boolean(user.mapel) || (user.penugasanMapel && user.penugasanMapel.length > 0));
+      const isWaliAssigned = Boolean(user.isWaliKelas) && Boolean(user.waliKelas && user.waliKelas !== '-' && user.waliKelas !== '');
+      const isPiketAssigned = Boolean(user.isGuruPiket) || user.role === 'piket' || Boolean(isAssignedPiketToday) || Boolean(user.piketDays && user.piketDays.length > 0) || actingAsPiket;
 
-    // 4. GURU MATA PELAJARAN / WALI KELAS (Mode Normal Guru)
-    if (effectiveRole === 'guru') {
-      return [
-        {
-          groupTitle: 'Pembelajaran & KBM (Guru)',
+      const groups: MenuGroup[] = [];
+
+      // 1. Penugasan Guru Mapel
+      if (isMapelAssigned) {
+        groups.push({
+          groupTitle: `Penugasan Guru Mapel ${user.mapel ? `(${user.mapel})` : ''}`,
           items: [
             {
               id: 'journal',
               label: 'Absensi & Jurnal Pembelajaran',
               desc: 'Catat absensi mapel & agenda KBM guru',
               icon: BookOpen,
-              tag: 'Utama',
+              tag: 'KBM',
               tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
             },
-            ...(isAssignedPiketToday ? [
-              {
-                id: 'kiosk',
-                label: 'Scanner Gerbang Hari Ini',
-                desc: 'Pindai kartu presensi siswa (Tugas Piket)',
-                icon: QrCode,
-                tag: 'Piket Hari Ini',
-                tagColor: 'bg-emerald-600 text-white font-black',
-              },
-              {
-                id: 'apel-attendance',
-                label: 'Absensi Apel Petugas',
-                desc: 'Input kehadiran apel per kelas (Tugas Piket)',
-                icon: UserCheck,
-                tag: 'Piket',
-                tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
-              },
-            ] : []),
             {
               id: 'action-grades',
               label: 'Kelola Nilai Siswa',
@@ -311,58 +209,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
             },
             {
-              id: 'action-leave-approval',
-              label: 'Verifikasi Izin / Sakit',
-              desc: 'Periksa surat keterangan siswa',
-              icon: FileText,
-              isAction: true,
-              tag: pendingLeaveCount > 0 ? `${pendingLeaveCount}` : undefined,
-              tagColor: 'bg-rose-500 text-white font-bold',
-            },
-            {
-              id: 'dashboard',
-              label: 'Pantau Presensi Apel',
-              desc: 'Cek kehadiran apel pagi/siang siswa',
-              icon: LayoutDashboard,
-            },
-            {
-              id: 'students',
-              label: 'Data Siswa Binaan',
-              desc: 'Daftar nama & kontak orang tua',
-              icon: Users,
-            },
-            {
-              id: 'pantau-anak',
-              label: 'Pantau Siswa Binaan',
-              desc: 'Perkembangan nilai, tugas & presensi',
-              icon: Sparkles,
-            },
-            {
-              id: 'guru-piket',
-              label: 'Jadwal Guru Piket',
-              desc: 'Lihat jadwal piket mingguan sekolah',
-              icon: UserCheck,
-            },
-          ],
-        },
-        {
-          groupTitle: 'Laporan & Kalender',
-          items: [
-            {
               id: 'reports-kbm',
               label: 'Rekap Laporan Pembelajaran',
               desc: 'Laporan KBM mapel & ketuntasan belajar',
               icon: BookOpen,
-              tag: 'KBM Guru',
+              tag: 'Laporan',
               tagColor: 'bg-indigo-100 text-indigo-900 font-bold',
-            },
-            {
-              id: 'reports-apel',
-              label: 'Rekap Laporan Apel',
-              desc: 'Laporan presensi apel pagi & siang',
-              icon: FileSpreadsheet,
-              tag: 'Apel',
-              tagColor: 'bg-amber-100 text-amber-900 font-bold',
             },
             {
               id: 'heb-calendar',
@@ -371,8 +223,127 @@ export const Sidebar: React.FC<SidebarProps> = ({
               icon: CalendarDays,
             },
           ],
-        },
-      ];
+        });
+      }
+
+      // 2. Penugasan Wali Kelas
+      if (isWaliAssigned) {
+        groups.push({
+          groupTitle: `Penugasan Wali Kelas ${user.waliKelas ? `(${user.waliKelas})` : ''}`,
+          items: [
+            {
+              id: 'students',
+              label: `Data Siswa Kelas ${user.waliKelas || 'Binaan'}`,
+              desc: 'Daftar nama & kontak orang tua kelas binaan',
+              icon: Users,
+              tag: user.waliKelas || 'Wali',
+              tagColor: 'bg-amber-100 text-amber-900 font-bold',
+            },
+            {
+              id: 'pantau-anak',
+              label: `Pantau Siswa ${user.waliKelas || 'Binaan'}`,
+              desc: 'Perkembangan nilai, tugas & presensi siswa binaan',
+              icon: Sparkles,
+              tag: 'Binaan',
+              tagColor: 'bg-amber-100 text-amber-900 font-bold',
+            },
+            {
+              id: 'action-leave-approval',
+              label: 'Verifikasi Izin & Sakit',
+              desc: 'Periksa surat izin & permohonan siswa',
+              icon: FileText,
+              isAction: true,
+              tag: pendingLeaveCount > 0 ? `${pendingLeaveCount} Pengajuan` : undefined,
+              tagColor: 'bg-rose-500 text-white font-bold',
+            },
+            {
+              id: 'action-whatsapp',
+              label: 'Kirim Notifikasi WhatsApp Ortu',
+              desc: 'Kirim info presensi & catatan ke wali murid',
+              icon: MessageSquare,
+              isAction: true,
+              tag: 'WA',
+              tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
+            },
+          ],
+        });
+      }
+
+      // 3. Penugasan Guru Piket
+      if (isPiketAssigned) {
+        groups.push({
+          groupTitle: 'Penugasan Guru Piket',
+          items: [
+            {
+              id: 'apel-attendance',
+              label: 'Absensi Apel Petugas',
+              desc: 'Input kehadiran apel pagi & siang per rombel',
+              icon: UserCheck,
+              tag: 'Piket',
+              tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
+            },
+            {
+              id: 'kiosk',
+              label: 'Pindai Presensi Siswa',
+              desc: 'Pindai kartu QR apel pagi & siang di gerbang',
+              icon: QrCode,
+              tag: isAssignedPiketToday ? 'Hari Ini' : 'Gerbang',
+              tagColor: isAssignedPiketToday ? 'bg-emerald-600 text-white font-bold' : 'bg-blue-100 text-blue-800 font-bold',
+            },
+            {
+              id: 'dashboard',
+              label: 'Monitoring Presensi Apel',
+              desc: 'Kelola & pantau presensi apel harian',
+              icon: LayoutDashboard,
+            },
+            ...(!isWaliAssigned ? [{
+              id: 'action-leave-approval',
+              label: 'Verifikasi Izin & Sakit',
+              desc: 'Pemeriksaan berkas surat ortu / dokter',
+              icon: FileText,
+              isAction: true,
+              tag: pendingLeaveCount > 0 ? `${pendingLeaveCount} Pengajuan` : undefined,
+              tagColor: 'bg-rose-500 text-white font-bold',
+            }] : []),
+            {
+              id: 'guru-piket',
+              label: 'Jadwal Guru Piket',
+              desc: 'Lihat jadwal tugas piket sekolah',
+              icon: UserCheck,
+            },
+            {
+              id: 'reports-apel',
+              label: 'Rekap Laporan Apel',
+              desc: 'Laporan resmi apel pagi & siang',
+              icon: FileSpreadsheet,
+              tag: 'Apel',
+              tagColor: 'bg-amber-100 text-amber-900 font-bold',
+            },
+          ],
+        });
+      }
+
+      // 4. Layanan Pendukung & Informasi Sekolah
+      groups.push({
+        groupTitle: 'Layanan & Info Sekolah',
+        items: [
+          {
+            id: 'action-agenda',
+            label: 'Agenda Kegiatan Sekolah',
+            desc: 'Kalender kegiatan, rapat & event sekolah',
+            icon: Calendar,
+            isAction: true,
+          },
+          {
+            id: 'public-info',
+            label: 'Jadwal & Info Sekolah',
+            desc: 'Profil & jam operasional sekolah',
+            icon: Info,
+          },
+        ],
+      });
+
+      return groups;
     }
 
     // 4. ADMINISTRATOR SISTEM
