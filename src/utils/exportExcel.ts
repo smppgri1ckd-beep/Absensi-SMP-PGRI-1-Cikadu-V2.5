@@ -328,6 +328,58 @@ export function exportTeachingJournalsExcel(
   XLSX.writeFile(workbook, filename);
 }
 
+export function exportClassSchedulesExcel(
+  schedules: any[],
+  schoolConfig: SchoolConfig,
+  filterHari?: string,
+  filterKelas?: string
+): void {
+  const dayOrder: Record<string, number> = {
+    'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6
+  };
+
+  const sorted = [...schedules].sort((a, b) => {
+    const dayDiff = (dayOrder[a.hari] || 99) - (dayOrder[b.hari] || 99);
+    if (dayDiff !== 0) return dayDiff;
+    if (a.kelas !== b.kelas) return a.kelas.localeCompare(b.kelas);
+    return a.jamMulai.localeCompare(b.jamMulai);
+  });
+
+  const rows = sorted.map((s, idx) => ({
+    'No': idx + 1,
+    'Hari': s.hari,
+    'Kelas': s.kelas,
+    'Jam Ke': s.jamKe || '-',
+    'Jam Mulai': s.jamMulai,
+    'Jam Selesai': s.jamSelesai,
+    'Mata Pelajaran': s.mapel,
+    'Guru Pengajar': s.guruNama,
+    'Ruang / Lokasi': s.ruang || '-',
+    'Keterangan': s.keterangan || '-',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 10 },
+    { wch: 8 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 28 },
+    { wch: 28 },
+    { wch: 18 },
+    { wch: 20 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Jadwal Pelajaran');
+
+  const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
+  const filename = `Jadwal_Pelajaran_${cleanSchool}_${filterHari || 'Semua'}_${filterKelas || 'Semua'}.xlsx`;
+  XLSX.writeFile(workbook, filename);
+}
+
 export function exportStudentTemplateExcel(): void {
   const sample = [
     { 'NISN': '0091234501', 'Nama Siswa': 'Ahmad Fauzan', 'Jenis Kelamin (L/P)': 'L', 'Kelas': '7A' },

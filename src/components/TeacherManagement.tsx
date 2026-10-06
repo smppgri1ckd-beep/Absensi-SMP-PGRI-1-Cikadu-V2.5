@@ -480,7 +480,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Cari nama, NIP, mapel, atau kelas..."
+              placeholder="Cari nama, NUPTK, mapel, atau kelas..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
@@ -588,7 +588,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                   </th>
                 )}
                 <th className="py-3.5 px-4">No</th>
-                <th className="py-3.5 px-4 min-w-[200px]">Nama Guru & NIP</th>
+                <th className="py-3.5 px-4 min-w-[200px]">Nama Guru & NUPTK</th>
                 <th className="py-3.5 px-4">Role & Hak Akses</th>
                 <th className="py-3.5 px-4 min-w-[300px]">Penugasan Mapel & Rombel (Hingga 10 Mapel)</th>
                 <th className="py-3.5 px-4">Wali Kelas</th>
@@ -637,13 +637,13 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                       )}
                       <td className="py-3.5 px-4 font-medium text-slate-400">{idx + 1}</td>
                       
-                      {/* Name & NIP */}
+                      {/* Name & NUPTK */}
                       <td className="py-3.5 px-4">
                         <div className="font-extrabold text-slate-900 text-sm">
                           {t.nama}
                         </div>
                         <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                          NIP: {t.nip || 'Belum diisi'}
+                          NUPTK: {t.nip || 'Belum diisi'}
                         </div>
                         {t.nomorHp && (
                           <div className="flex items-center gap-1 text-[11px] text-slate-500 font-mono mt-0.5">
@@ -891,11 +891,11 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
-                      NIP / NUPTK (Opsional)
+                      NUPTK (Opsional)
                     </label>
                     <input
                       type="text"
-                      placeholder="198001012005011001"
+                      placeholder="16 Digit NUPTK"
                       value={teacherNip}
                       onChange={(e) => setTeacherNip(e.target.value)}
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white"

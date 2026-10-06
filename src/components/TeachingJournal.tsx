@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { 
   BookOpen, 
@@ -27,9 +27,20 @@ import {
   Eye,
   Search,
   RotateCw,
-  Printer
+  Printer,
+  BarChart3,
+  TrendingUp
 } from 'lucide-react';
-import { TeachingJournal, Student, SchoolConfig, TeacherUser, AttendanceRecord, AttendanceStatus } from '../types';
+import { 
+  TeachingJournal, 
+  Student, 
+  SchoolConfig, 
+  TeacherUser, 
+  AttendanceRecord, 
+  AttendanceStatus,
+  ClassScheduleItem,
+  DayOfWeek
+} from '../types';
 import { exportTeachingJournalsExcel } from '../utils/exportExcel';
 import { generateTeachingJournalsPdf } from '../utils/exportPdf';
 import { useAuth } from '../context/AuthContext';
@@ -38,15 +49,22 @@ import { SchoolLogo } from '../assets/schoolLogo';
 import { getTeacherAccessibleClasses, isClassMatch, normalizeClassName } from '../utils/teacherFilter';
 import { DatabaseService } from '../services/db';
 import { useToast } from '../context/ToastContext';
+import { TeachingScheduleManager } from './TeachingScheduleManager';
+import { WeeklyWorkloadSummary, calculateScheduleJP } from './WeeklyWorkloadSummary';
 
 interface TeachingJournalProps {
   journals: TeachingJournal[];
   students: Student[];
   schoolConfig: SchoolConfig;
   teachers: TeacherUser[];
+  schedules?: ClassScheduleItem[];
   onSaveJournal: (journal: TeachingJournal, classAttendanceRecords?: AttendanceRecord[]) => Promise<void>;
   onDeleteJournal: (id: string) => Promise<void>;
   onBulkDeleteJournals?: (ids: string[]) => Promise<void>;
+  onSaveSchedule?: (schedule: ClassScheduleItem) => Promise<void>;
+  onDeleteSchedule?: (id: string) => Promise<void>;
+  onBulkDeleteSchedules?: (ids: string[]) => Promise<void>;
+  onResetSchedules?: () => Promise<void>;
 }
 
 export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
@@ -54,12 +72,18 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   students,
   schoolConfig,
   teachers,
+  schedules = [],
   onSaveJournal,
   onDeleteJournal,
   onBulkDeleteJournals,
+  onSaveSchedule,
+  onDeleteSchedule,
+  onBulkDeleteSchedules,
+  onResetSchedules,
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [mainTab, setMainTab] = useState<'jurnal' | 'ringkasan' | 'jadwal' | 'kelola-jadwal'>('jurnal');
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Semua');
   const [onlyMyJournals, setOnlyMyJournals] = useState<boolean>(user?.role === 'guru');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -180,11 +204,110 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
     setScanAlert(null);
   };
 
+  // Determine current day of week in Indonesian
+  const dayNameToday: DayOfWeek = useMemo(() => {
+    const days: DayOfWeek[] = ['Sabtu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const idx = new Date().getDay();
+    return idx === 0 ? 'Senin' : days[idx];
+  }, []);
+
+  // Today's teaching schedule for active user
+  const todaySchedules = useMemo(() => {
+    const todayList = schedules.filter((s) => s.hari === dayNameToday);
+    if (user?.role === 'guru') {
+      return todayList.filter((s) => 
+        (user.nama && s.guruNama.toLowerCase().includes(user.nama.toLowerCase())) ||
+        (s.guruId && s.guruId === user.id)
+      ).sort((a, b) => a.jamMulai.localeCompare(b.jamMulai));
+    }
+    return todayList.sort((a, b) => a.jamMulai.localeCompare(b.jamMulai));
+  }, [schedules, dayNameToday, user]);
+
+  // Weekly Workload Quick Stats for Active Teacher / All Teachers
+  const weeklyWorkloadQuickStats = useMemo(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diffToMonday = (day === 0 ? -6 : 1) - day;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+    const startStr = monday.toISOString().split('T')[0];
+    
+    const saturday = new Date(monday);
+    saturday.setDate(monday.getDate() + 5);
+    const endStr = saturday.toISOString().split('T')[0];
+
+    const mySchedules = schedules.filter((s) => {
+      if (user?.role === 'guru') {
+        return (user.nama && s.guruNama.toLowerCase().includes(user.nama.toLowerCase())) ||
+               (s.guruId && s.guruId === user.id);
+      }
+      return true;
+    });
+
+    const myJournalsThisWeek = journals.filter((j) => {
+      if (j.tanggal < startStr || j.tanggal > endStr) return false;
+      if (user?.role === 'guru') {
+        return (user.nama && j.guruNama.toLowerCase().includes(user.nama.toLowerCase())) ||
+               (j.guruId && j.guruId === user.id);
+      }
+      return true;
+    });
+
+    const scheduledJP = mySchedules.reduce((acc, s) => acc + calculateScheduleJP(s), 0);
+    const realizedJP = myJournalsThisWeek.reduce((acc, j) => {
+      const match = mySchedules.find((s) => isClassMatch(s.kelas, j.kelas));
+      return acc + (match ? calculateScheduleJP(match) : 2);
+    }, 0);
+
+    const percent = scheduledJP > 0 ? Math.round((realizedJP / scheduledJP) * 100) : 0;
+
+    return {
+      scheduledJP,
+      realizedJP,
+      journalsCount: myJournalsThisWeek.length,
+      schedulesCount: mySchedules.length,
+      percent,
+      isTargetMet: realizedJP >= 24
+    };
+  }, [schedules, journals, user]);
+
   const handleStatusChange = (nisn: string, status: AttendanceStatus) => {
     setStudentStatuses((prev) => ({
       ...prev,
       [nisn]: status,
     }));
+  };
+
+  // Quick Start Journal from Schedule slot
+  const handleStartJournalFromSchedule = (sch: ClassScheduleItem) => {
+    setFormTanggal(today);
+    setFormKelas(sch.kelas);
+    setFormMapel(sch.mapel);
+    if (sch.guruId) {
+      setFormGuruId(sch.guruId);
+    }
+    const jamLabel = sch.jamKe ? `${sch.jamKe} (${sch.jamMulai} - ${sch.jamSelesai})` : `${sch.jamMulai} - ${sch.jamSelesai}`;
+    setFormJamPelajaran(jamLabel);
+
+    // Auto-calculate next pertemuanKe
+    const pastJournals = journals.filter((j) => 
+      isClassMatch(j.kelas, sch.kelas) && 
+      j.mapel.toLowerCase() === sch.mapel.toLowerCase()
+    );
+    const maxPertemuan = pastJournals.reduce((max, j) => Math.max(max, j.pertemuanKe || 1), 0);
+    setFormPertemuanKe(maxPertemuan > 0 ? maxPertemuan + 1 : 1);
+
+    const targetStudents = students.filter((s) => s.kelas === sch.kelas);
+    const initialMap: Record<string, AttendanceStatus> = {};
+    targetStudents.forEach((s) => {
+      initialMap[s.nisn] = 'Alpa';
+    });
+    setStudentStatuses(initialMap);
+    setScannedViaQrNisns(new Set());
+    setLastScannedResult(null);
+    setScanAlert(null);
+    setMainTab('jurnal');
+    setIsModalOpen(true);
   };
 
   // Open Add Journal Modal
@@ -648,7 +771,7 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
       {/* Role Notice Banner */}
       {user?.role === 'guru' ? (
         <div className="bg-gradient-to-r from-indigo-50 via-blue-50 to-white p-5 rounded-3xl border border-indigo-200 shadow-xs">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs">
                 <GraduationCap className="w-5 h-5" />
@@ -663,7 +786,28 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Quick Workload Status Badge */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setMainTab('ringkasan')}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white border border-indigo-200 hover:border-indigo-300 text-slate-800 text-xs font-bold transition-all shadow-2xs cursor-pointer group"
+                title="Buka Ringkasan Beban Kerja Mingguan"
+              >
+                <BarChart3 className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
+                <span>Beban Kerja Pekan Ini:</span>
+                <span className="font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
+                  {weeklyWorkloadQuickStats.realizedJP} / {weeklyWorkloadQuickStats.scheduledJP} JP
+                </span>
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                  weeklyWorkloadQuickStats.percent >= 100 
+                    ? 'bg-emerald-100 text-emerald-800' 
+                    : 'bg-amber-100 text-amber-800'
+                }`}>
+                  {weeklyWorkloadQuickStats.percent}%
+                </span>
+              </button>
+
               <button
                 onClick={() => setOnlyMyJournals(!onlyMyJournals)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
@@ -679,72 +823,257 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
         </div>
       ) : (
         <div className="bg-blue-50 p-4 rounded-3xl border border-blue-200">
-          <div className="flex items-center gap-2.5">
-            <ShieldCheck className="w-5 h-5 text-blue-700 shrink-0" />
-            <div>
-              <div className="text-xs font-black text-blue-900">
-                Supervisi Akademik & KBM (Administrator)
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-blue-700 shrink-0" />
+              <div>
+                <div className="text-xs font-black text-blue-900">
+                  Supervisi Akademik & KBM (Administrator)
+                </div>
+                <p className="text-blue-700 text-[11px] mt-0.5 font-medium">
+                  Sebagai Administrator, Anda dapat memantau keterlaksanaan KBM seluruh guru, memvalidasi pemenuhan target beban kerja mingguan, serta mengunduh rekap jurnal.
+                </p>
               </div>
-              <p className="text-blue-700 text-[11px] mt-0.5 font-medium">
-                Sebagai Administrator, Anda dapat memantau keterlaksanaan KBM seluruh guru, memvalidasi kehadiran siswa per jam pelajaran, serta mengunduh rekap jurnal.
-              </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setMainTab('ringkasan')}
+              className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 shadow-xs"
+            >
+              <BarChart3 className="w-4 h-4" />
+              <span>Audit Beban Guru</span>
+            </button>
           </div>
         </div>
       )}
 
-      {/* Header and Controls */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <SchoolLogo src={schoolConfig?.logoUrl} className="w-12 h-12 shrink-0 drop-shadow-xs bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs" />
-          <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-600" />
-              <span>Jurnal & Agenda Mengajar Guru (KBM)</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {schoolConfig.namaSekolah} • Pencatatan materi pelajaran, refleksi KBM per tatap muka, dan absensi QR interaktif saat jam tatap muka.
-            </p>
-          </div>
-        </div>
+      {/* Main Navigation Tabs: Jurnal vs Ringkasan Beban vs Jadwal Mengajar vs Kelola Jadwal */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setMainTab('jurnal')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+            mainTab === 'jurnal'
+              ? 'bg-white text-blue-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>Agenda & Jurnal Mengajar</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            mainTab === 'jurnal' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {journals.length}
+          </span>
+        </button>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Export Excel */}
-          <button
-            onClick={() => {
-              exportTeachingJournalsExcel(journals, schoolConfig);
-              toast.success('Ekspor Excel Selesai', 'File spreadsheet jurnal mengajar berhasil diunduh.');
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer"
-            title="Unduh format spreadsheet Excel"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-            <span>Ekspor Excel</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setMainTab('ringkasan')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+            mainTab === 'ringkasan'
+              ? 'bg-white text-emerald-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>Ringkasan Beban Mengajar (JP)</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+            mainTab === 'ringkasan'
+              ? 'bg-emerald-100 text-emerald-800'
+              : weeklyWorkloadQuickStats.realizedJP > 0
+              ? 'bg-emerald-100 text-emerald-700'
+              : 'bg-slate-200 text-slate-700'
+          }`}>
+            {weeklyWorkloadQuickStats.realizedJP}/{weeklyWorkloadQuickStats.scheduledJP} JP
+          </span>
+        </button>
 
-          {/* Export PDF */}
-          <button
-            onClick={() => {
-              generateTeachingJournalsPdf(journals, schoolConfig, 'Semua', selectedClassFilter);
-              toast.success('Dokumen PDF Disiapkan', 'Berkas jurnal KBM guru siap dicetak.');
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-extrabold text-xs rounded-xl border border-rose-200 transition-colors cursor-pointer"
-            title="Cetak Jurnal KBM Guru Resmi ke Dokumen PDF"
-          >
-            <Printer className="w-4 h-4 text-rose-600" />
-            <span>Cetak PDF</span>
-          </button>
+        <button
+          type="button"
+          onClick={() => setMainTab('jadwal')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+            mainTab === 'jadwal'
+              ? 'bg-white text-indigo-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>Jadwal Mengajar Harian & Mingguan</span>
+          {todaySchedules.length > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+              mainTab === 'jadwal' ? 'bg-indigo-100 text-indigo-800 animate-pulse' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {todaySchedules.length} Hari Ini
+            </span>
+          )}
+        </button>
 
-          {/* Add Journal Button */}
-          <button
-            onClick={handleOpenAdd}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-sm shadow-blue-600/25 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Buat Jurnal & Scan Presensi</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setMainTab('kelola-jadwal')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+            mainTab === 'kelola-jadwal'
+              ? 'bg-white text-purple-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>Kelola Jadwal Pelajaran</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+            mainTab === 'kelola-jadwal' ? 'bg-purple-100 text-purple-800' : 'bg-slate-200 text-slate-700'
+          }`}>
+            {schedules.length}
+          </span>
+        </button>
       </div>
+
+      {/* ======================================================== */}
+      {/* TAB 1: AGENDA & JURNAL MENGAJAR                          */}
+      {/* ======================================================== */}
+      {mainTab === 'jurnal' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+
+          {/* Today's Teaching Schedule Strip / Widget */}
+          <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-950 rounded-3xl p-5 sm:p-6 text-white shadow-md border border-indigo-800/40 relative overflow-hidden">
+            <div className="absolute top-0 right-0 -mt-8 -mr-8 w-48 h-48 rounded-full bg-blue-500/10 blur-2xl pointer-events-none"></div>
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-xs flex items-center justify-center text-amber-400 font-black border border-white/10">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    <span>Jadwal Mengajar Hari Ini</span>
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-400/20 text-amber-300 text-[10px] font-black border border-amber-400/30">
+                      Hari {dayNameToday}
+                    </span>
+                  </h3>
+                  <p className="text-slate-300 text-xs mt-0.5">
+                    {user?.role === 'guru' ? (
+                      <span>Jadwal kelas KBM yang diampu oleh <strong>{user.nama}</strong></span>
+                    ) : (
+                      <span>Seluruh agenda KBM mata pelajaran aktif hari ini ({todaySchedules.length} sesi)</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setMainTab('jadwal')}
+                className="self-start sm:self-auto px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs border border-white/15 transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Calendar className="w-3.5 h-3.5 text-indigo-300" />
+                <span>Lihat Jadwal Mingguan Lengkap</span>
+              </button>
+            </div>
+
+            {/* Timetable Slots for Today */}
+            <div className="mt-4">
+              {todaySchedules.length === 0 ? (
+                <div className="py-6 text-center text-slate-300 text-xs bg-white/5 rounded-2xl border border-white/5">
+                  <p className="font-semibold">Tidak ada jadwal KBM yang terdaftar untuk hari {dayNameToday}.</p>
+                  <p className="text-slate-400 text-[11px] mt-1">
+                    Gunakan tab <strong>"Kelola Jadwal Pelajaran"</strong> untuk menambahkan jadwal mata pelajaran per kelas.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {todaySchedules.map((sch: ClassScheduleItem) => (
+                    <div
+                      key={sch.id}
+                      className="bg-white/10 hover:bg-white/15 backdrop-blur-xs rounded-2xl p-4 border border-white/15 transition-all flex flex-col justify-between gap-3 group"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded-lg bg-blue-500/30 text-blue-200 font-black text-xs border border-blue-400/20">
+                            Kelas {sch.kelas}
+                          </span>
+                          <span className="text-[11px] font-mono font-bold text-amber-300 flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {sch.jamMulai} - {sch.jamSelesai}
+                          </span>
+                        </div>
+                        <h4 className="font-bold text-sm text-white mt-2 line-clamp-1 group-hover:text-amber-200 transition-colors">
+                          {sch.mapel}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-300">
+                          {sch.ruang && <span>📍 {sch.ruang}</span>}
+                          {user?.role !== 'guru' && <span className="truncate">👨‍🏫 {sch.guruNama}</span>}
+                          {sch.jamKe && <span className="text-slate-400 font-mono">({sch.jamKe})</span>}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleStartJournalFromSchedule(sch)}
+                        className="w-full py-2 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-sm transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Mulai KBM & Isi Jurnal</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Header and Controls */}
+          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <SchoolLogo src={schoolConfig?.logoUrl} className="w-12 h-12 shrink-0 drop-shadow-xs bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs" />
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-blue-600" />
+                  <span>Jurnal & Agenda Mengajar Guru (KBM)</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {schoolConfig.namaSekolah} • Pencatatan materi pelajaran, refleksi KBM per tatap muka, dan absensi QR interaktif saat jam tatap muka.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Export Excel */}
+              <button
+                onClick={() => {
+                  exportTeachingJournalsExcel(journals, schoolConfig);
+                  toast.success('Ekspor Excel Selesai', 'File spreadsheet jurnal mengajar berhasil diunduh.');
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer"
+                title="Unduh format spreadsheet Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Ekspor Excel</span>
+              </button>
+
+              {/* Export PDF */}
+              <button
+                onClick={() => {
+                  generateTeachingJournalsPdf(journals, schoolConfig, 'Semua', selectedClassFilter);
+                  toast.success('Dokumen PDF Disiapkan', 'Berkas jurnal KBM guru siap dicetak.');
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-extrabold text-xs rounded-xl border border-rose-200 transition-colors cursor-pointer"
+                title="Cetak Jurnal KBM Guru Resmi ke Dokumen PDF"
+              >
+                <Printer className="w-4 h-4 text-rose-600" />
+                <span>Cetak PDF</span>
+              </button>
+
+              {/* Add Journal Button */}
+              <button
+                onClick={handleOpenAdd}
+                className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-sm shadow-blue-600/25 transition-all cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Buat Jurnal & Scan Presensi</span>
+              </button>
+            </div>
+          </div>
 
       {/* Class filter tags */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -944,7 +1273,7 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                       {j.guruNama}
                     </span>
                     <span className="text-[10px] text-slate-400 font-mono">
-                      NIP: {j.guruNip || '-'}
+                      NUPTK: {j.guruNip || '-'}
                     </span>
                   </div>
                 </div>
@@ -974,6 +1303,64 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
         })
         )}
       </div>
+      </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 2: RINGKASAN BEBAN KERJA MENGAJAR MINGGUAN (JP)      */}
+      {/* ======================================================== */}
+      {mainTab === 'ringkasan' && (
+        <div className="animate-in fade-in duration-150">
+          <WeeklyWorkloadSummary
+            journals={journals}
+            schedules={schedules}
+            teachers={teachers}
+            schoolConfig={schoolConfig}
+            students={students}
+            onStartJournalFromSchedule={handleStartJournalFromSchedule}
+          />
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 3: JADWAL MENGAJAR HARIAN & MINGGUAN (TIMELINE/GRID)  */}
+      {/* ======================================================== */}
+      {mainTab === 'jadwal' && (
+        <div className="animate-in fade-in duration-150">
+          <TeachingScheduleManager
+            schedules={schedules}
+            teachers={teachers}
+            schoolConfig={schoolConfig}
+            availableClasses={classesList}
+            onSaveSchedule={onSaveSchedule || (async () => {})}
+            onDeleteSchedule={onDeleteSchedule || (async () => {})}
+            onBulkDeleteSchedules={onBulkDeleteSchedules}
+            onResetSchedules={onResetSchedules}
+            onStartJournalFromSchedule={handleStartJournalFromSchedule}
+            defaultViewMode="timeline"
+          />
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 3: KELOLA JADWAL PELAJARAN (ADMIN & GURU)            */}
+      {/* ======================================================== */}
+      {mainTab === 'kelola-jadwal' && (
+        <div className="animate-in fade-in duration-150">
+          <TeachingScheduleManager
+            schedules={schedules}
+            teachers={teachers}
+            schoolConfig={schoolConfig}
+            availableClasses={classesList}
+            onSaveSchedule={onSaveSchedule || (async () => {})}
+            onDeleteSchedule={onDeleteSchedule || (async () => {})}
+            onBulkDeleteSchedules={onBulkDeleteSchedules}
+            onResetSchedules={onResetSchedules}
+            onStartJournalFromSchedule={handleStartJournalFromSchedule}
+            defaultViewMode="manage"
+          />
+        </div>
+      )}
 
       {/* ======================================================== */}
       {/* MODAL: BUAT JURNAL BARU & SCAN PRESENSI QR KELAS       */}

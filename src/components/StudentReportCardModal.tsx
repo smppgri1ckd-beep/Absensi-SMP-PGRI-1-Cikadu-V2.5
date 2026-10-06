@@ -524,14 +524,8 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                 </p>
               </div>
 
-              {/* Spacer Sisi Kanan Simetris untuk Menjaga Teks Kop Berada Tepat di Tengah */}
-              <div className="w-18 sm:w-24 shrink-0 flex items-center justify-center">
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border border-dashed border-slate-300 flex flex-col items-center justify-center text-[7.5px] sm:text-[8px] font-bold text-slate-400 uppercase text-center p-1 font-sans opacity-70">
-                  <School className="w-3.5 h-3.5 sm:w-4 sm:h-4 mb-0.5 text-slate-300" />
-                  <span>Akreditasi</span>
-                  <span className="font-black text-slate-500">B</span>
-                </div>
-              </div>
+              {/* Spacer Sisi Kanan Simetris (Transparan Tanpa Border) untuk Menjaga Teks Kop Berada Tepat di Tengah */}
+              <div className="w-18 sm:w-24 shrink-0" aria-hidden="true" />
             </div>
 
             {/* Garis Ganda Kop Surat Resmi Kedinasan */}
@@ -735,7 +729,7 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
             <div className="grid grid-cols-3 gap-4 text-center text-xs font-sans pt-2 no-break-inside items-end">
               
               {/* Kolom 1 (Kiri): Orang Tua / Wali */}
-              <div className="flex flex-col justify-between h-40">
+              <div className="flex flex-col justify-between h-36">
                 <div>
                   <p className="text-slate-600 font-semibold leading-tight">Mengetahui,</p>
                   <p className="text-slate-950 font-bold mt-0.5">Orang Tua / Wali Siswa</p>
@@ -746,8 +740,8 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                 </div>
               </div>
 
-              {/* Kolom 2 (Tengah): Kepala Sekolah */}
-              <div className="flex flex-col justify-between h-40 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-300">
+              {/* Kolom 2 (Tengah): Kepala Sekolah (Tanpa Garis / Border Kolom) */}
+              <div className="flex flex-col justify-between h-36">
                 <div>
                   <p className="text-slate-600 font-semibold leading-tight">Mengetahui & Mengesahkan,</p>
                   <p className="text-slate-950 font-black mt-0.5">
@@ -755,10 +749,6 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                   </p>
                 </div>
                 <div>
-                  {/* Stamp space placeholder */}
-                  <div className="text-[9px] text-slate-400 font-mono mb-1 select-none">
-                    [ Cap / Stempel Sekolah ]
-                  </div>
                   <p className="font-black underline text-slate-950 text-xs sm:text-sm tracking-tight">
                     {schoolConfig.namaKepsek || 'CUNCUN MUHLISOH, S.Pd.'}
                   </p>
@@ -769,7 +759,7 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
               </div>
 
               {/* Kolom 3 (Kanan): Wali Kelas */}
-              <div className="flex flex-col justify-between h-40">
+              <div className="flex flex-col justify-between h-36">
                 <div>
                   <p className="text-slate-600 font-semibold leading-tight">
                     {schoolConfig.kota || 'Cikadu'}, {formattedDate}
@@ -796,7 +786,7 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
               {/* Baris 1: Orang Tua (Kiri) dan Wali Kelas (Kanan) */}
               <div className="flex justify-between items-start gap-4">
                 {/* Kiri: Orang Tua */}
-                <div className="text-center w-52 flex flex-col justify-between h-36">
+                <div className="text-center w-52 flex flex-col justify-between h-32">
                   <div>
                     <p className="text-slate-600 font-semibold leading-tight">Mengetahui,</p>
                     <p className="text-slate-950 font-bold mt-0.5">Orang Tua / Wali Siswa</p>
@@ -808,7 +798,7 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                 </div>
 
                 {/* Kanan: Wali Kelas */}
-                <div className="text-center w-52 flex flex-col justify-between h-36">
+                <div className="text-center w-52 flex flex-col justify-between h-32">
                   <div>
                     <p className="text-slate-600 font-semibold leading-tight">
                       {schoolConfig.kota || 'Cikadu'}, {formattedDate}
@@ -828,8 +818,8 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                 </div>
               </div>
 
-              {/* Baris 2: Kepala Sekolah di Tengah Bawah */}
-              <div className="text-center max-w-sm mx-auto flex flex-col justify-between h-36 bg-slate-50/50 p-2.5 rounded-2xl border border-slate-300">
+              {/* Baris 2: Kepala Sekolah di Tengah Bawah (Tanpa Garis / Border Kolom) */}
+              <div className="text-center max-w-sm mx-auto flex flex-col justify-between h-32">
                 <div>
                   <p className="text-slate-600 font-semibold leading-tight">Mengetahui & Mengesahkan,</p>
                   <p className="text-slate-950 font-black mt-0.5">
@@ -837,9 +827,6 @@ export const StudentReportCardModal: React.FC<StudentReportCardModalProps> = ({
                   </p>
                 </div>
                 <div>
-                  <div className="text-[9px] text-slate-400 font-mono mb-1 select-none">
-                    [ Cap / Stempel Sekolah ]
-                  </div>
                   <p className="font-black underline text-slate-950 text-xs sm:text-sm tracking-tight">
                     {schoolConfig.namaKepsek || 'CUNCUN MUHLISOH, S.Pd.'}
                   </p>

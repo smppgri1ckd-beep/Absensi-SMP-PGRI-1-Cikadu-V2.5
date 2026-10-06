@@ -19,7 +19,8 @@ import {
   LeaveRequest,
   LeaveRequestStatus,
   JadwalPiketHarian,
-  SchoolEventItem
+  SchoolEventItem,
+  ClassScheduleItem
 } from './types';
 import { DatabaseService, DEFAULT_SCHOOL_CONFIG } from './services/db';
 import { soundService } from './utils/audio';
@@ -65,6 +66,7 @@ function AppContent() {
   const [teachers, setTeachers] = useState<TeacherUser[]>([]);
   const [journals, setJournals] = useState<TeachingJournal[]>([]);
   const [grades, setGrades] = useState<StudentGradeItem[]>([]);
+  const [schedules, setSchedules] = useState<ClassScheduleItem[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>([]);
   const [schoolEvents, setSchoolEvents] = useState<SchoolEventItem[]>([]);
@@ -120,7 +122,7 @@ function AppContent() {
       setLoadingStepText('Menghubungkan ke pangkalan data sekolah...');
 
       let completedCount = 0;
-      const totalSteps = 10;
+      const totalSteps = 11;
       const trackStep = async <T,>(promise: Promise<T>, stepName: string): Promise<T> => {
         const result = await promise;
         completedCount += 1;
@@ -138,6 +140,7 @@ function AppContent() {
         teacherList, 
         journalList,
         gradeList,
+        scheduleList,
         leaveList,
         piketList,
         eventList
@@ -149,6 +152,7 @@ function AppContent() {
         trackStep(DatabaseService.getTeachers(), 'Memuat akun pendidik & petugas piket...'),
         trackStep(DatabaseService.getTeachingJournals(), 'Menyiapkan agenda & jurnal mengajar...'),
         trackStep(DatabaseService.getStudentGrades(), 'Memuat rekap penilaian & rapor digital...'),
+        trackStep(DatabaseService.getClassSchedules(), 'Memuat jadwal mata pelajaran & KBM...'),
         trackStep(DatabaseService.getLeaveRequests(), 'Sinkronisasi surat izin & permohonan...'),
         trackStep(DatabaseService.getJadwalPiket(), 'Memeriksa penugasan piket hari ini...'),
         trackStep(DatabaseService.getSchoolEvents(), 'Memuat agenda kegiatan sekolah...'),
@@ -161,6 +165,7 @@ function AppContent() {
       setTeachers(teacherList);
       setJournals(journalList);
       setGrades(gradeList);
+      setSchedules(scheduleList);
       setLeaveRequests(leaveList);
       setJadwalPiket(piketList);
       setSchoolEvents(eventList);
@@ -186,6 +191,7 @@ function AppContent() {
     const unsubGrades = DatabaseService.subscribeGrades((data) => setGrades(data));
     const unsubLeaves = DatabaseService.subscribeLeaveRequests((data) => setLeaveRequests(data));
     const unsubJournals = DatabaseService.subscribeTeachingJournals((data) => setJournals(data));
+    const unsubSchedules = DatabaseService.subscribeClassSchedules((data) => setSchedules(data));
     const unsubTeachers = DatabaseService.subscribeTeachers((data) => setTeachers(data));
     const unsubConfig = DatabaseService.subscribeSchoolConfig((data) => setSchoolConfig(data));
     const unsubPiket = DatabaseService.subscribeJadwalPiket((data) => setJadwalPiket(data));
@@ -197,6 +203,7 @@ function AppContent() {
       unsubGrades();
       unsubLeaves();
       unsubJournals();
+      unsubSchedules();
       unsubTeachers();
       unsubConfig();
       unsubPiket();
@@ -519,6 +526,44 @@ function AppContent() {
     setGrades((prev) => prev.filter((g) => !idSet.has(g.id)));
     await DatabaseService.bulkDeleteStudentGrades(ids);
     toast.delete('Nilai Dihapus Massal', `${ids.length} data nilai siswa berhasil dihapus.`);
+  };
+
+  // Schedule Handlers (Debounced pada penulisan database, State instan)
+  const handleSaveSchedule = async (schedule: ClassScheduleItem) => {
+    setSchedules((prev) => {
+      const idx = prev.findIndex((s) => s.id === schedule.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = schedule;
+        return copy;
+      }
+      return [...prev, schedule];
+    });
+    await debouncedDbWrite(`schedule_${schedule.id}`, async () => {
+      await DatabaseService.saveClassSchedule(schedule);
+    }, 350);
+    toast.success('Jadwal Pelajaran Disimpan', `Jadwal ${schedule.mapel} kelas ${schedule.kelas} hari ${schedule.hari} berhasil disimpan.`);
+  };
+
+  const handleDeleteSchedule = async (id: string) => {
+    cancelDebouncedWrite(`schedule_${id}`);
+    setSchedules((prev) => prev.filter((s) => s.id !== id));
+    await DatabaseService.deleteClassSchedule(id);
+    toast.delete('Jadwal Pelajaran Dihapus', 'Jadwal pelajaran berhasil dihapus.');
+  };
+
+  const handleBulkDeleteSchedules = async (ids: string[]) => {
+    ids.forEach((id) => cancelDebouncedWrite(`schedule_${id}`));
+    const idSet = new Set(ids);
+    setSchedules((prev) => prev.filter((s) => !idSet.has(s.id)));
+    await DatabaseService.bulkDeleteClassSchedules(ids);
+    toast.delete('Jadwal Dihapus Massal', `${ids.length} jadwal pelajaran berhasil dihapus.`);
+  };
+
+  const handleResetSchedules = async () => {
+    const defaultSchedules = await DatabaseService.resetClassSchedulesToDefault();
+    setSchedules(defaultSchedules);
+    toast.success('Jadwal Direset', 'Jadwal pelajaran berhasil dikembalikan ke format standar sekolah.');
   };
 
   // Leave Request Handlers
@@ -876,7 +921,7 @@ function AppContent() {
                 )
               )}
 
-              {/* Tab: JURNAL KBM (Khusus Guru & Supervisi Admin) */}
+              {/* Tab: JURNAL KBM & JADWAL MENGAJAR (Khusus Guru & Supervisi Admin) */}
               {activeTab === 'journal' && (
                 user ? (
                   <TeachingJournalComponent
@@ -884,9 +929,14 @@ function AppContent() {
                     students={students}
                     schoolConfig={schoolConfig}
                     teachers={teachers}
+                    schedules={schedules}
                     onSaveJournal={handleSaveJournal}
                     onDeleteJournal={handleDeleteJournal}
                     onBulkDeleteJournals={handleBulkDeleteJournals}
+                    onSaveSchedule={handleSaveSchedule}
+                    onDeleteSchedule={handleDeleteSchedule}
+                    onBulkDeleteSchedules={handleBulkDeleteSchedules}
+                    onResetSchedules={handleResetSchedules}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">

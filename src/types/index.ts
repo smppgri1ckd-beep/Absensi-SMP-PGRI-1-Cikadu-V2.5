@@ -181,16 +181,21 @@ export interface AuthUser {
   piketScheduleInfo?: string;
 }
 
-// Model Pantau Anak: Jadwal Pelajaran Kelas
+// Model Jadwal Pelajaran Kelas & Guru
 export interface ClassScheduleItem {
   id: string;
   kelas: string;
   hari: 'Senin' | 'Selasa' | 'Rabu' | 'Kamis' | 'Jumat' | 'Sabtu';
-  jamMulai: string; // HH:mm
-  jamSelesai: string; // HH:mm
+  jamMulai: string; // HH:mm (e.g. "07:30")
+  jamSelesai: string; // HH:mm (e.g. "08:50")
   mapel: string;
   guruNama: string;
+  guruId?: string;
+  guruNip?: string;
   ruang?: string;
+  jamKe?: string; // e.g. "1 - 2"
+  keterangan?: string;
+  warna?: string;
 }
 
 // Model Pantau Anak: Tugas Siswa

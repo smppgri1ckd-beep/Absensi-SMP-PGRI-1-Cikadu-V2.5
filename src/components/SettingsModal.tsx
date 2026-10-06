@@ -448,7 +448,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   type="text"
                   value={formData.nipKepsek}
                   onChange={(e) => handleChange('nipKepsek', e.target.value)}
-                  placeholder="NIP Kepala Sekolah..."
+                  placeholder="NUPTK Kepala Sekolah..."
                   className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
                 />
               </div>
@@ -466,7 +466,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   type="text"
                   value={formData.nipPetugasPiket || ''}
                   onChange={(e) => handleChange('nipPetugasPiket', e.target.value)}
-                  placeholder="NIP Petugas Piket..."
+                  placeholder="NUPTK Petugas Piket..."
                   className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
                 />
               </div>

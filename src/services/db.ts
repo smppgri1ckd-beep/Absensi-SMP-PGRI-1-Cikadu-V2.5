@@ -1156,10 +1156,128 @@ export class DatabaseService {
 
   static async getClassSchedules(kelas?: string): Promise<ClassScheduleItem[]> {
     const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
-    if (kelas) {
+    if (!db) {
+      if (kelas && kelas !== 'Semua') {
+        return local.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
+      }
+      return local;
+    }
+    try {
+      const colRef = collection(db, 'jadwal_pelajaran');
+      const snap = await getDocs(colRef);
+      if (!snap.empty) {
+        const list: ClassScheduleItem[] = [];
+        snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
+        setLocal('class_schedules', list);
+        if (kelas && kelas !== 'Semua') {
+          return list.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
+        }
+        return list;
+      } else {
+        const batch = writeBatch(db);
+        local.forEach((s) => {
+          const docRef = doc(db!, 'jadwal_pelajaran', s.id);
+          batch.set(docRef, cleanData(s));
+        });
+        await batch.commit().catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Firestore getClassSchedules fallback to local', e);
+    }
+    if (kelas && kelas !== 'Semua') {
       return local.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
     }
     return local;
+  }
+
+  static async saveClassSchedule(schedule: ClassScheduleItem): Promise<void> {
+    const list = await this.getClassSchedules();
+    const idx = list.findIndex((s) => s.id === schedule.id);
+    if (idx >= 0) {
+      list[idx] = schedule;
+    } else {
+      list.push(schedule);
+    }
+    setLocal('class_schedules', list);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'jadwal_pelajaran', schedule.id);
+      await setDoc(docRef, cleanData(schedule));
+    } catch (e) {
+      console.warn('Firestore saveClassSchedule offline cache used', e);
+    }
+  }
+
+  static async deleteClassSchedule(id: string): Promise<void> {
+    const list = await this.getClassSchedules();
+    const filtered = list.filter((s) => s.id !== id);
+    setLocal('class_schedules', filtered);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'jadwal_pelajaran', id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.warn('Firestore deleteClassSchedule offline cache used', e);
+    }
+  }
+
+  static async bulkDeleteClassSchedules(ids: string[]): Promise<void> {
+    if (!ids || ids.length === 0) return;
+    const idSet = new Set(ids);
+    const list = await this.getClassSchedules();
+    const filtered = list.filter((s) => !idSet.has(s.id));
+    setLocal('class_schedules', filtered);
+
+    if (!db) return;
+    try {
+      const batch = writeBatch(db);
+      ids.forEach((id) => {
+        const docRef = doc(db!, 'jadwal_pelajaran', id);
+        batch.delete(docRef);
+      });
+      await batch.commit();
+    } catch (e) {
+      console.warn('Firestore bulkDeleteClassSchedules error', e);
+    }
+  }
+
+  static async resetClassSchedulesToDefault(): Promise<ClassScheduleItem[]> {
+    setLocal('class_schedules', INITIAL_SCHEDULES);
+    if (db) {
+      try {
+        const colRef = collection(db, 'jadwal_pelajaran');
+        const snap = await getDocs(colRef);
+        const batch = writeBatch(db);
+        snap.forEach((d) => batch.delete(d.ref));
+        INITIAL_SCHEDULES.forEach((s) => {
+          const docRef = doc(db!, 'jadwal_pelajaran', s.id);
+          batch.set(docRef, cleanData(s));
+        });
+        await batch.commit();
+      } catch (e) {
+        console.warn('Firestore resetClassSchedules error', e);
+      }
+    }
+    return INITIAL_SCHEDULES;
+  }
+
+  static subscribeClassSchedules(callback: (schedules: ClassScheduleItem[]) => void): () => void {
+    if (!db) {
+      const handler = () => callback(getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES));
+      syncChannel?.addEventListener('message', handler);
+      return () => syncChannel?.removeEventListener('message', handler);
+    }
+    const colRef = collection(db, 'jadwal_pelajaran');
+    return onSnapshot(colRef, (snap) => {
+      if (!snap.empty) {
+        const list: ClassScheduleItem[] = [];
+        snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
+        setLocal('class_schedules', list);
+        callback(list);
+      }
+    }, (err) => console.warn('Firestore onSnapshot error (jadwal_pelajaran):', err));
   }
 
   static async getAssignments(kelas?: string): Promise<AssignmentItem[]> {
@@ -2012,25 +2130,101 @@ export const INITIAL_PARENTS: ParentUser[] = [
 ];
 
 export const INITIAL_SCHEDULES: ClassScheduleItem[] = [
-  // Jadwal Kelas 7A (Senin - Sabtu)
-  { id: 'SCH_7A_1', kelas: '7A', hari: 'Rabu', jamMulai: '07:30', jamSelesai: '09:00', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', ruang: 'R. Kelas 7A' },
-  { id: 'SCH_7A_2', kelas: '7A', hari: 'Rabu', jamMulai: '09:15', jamSelesai: '10:45', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', ruang: 'R. Kelas 7A' },
-  { id: 'SCH_7A_3', kelas: '7A', hari: 'Rabu', jamMulai: '11:00', jamSelesai: '12:30', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', ruang: 'Lab IPA' },
-  { id: 'SCH_7A_4', kelas: '7A', hari: 'Rabu', jamMulai: '13:00', jamSelesai: '14:30', mapel: 'Pendidikan Agama Islam (PAI)', guruNama: 'Ustadz Ahmad Fauzi, S.Pd.I.', ruang: 'R. Kelas 7A' },
-  
-  { id: 'SCH_7A_5', kelas: '7A', hari: 'Kamis', jamMulai: '07:30', jamSelesai: '09:00', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', ruang: 'R. Kelas 7A' },
-  { id: 'SCH_7A_6', kelas: '7A', hari: 'Kamis', jamMulai: '09:15', jamSelesai: '10:45', mapel: 'Prakarya & Kewirausahaan', guruNama: 'Hj. Siti Maryam, S.Pd.', ruang: 'Lab Prakarya' },
-  { id: 'SCH_7A_7', kelas: '7A', hari: 'Kamis', jamMulai: '11:00', jamSelesai: '12:30', mapel: 'Informatika', guruNama: 'Asep Saepudin, S.Pd.', ruang: 'Lab Komputer' },
+  // ==========================================
+  // SENIN
+  // ==========================================
+  { id: 'SCH_7A_SEN_1', kelas: '7A', hari: 'Senin', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Pendidikan Agama Islam (PAI)', guruNama: 'Ustadz Ahmad Fauzi, S.Pd.I.', guruId: 'T4', ruang: 'R. Kelas 7A', warna: 'emerald' },
+  { id: 'SCH_7A_SEN_2', kelas: '7A', hari: 'Senin', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', guruId: 'T2', ruang: 'R. Kelas 7A', warna: 'blue' },
+  { id: 'SCH_7A_SEN_3', kelas: '7A', hari: 'Senin', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'R. Kelas 7A', warna: 'indigo' },
 
-  // Jadwal Kelas 8A
-  { id: 'SCH_8A_1', kelas: '8A', hari: 'Rabu', jamMulai: '07:30', jamSelesai: '09:00', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', ruang: 'R. Kelas 8A' },
-  { id: 'SCH_8A_2', kelas: '8A', hari: 'Rabu', jamMulai: '09:15', jamSelesai: '10:45', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', ruang: 'R. Kelas 8A' },
-  { id: 'SCH_8A_3', kelas: '8A', hari: 'Rabu', jamMulai: '11:00', jamSelesai: '12:30', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', ruang: 'R. Kelas 8A' },
+  { id: 'SCH_7B_SEN_1', kelas: '7B', hari: 'Senin', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', guruId: 'T2', ruang: 'R. Kelas 7B', warna: 'blue' },
+  { id: 'SCH_7B_SEN_2', kelas: '7B', hari: 'Senin', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Pendidikan Agama Islam (PAI)', guruNama: 'Ustadz Ahmad Fauzi, S.Pd.I.', guruId: 'T4', ruang: 'R. Kelas 7B', warna: 'emerald' },
+  { id: 'SCH_7B_SEN_3', kelas: '7B', hari: 'Senin', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'R. Kelas 7B', warna: 'cyan' },
 
-  // Jadwal Kelas 9A
-  { id: 'SCH_9A_1', kelas: '9A', hari: 'Rabu', jamMulai: '07:30', jamSelesai: '09:00', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', ruang: 'Lab IPA' },
-  { id: 'SCH_9A_2', kelas: '9A', hari: 'Rabu', jamMulai: '09:15', jamSelesai: '10:45', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', ruang: 'R. Kelas 9A' },
-  { id: 'SCH_9A_3', kelas: '9A', hari: 'Rabu', jamMulai: '11:00', jamSelesai: '12:30', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', ruang: 'R. Kelas 9A' },
+  { id: 'SCH_8A_SEN_1', kelas: '8A', hari: 'Senin', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'R. Kelas 8A', warna: 'indigo' },
+  { id: 'SCH_8A_SEN_2', kelas: '8A', hari: 'Senin', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab IPA', warna: 'amber' },
+  { id: 'SCH_8A_SEN_3', kelas: '8A', hari: 'Senin', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Pendidikan Jasmani (PJOK)', guruNama: 'Ai Siti Rosita', guruId: 'T6', ruang: 'Lapangan Utama', warna: 'rose' },
+
+  { id: 'SCH_8B_SEN_1', kelas: '8B', hari: 'Senin', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab IPA', warna: 'amber' },
+  { id: 'SCH_8B_SEN_2', kelas: '8B', hari: 'Senin', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'R. Kelas 8B', warna: 'indigo' },
+  { id: 'SCH_8B_SEN_3', kelas: '8B', hari: 'Senin', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Pendidikan Pancasila & PKN', guruNama: 'Suryadi, S.Pd.', guruId: 'T_SURYADI', ruang: 'R. Kelas 8B', warna: 'purple' },
+
+  { id: 'SCH_9A_SEN_1', kelas: '9A', hari: 'Senin', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Pendidikan Pancasila & PKN', guruNama: 'Suryadi, S.Pd.', guruId: 'T_SURYADI', ruang: 'R. Kelas 9A', warna: 'purple' },
+  { id: 'SCH_9A_SEN_2', kelas: '9A', hari: 'Senin', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'R. Kelas 9A', warna: 'cyan' },
+  { id: 'SCH_9A_SEN_3', kelas: '9A', hari: 'Senin', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', guruId: 'T2', ruang: 'R. Kelas 9A', warna: 'blue' },
+
+  { id: 'SCH_9B_SEN_1', kelas: '9B', hari: 'Senin', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'R. Kelas 9B', warna: 'cyan' },
+  { id: 'SCH_9B_SEN_2', kelas: '9B', hari: 'Senin', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Pendidikan Pancasila & PKN', guruNama: 'Suryadi, S.Pd.', guruId: 'T_SURYADI', ruang: 'R. Kelas 9B', warna: 'purple' },
+  { id: 'SCH_9B_SEN_3', kelas: '9B', hari: 'Senin', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab IPA', warna: 'amber' },
+
+  // ==========================================
+  // SELASA
+  // ==========================================
+  { id: 'SCH_7A_SEL_1', kelas: '7A', hari: 'Selasa', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab IPA', warna: 'amber' },
+  { id: 'SCH_7A_SEL_2', kelas: '7A', hari: 'Selasa', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'R. Kelas 7A', warna: 'cyan' },
+  { id: 'SCH_7A_SEL_3', kelas: '7A', hari: 'Selasa', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Pendidikan Jasmani (PJOK)', guruNama: 'Ai Siti Rosita', guruId: 'T6', ruang: 'Lapangan Utama', warna: 'rose' },
+
+  { id: 'SCH_8A_SEL_1', kelas: '8A', hari: 'Selasa', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', guruId: 'T2', ruang: 'R. Kelas 8A', warna: 'blue' },
+  { id: 'SCH_8A_SEL_2', kelas: '8A', hari: 'Selasa', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Pendidikan Agama Islam (PAI)', guruNama: 'Ustadz Ahmad Fauzi, S.Pd.I.', guruId: 'T4', ruang: 'R. Kelas 8A', warna: 'emerald' },
+  { id: 'SCH_8A_SEL_3', kelas: '8A', hari: 'Selasa', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Informatika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'Lab Komputer', warna: 'indigo' },
+
+  { id: 'SCH_9A_SEL_1', kelas: '9A', hari: 'Selasa', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'R. Kelas 9A', warna: 'indigo' },
+  { id: 'SCH_9A_SEL_2', kelas: '9A', hari: 'Selasa', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab IPA', warna: 'amber' },
+  { id: 'SCH_9A_SEL_3', kelas: '9A', hari: 'Selasa', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Seni Budaya & Prakarya', guruNama: 'CUNCUN MUHLISOH, S.Pd.', guruId: 'T7', ruang: 'R. Kesenian', warna: 'fuchsia' },
+
+  // ==========================================
+  // RABU
+  // ==========================================
+  { id: 'SCH_7A_RAB_1', kelas: '7A', hari: 'Rabu', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'R. Kelas 7A', warna: 'indigo' },
+  { id: 'SCH_7A_RAB_2', kelas: '7A', hari: 'Rabu', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', guruId: 'T2', ruang: 'R. Kelas 7A', warna: 'blue' },
+  { id: 'SCH_7A_RAB_3', kelas: '7A', hari: 'Rabu', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab IPA', warna: 'amber' },
+
+  { id: 'SCH_8A_RAB_1', kelas: '8A', hari: 'Rabu', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', guruId: 'T2', ruang: 'R. Kelas 8A', warna: 'blue' },
+  { id: 'SCH_8A_RAB_2', kelas: '8A', hari: 'Rabu', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'R. Kelas 8A', warna: 'indigo' },
+  { id: 'SCH_8A_RAB_3', kelas: '8A', hari: 'Rabu', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'R. Kelas 8A', warna: 'cyan' },
+
+  { id: 'SCH_9A_RAB_1', kelas: '9A', hari: 'Rabu', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Ilmu Pengetahuan Alam (IPA)', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab IPA', warna: 'amber' },
+  { id: 'SCH_9A_RAB_2', kelas: '9A', hari: 'Rabu', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Matematika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'R. Kelas 9A', warna: 'indigo' },
+  { id: 'SCH_9A_RAB_3', kelas: '9A', hari: 'Rabu', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Pendidikan Pancasila & PKN', guruNama: 'Suryadi, S.Pd.', guruId: 'T_SURYADI', ruang: 'R. Kelas 9A', warna: 'purple' },
+
+  // ==========================================
+  // KAMIS
+  // ==========================================
+  { id: 'SCH_7A_KAM_1', kelas: '7A', hari: 'Kamis', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'R. Kelas 7A', warna: 'cyan' },
+  { id: 'SCH_7A_KAM_2', kelas: '7A', hari: 'Kamis', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Prakarya & Kewirausahaan', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab Prakarya', warna: 'amber' },
+  { id: 'SCH_7A_KAM_3', kelas: '7A', hari: 'Kamis', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Informatika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'Lab Komputer', warna: 'indigo' },
+
+  { id: 'SCH_8A_KAM_1', kelas: '8A', hari: 'Kamis', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Prakarya & Kewirausahaan', guruNama: 'Hj. Siti Maryam, S.Pd.', guruId: 'T3', ruang: 'Lab Prakarya', warna: 'amber' },
+  { id: 'SCH_8A_KAM_2', kelas: '8A', hari: 'Kamis', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Bahasa Inggris', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'R. Kelas 8A', warna: 'cyan' },
+  { id: 'SCH_8A_KAM_3', kelas: '8A', hari: 'Kamis', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Pendidikan Agama Islam (PAI)', guruNama: 'Ustadz Ahmad Fauzi, S.Pd.I.', guruId: 'T4', ruang: 'R. Kelas 8A', warna: 'emerald' },
+
+  { id: 'SCH_9A_KAM_1', kelas: '9A', hari: 'Kamis', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Indonesia', guruNama: 'Rina Kusmayanti, M.Pd.', guruId: 'T2', ruang: 'R. Kelas 9A', warna: 'blue' },
+  { id: 'SCH_9A_KAM_2', kelas: '9A', hari: 'Kamis', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Pendidikan Agama Islam (PAI)', guruNama: 'Ustadz Ahmad Fauzi, S.Pd.I.', guruId: 'T4', ruang: 'R. Kelas 9A', warna: 'emerald' },
+  { id: 'SCH_9A_KAM_3', kelas: '9A', hari: 'Kamis', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00', mapel: 'Pendidikan Jasmani (PJOK)', guruNama: 'Ai Siti Rosita', guruId: 'T6', ruang: 'Lapangan Utama', warna: 'rose' },
+
+  // ==========================================
+  // JUMAT
+  // ==========================================
+  { id: 'SCH_7A_JUM_1', kelas: '7A', hari: 'Jumat', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:45', mapel: 'Pendidikan Pancasila & PKN', guruNama: 'Suryadi, S.Pd.', guruId: 'T_SURYADI', ruang: 'R. Kelas 7A', warna: 'purple' },
+  { id: 'SCH_7A_JUM_2', kelas: '7A', hari: 'Jumat', jamKe: '3 - 4', jamMulai: '09:00', jamSelesai: '10:15', mapel: 'Seni Budaya & Prakarya', guruNama: 'CUNCUN MUHLISOH, S.Pd.', guruId: 'T7', ruang: 'R. Kesenian', warna: 'fuchsia' },
+
+  { id: 'SCH_8A_JUM_1', kelas: '8A', hari: 'Jumat', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:45', mapel: 'Seni Budaya & Prakarya', guruNama: 'CUNCUN MUHLISOH, S.Pd.', guruId: 'T7', ruang: 'R. Kesenian', warna: 'fuchsia' },
+  { id: 'SCH_8A_JUM_2', kelas: '8A', hari: 'Jumat', jamKe: '3 - 4', jamMulai: '09:00', jamSelesai: '10:15', mapel: 'Pendidikan Pancasila & PKN', guruNama: 'Suryadi, S.Pd.', guruId: 'T_SURYADI', ruang: 'R. Kelas 8A', warna: 'purple' },
+
+  { id: 'SCH_9A_JUM_1', kelas: '9A', hari: 'Jumat', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:45', mapel: 'Bahasa Sunda / Muatan Lokal', guruNama: 'Ai Siti Rosita', guruId: 'T6', ruang: 'R. Kelas 9A', warna: 'teal' },
+  { id: 'SCH_9A_JUM_2', kelas: '9A', hari: 'Jumat', jamKe: '3 - 4', jamMulai: '09:00', jamSelesai: '10:15', mapel: 'Informatika', guruNama: 'Asep Saepudin, S.Pd.', guruId: 'T1', ruang: 'Lab Komputer', warna: 'indigo' },
+
+  // ==========================================
+  // SABTU
+  // ==========================================
+  { id: 'SCH_7A_SAB_1', kelas: '7A', hari: 'Sabtu', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Sunda / Muatan Lokal', guruNama: 'Ai Siti Rosita', guruId: 'T6', ruang: 'R. Kelas 7A', warna: 'teal' },
+  { id: 'SCH_7A_SAB_2', kelas: '7A', hari: 'Sabtu', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Pengembangan Diri & Ekstrakurikuler', guruNama: 'Ai Siti Rosita', guruId: 'T6', ruang: 'Aula Sekolah', warna: 'rose' },
+
+  { id: 'SCH_8A_SAB_1', kelas: '8A', hari: 'Sabtu', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bahasa Sunda / Muatan Lokal', guruNama: 'Ai Siti Rosita', guruId: 'T6', ruang: 'R. Kelas 8A', warna: 'teal' },
+  { id: 'SCH_8A_SAB_2', kelas: '8A', hari: 'Sabtu', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Pengembangan Diri & Ekstrakurikuler', guruNama: 'Dedi Kurniawan, S.Pd.', guruId: 'T5', ruang: 'Aula Sekolah', warna: 'rose' },
+
+  { id: 'SCH_9A_SAB_1', kelas: '9A', hari: 'Sabtu', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50', mapel: 'Bimbingan Konseling & Karir', guruNama: 'CUNCUN MUHLISOH, S.Pd.', guruId: 'T7', ruang: 'R. BK', warna: 'fuchsia' },
+  { id: 'SCH_9A_SAB_2', kelas: '9A', hari: 'Sabtu', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25', mapel: 'Pengembangan Diri & Ekstrakurikuler', guruNama: 'Ustadz Ahmad Fauzi, S.Pd.I.', guruId: 'T4', ruang: 'Aula Sekolah', warna: 'rose' },
 ];
 
 export const INITIAL_ASSIGNMENTS: AssignmentItem[] = [

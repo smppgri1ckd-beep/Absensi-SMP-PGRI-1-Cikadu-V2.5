@@ -123,7 +123,7 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
                 </span>
                 {user.nip && (
                   <span>
-                    NIP: <strong className="text-white font-mono">{user.nip}</strong>
+                    NUPTK: <strong className="text-white font-mono">{user.nip}</strong>
                   </span>
                 )}
                 {user.loginAt && (

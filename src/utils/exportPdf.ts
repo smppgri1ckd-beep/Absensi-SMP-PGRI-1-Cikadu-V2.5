@@ -1290,7 +1290,7 @@ export function generateStudentReportCardPdf(
   const petugasName = (schoolConfig.namaPetugasPiket || 'AI SITI ROSITA').toUpperCase();
   doc.text(petugasName, 142, y + 23);
   doc.setFont('helvetica', 'normal');
-  doc.text(`NIP/NUPTK: ${schoolConfig.nipPetugasPiket || '-'}`, 142, y + 27.5);
+  doc.text(`NUPTK: ${schoolConfig.nipPetugasPiket || '-'}`, 142, y + 27.5);
 
   doc.save(`Lembar_Pantau_${student.nisn}_${student.nama.replace(/\s+/g, '_')}.pdf`);
 }
@@ -1325,7 +1325,7 @@ export function generateTeacherListPdf(
   // TABEL BERKISI
   const cols = [
     { title: 'No', width: 8, align: 'center' as const },
-    { title: 'Nama Lengkap & NIP', width: 62, align: 'left' as const },
+    { title: 'Nama Lengkap & NUPTK', width: 62, align: 'left' as const },
     { title: 'Mata Pelajaran', width: 60, align: 'left' as const },
     { title: 'Beban Jam', width: 18, align: 'center' as const },
     { title: 'Wali Kelas', width: 18, align: 'center' as const },
@@ -1373,7 +1373,7 @@ export function generateTeacherListPdf(
 
     const rowValues = [
       String(idx + 1),
-      `${t.nama.toUpperCase()} ${t.nip ? `(NIP. ${t.nip})` : ''}`,
+      `${t.nama.toUpperCase()} ${t.nip ? `(NUPTK. ${t.nip})` : ''}`,
       mapelList,
       `${sumJam} Jam`,
       t.waliKelas ? `Kls ${t.waliKelas}` : '-',
@@ -2063,24 +2063,14 @@ export function exportStudentReportCardPdf({
     doc.setTextColor(100, 116, 139);
     doc.text('( .................................................. )', col1X, y + 26.5, { align: 'center' });
 
-    // Kolom 2 (Tengah): Kepala Sekolah
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.2);
-    doc.roundedRect(col2X - 28, y - 2, 56, 32, 2, 2, 'FD');
-
+    // Kolom 2 (Tengah): Kepala Sekolah (Tanpa Garis / Border Kolom)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(71, 85, 105);
-    doc.text('Mengetahui & Mengesahkan,', col2X, y + 2, { align: 'center' });
+    doc.text('Mengetahui & Mengesahkan,', col2X, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, col2X, y + 6, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
-    doc.setTextColor(148, 163, 184);
-    doc.text('[ Cap / Stempel Sekolah ]', col2X, y + 14, { align: 'center' });
+    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, col2X, y + 4.5, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
@@ -2162,24 +2152,14 @@ export function exportStudentReportCardPdf({
 
     y += 27;
 
-    // Tingkat 2: Kepala Sekolah di TENGAH BAWAH DOKUMEN
-    doc.setFillColor(248, 250, 252);
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.25);
-    doc.roundedRect(centerTTDX - 34, y - 2, 68, 30, 2, 2, 'FD');
-
+    // Tingkat 2: Kepala Sekolah di TENGAH BAWAH DOKUMEN (Tanpa Garis / Border Kolom)
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     doc.setTextColor(71, 85, 105);
-    doc.text('Mengetahui & Mengesahkan,', centerTTDX, y + 2, { align: 'center' });
+    doc.text('Mengetahui & Mengesahkan,', centerTTDX, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, centerTTDX, y + 6, { align: 'center' });
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6);
-    doc.setTextColor(148, 163, 184);
-    doc.text('[ Cap / Stempel Sekolah ]', centerTTDX, y + 13, { align: 'center' });
+    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, centerTTDX, y + 4.5, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
@@ -2199,4 +2179,151 @@ export function exportStudentReportCardPdf({
   const cleanName = (student.nama || 'Siswa').replace(/[^a-zA-Z0-9]/g, '_');
   const cleanKelas = (student.kelas || '').replace(/[^a-zA-Z0-9]/g, '_');
   doc.save(`Rapor_Digital_${cleanName}_${student.nisn}_Kelas_${cleanKelas}.pdf`);
+}
+
+/**
+ * 13. JADWAL MATA PELAJARAN & KBM (PDF A4 Landscape / Portrait)
+ */
+export function generateClassSchedulesPdf(
+  schedules: any[],
+  schoolConfig: SchoolConfig,
+  filterHari = 'Semua',
+  filterKelas = 'Semua',
+  filterGuru = 'Semua'
+): void {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  let y = drawOfficialKop(doc, schoolConfig, true);
+
+  // JUDUL
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(0, 0, 0);
+  doc.text('JADWAL MATA PELAJARAN & KEGIATAN BELAJAR MENGAJAR (KBM)', 148.5, y, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(
+    `Tahun Pelajaran 2026/2027  |  Hari: ${filterHari}  |  Kelas: ${filterKelas}  |  Guru: ${filterGuru}`,
+    148.5,
+    y + 4.8,
+    { align: 'center' }
+  );
+
+  y += 10;
+
+  const dayOrder: Record<string, number> = {
+    'Senin': 1, 'Selasa': 2, 'Rabu': 3, 'Kamis': 4, 'Jumat': 5, 'Sabtu': 6
+  };
+
+  const sorted = [...schedules].sort((a, b) => {
+    const dayDiff = (dayOrder[a.hari] || 99) - (dayOrder[b.hari] || 99);
+    if (dayDiff !== 0) return dayDiff;
+    if (a.kelas !== b.kelas) return a.kelas.localeCompare(b.kelas);
+    return a.jamMulai.localeCompare(b.jamMulai);
+  });
+
+  const cols = [
+    { title: 'No', width: 10, align: 'center' as const },
+    { title: 'Hari', width: 22, align: 'center' as const },
+    { title: 'Kelas', width: 18, align: 'center' as const },
+    { title: 'Jam Ke', width: 20, align: 'center' as const },
+    { title: 'Waktu KBM', width: 32, align: 'center' as const },
+    { title: 'Mata Pelajaran', width: 68, align: 'left' as const },
+    { title: 'Guru Pengajar', width: 60, align: 'left' as const },
+    { title: 'Ruang / Lokasi', width: 38, align: 'left' as const },
+  ];
+
+  const startX = 14;
+  const headerHeight = 7.5;
+  const rowHeight = 6.2;
+
+  const drawTableHeader = (curY: number) => {
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(0, 0, 0);
+
+    let colX = startX;
+    cols.forEach((c) => {
+      doc.rect(colX, curY, c.width, headerHeight);
+      const textX = c.align === 'center' ? colX + c.width / 2 : colX + 2;
+      doc.text(c.title, textX, curY + 5, { align: c.align });
+      colX += c.width;
+    });
+  };
+
+  drawTableHeader(y);
+  y += headerHeight;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+
+  sorted.forEach((s, idx) => {
+    if (y + rowHeight > 175) {
+      doc.addPage();
+      y = 18;
+      drawTableHeader(y);
+      y += headerHeight;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+    }
+
+    const rowValues = [
+      String(idx + 1),
+      s.hari,
+      `Kelas ${s.kelas}`,
+      s.jamKe || '-',
+      `${s.jamMulai} - ${s.jamSelesai}`,
+      s.mapel,
+      s.guruNama,
+      s.ruang || 'R. Kelas',
+    ];
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+
+    let colX = startX;
+    cols.forEach((c, cIdx) => {
+      doc.rect(colX, y, c.width, rowHeight);
+      doc.setTextColor(0, 0, 0);
+
+      let val = rowValues[cIdx];
+      if (c.align === 'left' && val.length > 38) {
+        val = val.substring(0, 36) + '..';
+      }
+
+      const textX = c.align === 'center' ? colX + c.width / 2 : colX + 2;
+      doc.text(val, textX, y + 4.3, { align: c.align });
+      colX += c.width;
+    });
+
+    y += rowHeight;
+  });
+
+  // Tanda Tangan
+  if (y + 36 > 190) {
+    doc.addPage();
+    y = 22;
+  } else {
+    y += 10;
+  }
+
+  drawSignatures(
+    doc,
+    y,
+    schoolConfig,
+    'Wakasek Kurikulum,',
+    schoolConfig.namaPetugasPiket || 'AI SITI ROSITA',
+    schoolConfig.nipPetugasPiket || '-',
+    true
+  );
+
+  const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
+  doc.save(`Jadwal_Pelajaran_${cleanSchool}_${filterHari}_${filterKelas}.pdf`);
 }

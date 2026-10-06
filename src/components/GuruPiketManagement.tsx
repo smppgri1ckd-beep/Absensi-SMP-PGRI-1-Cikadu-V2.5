@@ -558,7 +558,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama guru, peran, atau NIP..."
+              placeholder="Cari nama guru, peran, atau NUPTK..."
               className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white transition-colors"
             />
           </div>
@@ -856,7 +856,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
 
                               {officer.nip && (
                                 <span className="text-[10px] font-mono text-slate-400">
-                                  • NIP: {officer.nip}
+                                  • NUPTK: {officer.nip}
                                 </span>
                               )}
                             </div>
@@ -1016,7 +1016,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                   onChange={(e) => handleTeacherSelect(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white"
                 >
-                  <option value="">-- Pilih Guru (Otomatis isi Nama, NIP & Akun) --</option>
+                  <option value="">-- Pilih Guru (Otomatis isi Nama, NUPTK & Akun) --</option>
                   {teachers.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.nama} {t.mapel ? `(${t.mapel})` : ''} - @{t.username}
@@ -1066,17 +1066,17 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                 />
               </div>
 
-              {/* NIP & Nomor HP */}
+              {/* NUPTK & Nomor HP */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-black text-slate-700 mb-1">
-                    NIP / NUPTK (Opsional)
+                    NUPTK (Opsional)
                   </label>
                   <input
                     type="text"
                     value={formNip}
                     onChange={(e) => setFormNip(e.target.value)}
-                    placeholder="Contoh: 19750918 200501 2 006"
+                    placeholder="Contoh: 16 Digit NUPTK"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white font-mono"
                   />
                 </div>
@@ -1403,7 +1403,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                   <p className="font-bold text-slate-900">Kepala {schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}</p>
                   <div className="h-16" />
                   <p className="font-black text-slate-900 underline uppercase">{schoolConfig.namaKepsek || 'CUNCUN MUHLISOH, S.Pd.'}</p>
-                  <p className="text-slate-500 font-mono text-[10px]">NIP/NUPTK: {schoolConfig.nipKepsek || '-'}</p>
+                  <p className="text-slate-500 font-mono text-[10px]">NUPTK: {schoolConfig.nipKepsek || '-'}</p>
                 </div>
 
                 {/* Kolom Kanan: Koordinator Guru Piket */}
@@ -1412,7 +1412,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                   <p className="font-bold text-slate-900">Koordinator Guru Piket</p>
                   <div className="h-16" />
                   <p className="font-black text-slate-900 underline uppercase">{schoolConfig.namaPetugasPiket || 'AI SITI ROSITA'}</p>
-                  <p className="text-slate-500 font-mono text-[10px]">NIP/NUPTK: {schoolConfig.nipPetugasPiket || '-'}</p>
+                  <p className="text-slate-500 font-mono text-[10px]">NUPTK: {schoolConfig.nipPetugasPiket || '-'}</p>
                 </div>
               </div>
             </div>

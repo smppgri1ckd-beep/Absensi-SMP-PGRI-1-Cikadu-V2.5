@@ -419,7 +419,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
             <div>
               <span className="text-slate-400 block text-[10px] uppercase font-bold">Kepala Sekolah</span>
               <strong className="text-white font-semibold">{schoolConfig.namaKepsek}</strong>
-              <p className="text-[10px] text-slate-400 font-mono">NIP. {schoolConfig.nipKepsek}</p>
+              <p className="text-[10px] text-slate-400 font-mono">NUPTK. {schoolConfig.nipKepsek}</p>
             </div>
             <div>
               <span className="text-slate-400 block text-[10px] uppercase font-bold">Hari Sekolah</span>
