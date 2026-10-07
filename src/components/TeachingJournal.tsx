@@ -42,7 +42,7 @@ import {
   DayOfWeek
 } from '../types';
 import { exportTeachingJournalsExcel } from '../utils/exportExcel';
-import { generateTeachingJournalsPdf } from '../utils/exportPdf';
+import { generateTeachingJournalsPdf, generateLearningRecapPdf } from '../utils/exportPdf';
 import { useAuth } from '../context/AuthContext';
 import { soundService } from '../utils/audio';
 import { SchoolLogo } from '../assets/schoolLogo';
@@ -97,12 +97,21 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const [mainTab, setMainTab] = useState<'jurnal' | 'ringkasan' | 'jadwal' | 'kelola-jadwal'>('jurnal');
+  const now = new Date();
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Semua');
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'Semua'>(now.getMonth());
+  const [selectedYearFilter, setSelectedYearFilter] = useState<number>(now.getFullYear());
   const [onlyMyJournals, setOnlyMyJournals] = useState<boolean>(user?.role === 'guru');
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewDetailJournal, setViewDetailJournal] = useState<TeachingJournal | null>(null);
   const [selectedJournalIds, setSelectedJournalIds] = useState<string[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
   // Form State
   const today = new Date().toISOString().split('T')[0];
@@ -833,9 +842,13 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
       if (selectedClassFilter !== 'Semua' && !isClassMatch(j.kelas, selectedClassFilter)) {
         return false;
       }
+      if (selectedMonthFilter !== 'Semua') {
+        const monthPrefix = `${selectedYearFilter}-${String(selectedMonthFilter + 1).padStart(2, '0')}`;
+        if (!j.tanggal.startsWith(monthPrefix)) return false;
+      }
       return true;
     });
-  }, [teacherScopedJournals, onlyMyJournals, user, selectedClassFilter]);
+  }, [teacherScopedJournals, onlyMyJournals, user, selectedClassFilter, selectedMonthFilter, selectedYearFilter]);
 
   const handleBulkDelete = async () => {
     if (selectedJournalIds.length === 0) return;
@@ -1142,6 +1155,16 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {/* Ekspor Laporan Bulanan Modal Opener / Quick Actions */}
+              <button
+                onClick={() => setShowExportModal(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-gradient-to-r from-rose-50 to-pink-50 hover:from-rose-100 hover:to-pink-100 text-rose-800 font-black text-xs rounded-xl border border-rose-200 shadow-2xs transition-all cursor-pointer"
+                title="Unduh Laporan Bulanan (Buku Agenda Jurnal KBM & Rekap Presensi Siswa)"
+              >
+                <Printer className="w-4 h-4 text-rose-600" />
+                <span>Cetak Laporan Bulanan (PDF)</span>
+              </button>
+
               {/* Export Excel */}
               <button
                 onClick={() => {
@@ -1155,24 +1178,6 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                 <span>Ekspor Excel</span>
               </button>
 
-              {/* Export PDF */}
-              <button
-                onClick={() => {
-                  generateTeachingJournalsPdf(
-                    filteredJournals, 
-                    schoolConfig, 
-                    user?.role === 'guru' ? user.nama : 'Semua', 
-                    selectedClassFilter
-                  );
-                  toast.success('Dokumen PDF Disiapkan', 'Berkas jurnal KBM guru siap dicetak.');
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-extrabold text-xs rounded-xl border border-rose-200 transition-colors cursor-pointer"
-                title="Cetak Jurnal KBM Guru Resmi ke Dokumen PDF"
-              >
-                <Printer className="w-4 h-4 text-rose-600" />
-                <span>Cetak PDF</span>
-              </button>
-
               {/* Add Journal Button */}
               <button
                 onClick={handleOpenAdd}
@@ -1183,6 +1188,60 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
               </button>
             </div>
           </div>
+
+      {/* Filter Toolbar: Bulan, Tahun, dan Kelas */}
+      <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex items-center gap-1.5 text-xs font-bold text-slate-600">
+            <Calendar className="w-4 h-4 text-indigo-600" />
+            <span>Filter Bulan:</span>
+          </div>
+
+          <select
+            value={selectedMonthFilter}
+            onChange={(e) => setSelectedMonthFilter(e.target.value === 'Semua' ? 'Semua' : Number(e.target.value))}
+            className="bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value="Semua">Semua Bulan (Sepanjang Waktu)</option>
+            {monthNames.map((m, idx) => (
+              <option key={m} value={idx}>
+                Bulan {m}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedYearFilter}
+            onChange={(e) => setSelectedYearFilter(Number(e.target.value))}
+            className="bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
+          >
+            {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+              <option key={y} value={y}>
+                Tahun {y}
+              </option>
+            ))}
+          </select>
+
+          {selectedMonthFilter !== 'Semua' && (
+            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-800 text-[11px] font-extrabold border border-indigo-200 flex items-center gap-1">
+              <span>Periode:</span>
+              <strong>{monthNames[Number(selectedMonthFilter)]} {selectedYearFilter}</strong>
+              <button
+                type="button"
+                onClick={() => setSelectedMonthFilter('Semua')}
+                className="hover:text-indigo-950 ml-1 cursor-pointer"
+                title="Reset ke Semua Bulan"
+              >
+                ✕
+              </button>
+            </span>
+          )}
+        </div>
+
+        <div className="text-xs text-slate-500 font-medium">
+          Ditemukan <strong>{filteredJournals.length}</strong> catatan jurnal
+        </div>
+      </div>
 
       {/* Class filter tags */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -2082,6 +2141,213 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                   Tutup
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* MODAL: CETAK & EKSPOR LAPORAN BULANAN (PDF & EXCEL)      */}
+      {/* ======================================================== */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 my-8 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">
+                    Cetak & Ekspor Laporan Bulanan (PDF)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Pilih periode bulan dan jenis berkas kedinasan yang ingin diunduh.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter Parameter Pemilihan Periode */}
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                  Pilih Bulan:
+                </label>
+                <select
+                  value={selectedMonthFilter}
+                  onChange={(e) => setSelectedMonthFilter(e.target.value === 'Semua' ? 'Semua' : Number(e.target.value))}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800"
+                >
+                  <option value="Semua">Semua Bulan</option>
+                  {monthNames.map((m, idx) => (
+                    <option key={m} value={idx}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                  Pilih Tahun:
+                </label>
+                <select
+                  value={selectedYearFilter}
+                  onChange={(e) => setSelectedYearFilter(Number(e.target.value))}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800"
+                >
+                  {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+                    <option key={y} value={y}>
+                      Tahun {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                  Pilih Rombel / Kelas:
+                </label>
+                <select
+                  value={selectedClassFilter}
+                  onChange={(e) => setSelectedClassFilter(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800"
+                >
+                  <option value="Semua">Semua Rombel / Kelas</option>
+                  {displayClasses.map((c) => (
+                    <option key={c} value={c}>
+                      Kelas {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Tombol Opsi Ekspor Dokumen */}
+            <div className="space-y-3">
+              {/* Opsi 1: Buku Agenda Jurnal Mengajar */}
+              <button
+                type="button"
+                onClick={() => {
+                  const activeBulan = selectedMonthFilter !== 'Semua' ? monthNames[Number(selectedMonthFilter)] : '';
+                  const activeGuru = user?.role === 'guru' ? user.nama : 'Semua';
+                  const teacherInfo = {
+                    nama: user?.nama || 'Guru Pengampu',
+                    nip: user?.nip || schoolConfig.nipPetugasPiket || '-',
+                    mapel: user?.mapel || (assignedSubjects.length > 0 ? assignedSubjects[0] : 'Semua Mapel'),
+                  };
+                  generateTeachingJournalsPdf(
+                    filteredJournals,
+                    schoolConfig,
+                    activeGuru,
+                    selectedClassFilter,
+                    assignedSubjects.length === 1 ? assignedSubjects[0] : 'Semua',
+                    activeBulan,
+                    selectedYearFilter,
+                    teacherInfo
+                  );
+                  setShowExportModal(false);
+                  toast.success('Buku Agenda PDF Diunduh', `Laporan jurnal ${activeBulan || 'semua bulan'} siap dicetak.`);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200 text-left flex items-start gap-3 transition-all cursor-pointer group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <BookOpen className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-xs text-indigo-950 flex items-center justify-between">
+                    <span>1. Buku Agenda Jurnal Mengajar (PDF Landscape)</span>
+                    <span className="text-[10px] font-bold bg-indigo-200/70 text-indigo-900 px-1.5 py-0.5 rounded">PDF Resmi</span>
+                  </h4>
+                  <p className="text-[11px] text-indigo-800 mt-0.5">
+                    Memuat materi pokok, refleksi guru, jam tatap muka, dan rekapitulasi kehadiran per pertemuan bertanda tangan resmi.
+                  </p>
+                </div>
+              </button>
+
+              {/* Opsi 2: Rekapitulasi Presensi KBM Siswa */}
+              <button
+                type="button"
+                onClick={() => {
+                  const activeBulan = selectedMonthFilter !== 'Semua' ? monthNames[Number(selectedMonthFilter)] : monthNames[now.getMonth()];
+                  const activeGuru = user?.nama || 'Guru Mata Pelajaran';
+                  const activeMapel = assignedSubjects.length === 1 ? assignedSubjects[0] : 'Semua Mapel';
+                  const teacherInfo = {
+                    nama: activeGuru,
+                    nip: user?.nip || schoolConfig.nipPetugasPiket || '-',
+                    mapel: activeMapel,
+                  };
+                  generateLearningRecapPdf(
+                    students,
+                    records || [],
+                    filteredJournals,
+                    activeMapel,
+                    activeGuru,
+                    selectedClassFilter,
+                    activeBulan,
+                    selectedYearFilter,
+                    schoolConfig,
+                    teacherInfo
+                  );
+                  setShowExportModal(false);
+                  toast.success('Rekap Presensi KBM PDF Diunduh', `Rekap presensi KBM ${activeBulan} ${selectedYearFilter} siap dicetak.`);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-rose-50/80 hover:bg-rose-100 border border-rose-200 text-left flex items-start gap-3 transition-all cursor-pointer group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <UserCheck className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-xs text-rose-950 flex items-center justify-between">
+                    <span>2. Rekapitulasi Presensi KBM Siswa (PDF Portrait)</span>
+                    <span className="text-[10px] font-bold bg-rose-200/70 text-rose-900 px-1.5 py-0.5 rounded">PDF Nilai / Absensi</span>
+                  </h4>
+                  <p className="text-[11px] text-rose-800 mt-0.5">
+                    Tabel rekapitulasi presensi per siswa (H/T/S/I/A), total tatap muka, dan persentase kehadiran bulanan.
+                  </p>
+                </div>
+              </button>
+
+              {/* Opsi 3: Ekspor Format Spreadsheet Excel */}
+              <button
+                type="button"
+                onClick={() => {
+                  exportTeachingJournalsExcel(filteredJournals, schoolConfig);
+                  setShowExportModal(false);
+                  toast.success('Ekspor Excel Selesai', 'Berkas spreadsheet jurnal mengajar berhasil diunduh.');
+                }}
+                className="w-full p-3.5 rounded-2xl bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200 text-left flex items-start gap-3 transition-all cursor-pointer group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-xs text-emerald-950 flex items-center justify-between">
+                    <span>3. Rekap Format Spreadsheet Excel (.xlsx)</span>
+                    <span className="text-[10px] font-bold bg-emerald-200/70 text-emerald-900 px-1.5 py-0.5 rounded">Excel</span>
+                  </h4>
+                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                    Data tabular lengkap siap diolah untuk laporan dinas, kurikulum, dan arsip sekolah.
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                Batal
+              </button>
             </div>
           </div>
         </div>

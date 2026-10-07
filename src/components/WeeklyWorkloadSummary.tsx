@@ -35,6 +35,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { isClassMatch } from '../utils/teacherFilter';
 import { SchoolLogo } from '../assets/schoolLogo';
+import { generateMonthlyWorkloadPdf } from '../utils/exportPdf';
 import jsPDF from 'jspdf';
 
 interface WeeklyWorkloadSummaryProps {
@@ -109,6 +110,10 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const now = new Date();
+  const [timeframeMode, setTimeframeMode] = useState<'mingguan' | 'bulanan'>('mingguan');
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [weekOffset, setWeekOffset] = useState<number>(0);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>(
     user?.role === 'guru' ? user.id : 'ALL'
@@ -116,12 +121,21 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
   const [targetWeeklyJP, setTargetWeeklyJP] = useState<number>(24); // Standar 24 JP/pekan (Permendikbud)
   const [selectedSubjectFilter, setSelectedSubjectFilter] = useState<string>('Semua');
 
-  const weekRange = useMemo(() => getWeekRange(weekOffset), [weekOffset]);
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
-  // Current journals inside this week
-  const weekJournals = useMemo(() => {
+  const weekRange = useMemo(() => getWeekRange(weekOffset), [weekOffset]);
+  const monthPrefix = `${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}`;
+
+  // Current journals inside this timeframe (week or month)
+  const activeJournals = useMemo(() => {
+    if (timeframeMode === 'bulanan') {
+      return journals.filter((j) => j.tanggal.startsWith(monthPrefix));
+    }
     return journals.filter((j) => j.tanggal >= weekRange.startDate && j.tanggal <= weekRange.endDate);
-  }, [journals, weekRange]);
+  }, [journals, timeframeMode, monthPrefix, weekRange]);
 
   // Target teacher object if single
   const currentSelectedTeacher = useMemo(() => {
@@ -145,7 +159,7 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
     });
 
     // 2. Filter journals for target teacher or all
-    const relevantJournals = weekJournals.filter((j) => {
+    const relevantJournals = activeJournals.filter((j) => {
       if (selectedTeacherId !== 'ALL') {
         const tObj = currentSelectedTeacher;
         if (!tObj) return false;
@@ -187,7 +201,9 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
       const entry = mapelMap.get(mapelKey)!;
       entry.classesSet.add(sch.kelas);
       entry.schedules.push(sch);
-      entry.totalJadwalJP += calculateScheduleJP(sch);
+      // If monthly, multiply weekly schedule by 4
+      const scheduleMultiplier = timeframeMode === 'bulanan' ? 4 : 1;
+      entry.totalJadwalJP += calculateScheduleJP(sch) * scheduleMultiplier;
     });
 
     // Also include any subjects from journals if not in schedule
@@ -298,7 +314,7 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
       persentaseJadwal,
       target
     };
-  }, [schedules, weekJournals, selectedTeacherId, currentSelectedTeacher, targetWeeklyJP, students]);
+  }, [schedules, activeJournals, selectedTeacherId, currentSelectedTeacher, targetWeeklyJP, students, timeframeMode]);
 
   // Teacher Comparison Table for Admin / Supervisor
   const allTeachersSummary = useMemo(() => {
@@ -308,12 +324,13 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
         (s.guruId && s.guruId === t.id)
       );
 
-      const tJournals = weekJournals.filter((j) => 
+      const tJournals = activeJournals.filter((j) => 
         (j.guruNama && j.guruNama.toLowerCase().includes(t.nama.toLowerCase())) ||
         (j.guruId && j.guruId === t.id)
       );
 
-      const scheduledJP = tSchedules.reduce((sum, s) => sum + calculateScheduleJP(s), 0);
+      const scheduleMultiplier = timeframeMode === 'bulanan' ? 4 : 1;
+      const scheduledJP = tSchedules.reduce((sum, s) => sum + calculateScheduleJP(s), 0) * scheduleMultiplier;
       const realizedJP = tJournals.reduce((sum, j) => {
         const matchSch = tSchedules.find((s) => isClassMatch(s.kelas, j.kelas));
         return sum + (matchSch ? calculateScheduleJP(matchSch) : 2);
@@ -344,7 +361,7 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
         isTargetMet: realizedJP >= targetWeeklyJP
       };
     }).sort((a, b) => b.scheduledJP - a.scheduledJP);
-  }, [teachers, schedules, weekJournals, targetWeeklyJP]);
+  }, [teachers, schedules, activeJournals, targetWeeklyJP, timeframeMode]);
 
   // Filtered Subject List
   const filteredSubjects = useMemo(() => {
@@ -352,8 +369,46 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
     return workloadData.subjectList.filter((s) => s.mapel === selectedSubjectFilter);
   }, [workloadData.subjectList, selectedSubjectFilter]);
 
-  // Export PDF Workload Summary
+  // Export PDF Workload Summary (Weekly or Monthly)
   const handleExportPdf = () => {
+    const teacherNameText = currentSelectedTeacher ? currentSelectedTeacher.nama : 'Seluruh Dewan Guru';
+    const teacherNip = currentSelectedTeacher?.nip || schoolConfig.nipPetugasPiket || '-';
+
+    if (timeframeMode === 'bulanan') {
+      try {
+        const targetMonthlyJP = targetWeeklyJP * 4;
+        const subjectListFormatted = workloadData.subjectList.map((sub) => ({
+          mapel: sub.mapel,
+          kelas: sub.kelas,
+          totalJadwalJP: sub.totalJadwalJP,
+          totalRealisasiJP: sub.totalRealisasiJP,
+          persentase: sub.persentase,
+          avgAttendance: sub.avgAttendance,
+        }));
+
+        generateMonthlyWorkloadPdf({
+          teacherName: teacherNameText,
+          teacherNip,
+          bulanNama: monthNames[selectedMonth],
+          tahun: selectedYear,
+          targetMonthlyJP,
+          totalJadwalJP: workloadData.totalJadwalJP,
+          totalRealisasiJP: workloadData.totalRealisasiJP,
+          persentaseJadwal: workloadData.persentaseJadwal,
+          subjectList: subjectListFormatted,
+          avgAttendanceAll: workloadData.avgAttendanceAll,
+          schoolConfig,
+        });
+
+        toast.success('Laporan Bulanan Diunduh', `Rekap beban mengajar ${monthNames[selectedMonth]} ${selectedYear} siap dicetak.`);
+      } catch (err) {
+        console.error('Failed to generate monthly PDF', err);
+        toast.error('Gagal Cetak PDF', 'Terjadi kesalahan saat memproses laporan bulanan.');
+      }
+      return;
+    }
+
+    // Weekly PDF Mode
     try {
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = 210;
@@ -397,7 +452,6 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(71, 85, 105);
-      const teacherNameText = currentSelectedTeacher ? currentSelectedTeacher.nama : 'Seluruh Dewan Guru SMP PGRI 1 Cikadu';
       doc.text(`Guru: ${teacherNameText}  |  Periode Pekan: ${weekRange.label}`, pageWidth / 2, y, { align: 'center' });
       y += 7;
 
@@ -468,7 +522,7 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
       doc.text(`${workloadData.avgAttendanceAll}%`, 180, y + 4.5, { align: 'right' });
       y += 15;
 
-      // Signature Block (clean without frame boxes)
+      // Signature Block
       const signY = y + 10 > 240 ? 240 : y + 10;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -484,7 +538,7 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
-      doc.text(`NUPTK: ${currentSelectedTeacher?.nip || '-'}`, 145, nameY + 4);
+      doc.text(`NUPTK: ${teacherNip}`, 145, nameY + 4);
       doc.text(`NUPTK: ${schoolConfig.nipKepsek || '-'}`, 25, nameY + 4);
 
       doc.save(`Rekap_Beban_Mengajar_${teacherNameText.replace(/\s+/g, '_')}_${weekRange.startDate}.pdf`);
@@ -508,59 +562,103 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <span>Ringkasan & Beban Kerja Mengajar Mingguan (JP)</span>
+                <span>Ringkasan & Beban Kerja Mengajar (JP)</span>
                 <span className="px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-extrabold border border-indigo-200">
-                  Target: {targetWeeklyJP} JP / Pekan
+                  Target: {timeframeMode === 'bulanan' ? `${targetWeeklyJP * 4} JP / Bulan` : `${targetWeeklyJP} JP / Pekan`}
                 </span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Pemantauan akumulasi jam mengajar tatap muka, target 24 JP sertifikasi, dan realisasi jurnal KBM pekan berjalan.
+                {timeframeMode === 'bulanan'
+                  ? `Pemantauan realisasi jam tatap muka dan audit beban kerja bulanan (${monthNames[selectedMonth]} ${selectedYear}).`
+                  : 'Pemantauan akumulasi jam mengajar tatap muka, target 24 JP sertifikasi, dan realisasi jurnal KBM pekan berjalan.'}
               </p>
             </div>
           </div>
 
-          {/* Quick Actions: Week Navigator & PDF Print */}
+          {/* Timeframe Mode Selector & Quick Actions */}
           <div className="flex flex-wrap items-center gap-2">
             
-            {/* Week Offset Navigator */}
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+            {/* Mode Switcher: Mingguan vs Bulanan */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
               <button
                 type="button"
-                onClick={() => setWeekOffset((prev) => prev - 1)}
-                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
-                title="Pekan Sebelumnya"
+                onClick={() => setTimeframeMode('mingguan')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  timeframeMode === 'mingguan'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                <ChevronLeft className="w-4 h-4" />
+                Mode Mingguan
               </button>
-              <div className="px-3 py-1 font-bold text-slate-800 text-center min-w-[140px]">
-                {weekOffset === 0 ? (
-                  <span className="text-indigo-700 font-extrabold">Pekan Ini</span>
-                ) : weekOffset === -1 ? (
-                  <span>Pekan Lalu</span>
-                ) : (
-                  <span>Pekan {weekOffset > 0 ? `+${weekOffset}` : weekOffset}</span>
-                )}
-                <div className="text-[10px] text-slate-500 font-normal">{weekRange.label}</div>
-              </div>
               <button
                 type="button"
-                onClick={() => setWeekOffset((prev) => prev + 1)}
-                className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
-                title="Pekan Berikutnya"
+                onClick={() => setTimeframeMode('bulanan')}
+                className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
+                  timeframeMode === 'bulanan'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                <ChevronRight className="w-4 h-4" />
+                Mode Bulanan (Laporan)
               </button>
             </div>
 
-            {/* Reset to this week */}
-            {weekOffset !== 0 && (
-              <button
-                type="button"
-                onClick={() => setWeekOffset(0)}
-                className="px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition-colors cursor-pointer"
-              >
-                Kembali ke Pekan Ini
-              </button>
+            {/* Timeframe Controls */}
+            {timeframeMode === 'mingguan' ? (
+              <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setWeekOffset((prev) => prev - 1)}
+                  className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                  title="Pekan Sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="px-3 py-1 font-bold text-slate-800 text-center min-w-[140px]">
+                  {weekOffset === 0 ? (
+                    <span className="text-indigo-700 font-extrabold">Pekan Ini</span>
+                  ) : weekOffset === -1 ? (
+                    <span>Pekan Lalu</span>
+                  ) : (
+                    <span>Pekan {weekOffset > 0 ? `+${weekOffset}` : weekOffset}</span>
+                  )}
+                  <div className="text-[10px] text-slate-500 font-normal">{weekRange.label}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setWeekOffset((prev) => prev + 1)}
+                  className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white transition-colors cursor-pointer"
+                  title="Pekan Berikutnya"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                  className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800"
+                >
+                  {monthNames.map((m, idx) => (
+                    <option key={m} value={idx}>
+                      Bulan {m}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-800"
+                >
+                  {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
             {/* Print / Export PDF */}
@@ -568,9 +666,10 @@ export const WeeklyWorkloadSummary: React.FC<WeeklyWorkloadSummaryProps> = ({
               type="button"
               onClick={handleExportPdf}
               className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-extrabold text-xs rounded-xl border border-rose-200 transition-colors cursor-pointer shadow-2xs"
+              title={timeframeMode === 'bulanan' ? 'Cetak Laporan Rekap Bulanan PDF' : 'Cetak Laporan Rekap Mingguan PDF'}
             >
               <Printer className="w-4 h-4 text-rose-600" />
-              <span>Cetak Rekap PDF</span>
+              <span>{timeframeMode === 'bulanan' ? 'Cetak Rekap Bulanan (PDF)' : 'Cetak Rekap Mingguan (PDF)'}</span>
             </button>
           </div>
         </div>

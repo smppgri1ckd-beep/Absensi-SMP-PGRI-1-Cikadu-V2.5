@@ -1275,6 +1275,62 @@ export class DatabaseService {
     }
   }
 
+  static async saveClassSchedules(schedules: ClassScheduleItem[]): Promise<void> {
+    setLocal('class_schedules', schedules);
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < schedules.length; i += CHUNK_SIZE) {
+        const chunk = schedules.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((s) => {
+          const docRef = doc(db!, 'jadwal_pelajaran', s.id);
+          batch.set(docRef, cleanData(s));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore saveClassSchedules error', e);
+    }
+  }
+
+  static async getAgendaSekolah(): Promise<SchoolEventItem[]> {
+    const local = getLocal<SchoolEventItem[]>('agenda_sekolah_data', []);
+    if (!db) return local;
+    try {
+      const colRef = collection(db, 'agenda_sekolah');
+      const snap = await getDocs(colRef);
+      if (!snap.empty) {
+        const list: SchoolEventItem[] = [];
+        snap.forEach((d) => list.push(d.data() as SchoolEventItem));
+        setLocal('agenda_sekolah_data', list);
+        return list;
+      }
+    } catch (e) {
+      console.warn('Firestore getAgendaSekolah fallback to local', e);
+    }
+    return local;
+  }
+
+  static async saveAgendaSekolah(agenda: SchoolEventItem[]): Promise<void> {
+    setLocal('agenda_sekolah_data', agenda);
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < agenda.length; i += CHUNK_SIZE) {
+        const chunk = agenda.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((a) => {
+          const docRef = doc(db!, 'agenda_sekolah', a.id);
+          batch.set(docRef, cleanData(a));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore saveAgendaSekolah error', e);
+    }
+  }
+
   static async deleteClassSchedule(id: string): Promise<void> {
     const list = await this.getClassSchedules();
     const filtered = list.filter((s) => s.id !== id);
@@ -1682,6 +1738,8 @@ export class DatabaseService {
       grades,
       leaveRequests,
       jadwalPiket,
+      schedules,
+      agendaSekolah,
     ] = await Promise.all([
       this.getSchoolConfig(),
       this.getStudents(),
@@ -1692,6 +1750,8 @@ export class DatabaseService {
       this.getStudentGrades(),
       this.getLeaveRequests(),
       this.getJadwalPiket(),
+      this.getClassSchedules(),
+      this.getAgendaSekolah(),
     ]);
 
     const backupPayload = {
@@ -1708,6 +1768,8 @@ export class DatabaseService {
         grades,
         leaveRequests,
         jadwalPiket,
+        schedules,
+        agendaSekolah,
       },
     };
 
@@ -1729,12 +1791,16 @@ export class DatabaseService {
       if (Array.isArray(d.grades)) setLocal('student_grades', d.grades);
       if (Array.isArray(d.leaveRequests)) setLocal('leave_requests', d.leaveRequests);
       if (Array.isArray(d.jadwalPiket)) setLocal('jadwal_piket_data', d.jadwalPiket);
+      if (Array.isArray(d.schedules)) setLocal('class_schedules', d.schedules);
+      if (Array.isArray(d.agendaSekolah)) setLocal('agenda_sekolah_data', d.agendaSekolah);
 
       // Sinkronkan ke remote jika db tersedia
       if (db) {
         if (d.schoolConfig) await this.saveSchoolConfig(d.schoolConfig).catch(() => {});
         if (Array.isArray(d.students)) await this.bulkSaveStudents(d.students).catch(() => {});
         if (Array.isArray(d.jadwalPiket)) await this.saveJadwalPiket(d.jadwalPiket).catch(() => {});
+        if (Array.isArray(d.schedules)) await this.saveClassSchedules(d.schedules).catch(() => {});
+        if (Array.isArray(d.agendaSekolah)) await this.saveAgendaSekolah(d.agendaSekolah).catch(() => {});
       }
 
       return true;

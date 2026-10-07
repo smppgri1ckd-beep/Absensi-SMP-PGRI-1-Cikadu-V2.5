@@ -968,7 +968,8 @@ export function generateTeachingJournalsPdf(
 
   const cleanMapel = (resolvedMapel || 'KBM').replace(/[^\w]/g, '_');
   const cleanKelas = (filterKelas || 'Semua').replace(/[^\w]/g, '_');
-  doc.save(`Buku_Agenda_Jurnal_${cleanMapel}_${cleanKelas}_${tahun}.pdf`);
+  const cleanBulan = bulanNama ? `_${bulanNama.replace(/[^\w]/g, '_')}` : '';
+  doc.save(`Buku_Agenda_Jurnal_${cleanMapel}_${cleanKelas}${cleanBulan}_${tahun}.pdf`);
 }
 
 /**
@@ -2350,3 +2351,635 @@ export function generateClassSchedulesPdf(
   const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
   doc.save(`Jadwal_Pelajaran_${cleanSchool}_${filterHari}_${filterKelas}.pdf`);
 }
+
+/**
+ * 14. LAPORAN REKAPITULASI BEBAN KERJA & REALISASI MENGAJAR BULANAN (PDF PORTRAIT)
+ */
+export function generateMonthlyWorkloadPdf({
+  teacherName,
+  teacherNip,
+  bulanNama,
+  tahun,
+  targetMonthlyJP,
+  totalJadwalJP,
+  totalRealisasiJP,
+  persentaseJadwal,
+  subjectList,
+  avgAttendanceAll,
+  schoolConfig,
+}: {
+  teacherName: string;
+  teacherNip?: string;
+  bulanNama: string;
+  tahun: number;
+  targetMonthlyJP: number;
+  totalJadwalJP: number;
+  totalRealisasiJP: number;
+  persentaseJadwal: number;
+  subjectList: Array<{
+    mapel: string;
+    kelas: string[];
+    totalJadwalJP: number;
+    totalRealisasiJP: number;
+    persentase: number;
+    avgAttendance: number;
+  }>;
+  avgAttendanceAll: number;
+  schoolConfig: SchoolConfig;
+}): void {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = 210;
+  let y = drawOfficialKop(doc, schoolConfig, false);
+
+  // JUDUL
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text('LAPORAN REKAPITULASI BEBAN KERJA MENGAJAR BULANAN', 105, y, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    `Guru: ${teacherName}  |  Periode: ${bulanNama.toUpperCase()} ${tahun}  |  Target: ${targetMonthlyJP} JP/Bulan`,
+    105,
+    y + 4.8,
+    { align: 'center' }
+  );
+
+  y += 10;
+
+  // Ringkasan KPI Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(14, y, pageWidth - 28, 18, 1.5, 1.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.8);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Target Beban Bulanan  : ${targetMonthlyJP} JP`, 20, y + 6);
+  doc.text(`Total JP Terjadwal    : ${totalJadwalJP} JP`, 20, y + 12);
+
+  doc.text(`Realisasi KBM Terlaksana : ${totalRealisasiJP} JP (${persentaseJadwal}%)`, 105, y + 6);
+  doc.text(`Rata-Rata Kehadiran Siswa: ${avgAttendanceAll}%`, 105, y + 12);
+
+  y += 22;
+
+  // Tabel Rincian Mapel
+  const cols = [
+    { title: 'No', width: 8, align: 'center' as const },
+    { title: 'Mata Pelajaran', width: 62, align: 'left' as const },
+    { title: 'Rombel / Kelas', width: 34, align: 'center' as const },
+    { title: 'JP Jadwal', width: 22, align: 'center' as const },
+    { title: 'JP Realisasi', width: 22, align: 'center' as const },
+    { title: 'Capaian', width: 18, align: 'center' as const },
+    { title: '% Presensi', width: 20, align: 'center' as const },
+  ];
+
+  const startX = 12;
+  const headerHeight = 7.5;
+  const rowHeight = 6.2;
+
+  const drawTableHeader = (curY: number) => {
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(0, 0, 0);
+
+    let colX = startX;
+    cols.forEach((c) => {
+      doc.rect(colX, curY, c.width, headerHeight);
+      const textX = c.align === 'center' ? colX + c.width / 2 : colX + 2;
+      doc.text(c.title, textX, curY + 5, { align: c.align });
+      colX += c.width;
+    });
+  };
+
+  drawTableHeader(y);
+  y += headerHeight;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+
+  subjectList.forEach((sub, idx) => {
+    if (y + rowHeight > 255) {
+      doc.addPage();
+      y = 20;
+      drawTableHeader(y);
+      y += headerHeight;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+    }
+
+    const rowValues = [
+      String(idx + 1),
+      sub.mapel,
+      sub.kelas.join(', '),
+      `${sub.totalJadwalJP} JP`,
+      `${sub.totalRealisasiJP} JP`,
+      `${sub.persentase}%`,
+      `${sub.avgAttendance}%`,
+    ];
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+
+    let colX = startX;
+    cols.forEach((c, cIdx) => {
+      doc.rect(colX, y, c.width, rowHeight);
+      doc.setTextColor(0, 0, 0);
+
+      let val = rowValues[cIdx];
+      if (c.align === 'left' && val.length > 32) {
+        val = val.substring(0, 30) + '..';
+      }
+
+      const textX = c.align === 'center' ? colX + c.width / 2 : colX + 2;
+      doc.text(val, textX, y + 4.3, { align: c.align });
+      colX += c.width;
+    });
+
+    y += rowHeight;
+  });
+
+  // Footer Total Row
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.2);
+  doc.setFillColor(241, 245, 249);
+  const totalW = cols.reduce((acc, c) => acc + c.width, 0);
+  doc.rect(startX, y, totalW, 6.5, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text('TOTAL REKAPITULASI', startX + cols[0].width + 2, y + 4.5);
+  doc.text(`${totalJadwalJP} JP`, startX + cols[0].width + cols[1].width + cols[2].width + cols[3].width / 2, y + 4.5, { align: 'center' });
+  doc.text(`${totalRealisasiJP} JP`, startX + cols[0].width + cols[1].width + cols[2].width + cols[3].width + cols[4].width / 2, y + 4.5, { align: 'center' });
+  doc.text(`${persentaseJadwal}%`, startX + cols[0].width + cols[1].width + cols[2].width + cols[3].width + cols[4].width + cols[5].width / 2, y + 4.5, { align: 'center' });
+  doc.text(`${avgAttendanceAll}%`, startX + totalW - cols[6].width / 2, y + 4.5, { align: 'center' });
+
+  y += 10;
+
+  // Lembar Pengesahan
+  if (y + 36 > 280) {
+    doc.addPage();
+    y = 25;
+  } else {
+    y += 10;
+  }
+
+  const signerTitle = 'Guru Mata Pelajaran,';
+  drawSignatures(
+    doc,
+    y,
+    schoolConfig,
+    signerTitle,
+    teacherName,
+    teacherNip || '-',
+    false
+  );
+
+  const cleanTeacher = teacherName.replace(/[^\w]/g, '_');
+  const cleanBulan = bulanNama.replace(/[^\w]/g, '_');
+  doc.save(`Rekap_Beban_Mengajar_${cleanTeacher}_${cleanBulan}_${tahun}.pdf`);
+}
+
+/**
+ * 15. SURAT PANGGILAN ORANG TUA / WALI SISWA (PDF RESMI KEDINASAN)
+ */
+export function generateParentSummonsPdf({
+  student,
+  nomorSurat,
+  alasanPanggilan,
+  hariTanggal,
+  waktu,
+  ruangan,
+  catatanKhusus,
+  schoolConfig,
+  waliKelasNama,
+  waliKelasNip,
+}: {
+  student: Student;
+  nomorSurat?: string;
+  alasanPanggilan?: string;
+  hariTanggal?: string;
+  waktu?: string;
+  ruangan?: string;
+  catatanKhusus?: string;
+  schoolConfig: SchoolConfig;
+  waliKelasNama?: string;
+  waliKelasNip?: string;
+}): void {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = 210;
+  const leftX = 18;
+  const rightX = pageWidth - 18;
+  const contentWidth = rightX - leftX;
+
+  let y = drawOfficialKop(doc, schoolConfig, false);
+
+  const kota = schoolConfig.kota || 'Cianjur';
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const noSurat = nomorSurat || `421.3/${String(now.getMonth() + 1).padStart(2, '0')}.012/SMP-PGRI/2026`;
+
+  // Header Surat
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+
+  doc.text(`Nomor     : ${noSurat}`, leftX, y);
+  doc.text(`Lampiran  : -`, leftX, y + 4.5);
+  doc.text(`Perihal     : Panggilan Orang Tua / Wali Siswa`, leftX, y + 9);
+  doc.text(`${kota}, ${dateStr}`, rightX, y, { align: 'right' });
+
+  y += 18;
+
+  // Tujuan Surat
+  doc.text('Kepada Yth.', leftX, y);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Bapak / Ibu Orang Tua / Wali dari Ananda: ${student.nama.toUpperCase()}`, leftX, y + 4.5);
+  doc.setFont('helvetica', 'normal');
+  doc.text('di Tempat', leftX, y + 9);
+
+  y += 16;
+
+  // Salam Pembuka & Isi Surat
+  doc.text('Dengan hormat,', leftX, y);
+  y += 5;
+
+  const openingText = `Sehubungan dengan pembinaan kedisiplinan dan kelancaran proses kegiatan belajar mengajar (KBM) peserta didik di ${schoolConfig.namaSekolah}, bersama surat ini kami mengundang Bapak/Ibu Orang Tua / Wali Siswa untuk hadir ke sekolah guna konsultasi bersama wali kelas dan guru bimbingan konseling perihal kehadiran/pembelajaran ananda:`;
+  const splitOpening = doc.splitTextToSize(openingText, contentWidth);
+  doc.text(splitOpening, leftX, y);
+  y += splitOpening.length * 4.2 + 3;
+
+  // Kotak Biodata Siswa
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
+  doc.rect(leftX, y, contentWidth, 22, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nama Peserta Didik', leftX + 4, y + 5.5);
+  doc.text('NISN / No. Induk', leftX + 4, y + 10.5);
+  doc.text('Kelas / Rombel', leftX + 4, y + 15.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(`:  ${student.nama.toUpperCase()}`, leftX + 44, y + 5.5);
+  doc.text(`:  ${student.nisn}`, leftX + 44, y + 10.5);
+  doc.text(`:  Kelas ${student.kelas} (${student.jk === 'L' ? 'Laki-Laki' : 'Perempuan'})`, leftX + 44, y + 15.5);
+
+  y += 26;
+
+  // Jadwal Pertemuan
+  doc.setFont('helvetica', 'normal');
+  doc.text('Adapun agenda pertemuan konsultasi tersebut dijadwalkan pada:', leftX, y);
+  y += 5;
+
+  const agendaHari = hariTanggal || `${now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`;
+  const agendaWaktu = waktu || '08.30 WIB s/d Selesai';
+  const agendaRuang = ruangan || 'Ruang Konseling & Tata Usaha Sekolah';
+
+  doc.setFont('helvetica', 'bold');
+  doc.text('Hari / Tanggal', leftX + 4, y + 4);
+  doc.text('Waktu', leftX + 4, y + 9);
+  doc.text('Tempat / Ruang', leftX + 4, y + 14);
+  doc.text('Keperluan', leftX + 4, y + 19);
+
+  doc.setFont('helvetica', 'normal');
+  doc.text(`:  ${agendaHari}`, leftX + 38, y + 4);
+  doc.text(`:  ${agendaWaktu}`, leftX + 38, y + 9);
+  doc.text(`:  ${agendaRuang}`, leftX + 38, y + 14);
+  doc.text(`:  ${alasanPanggilan || 'Konsultasi Pembinaan Presensi & Kedisiplinan Siswa'}`, leftX + 38, y + 19);
+
+  y += 26;
+
+  if (catatanKhusus) {
+    doc.setFillColor(254, 242, 242);
+    doc.setDrawColor(254, 202, 202);
+    doc.rect(leftX, y, contentWidth, 12, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(153, 27, 27);
+    doc.text(`Catatan Khusus: ${catatanKhusus}`, leftX + 3, y + 6);
+    doc.setTextColor(15, 23, 42);
+    y += 16;
+  }
+
+  // Penutup
+  const closingText = 'Mengingat pentingnya agenda ini demi masa depan dan kelanjutan pendidikan ananda tercinta, kami sangat mengharapkan kehadiran Bapak/Ibu tepat pada waktu yang telah ditentukan. Atas perhatian dan kerja samanya, kami ucapkan terima kasih.';
+  const splitClosing = doc.splitTextToSize(closingText, contentWidth);
+  doc.text(splitClosing, leftX, y);
+  y += splitClosing.length * 4.2 + 8;
+
+  // Tanda Tangan: Kiri Kepala Sekolah, Kanan Wali Kelas
+  if (y + 36 > 280) {
+    doc.addPage();
+    y = 25;
+  }
+
+  drawSignatures(
+    doc,
+    y,
+    schoolConfig,
+    `Wali Kelas ${student.kelas},`,
+    waliKelasNama || schoolConfig.namaPetugasPiket || 'AI SITI ROSITA',
+    waliKelasNip || schoolConfig.nipPetugasPiket || '-',
+    false
+  );
+
+  const cleanName = student.nama.replace(/[^\w]/g, '_');
+  doc.save(`Surat_Panggilan_Ortu_${cleanName}_Kelas_${student.kelas}.pdf`);
+}
+
+/**
+ * 16. SURAT KETERANGAN SISWA AKTIF BELAJAR (PDF RESMI KEDINASAN)
+ */
+export function generateActiveStudentCertificatePdf({
+  student,
+  nomorSurat,
+  keperluan,
+  tahunPelajaran = '2026/2027',
+  schoolConfig,
+}: {
+  student: Student;
+  nomorSurat?: string;
+  keperluan?: string;
+  tahunPelajaran?: string;
+  schoolConfig: SchoolConfig;
+}): void {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = 210;
+  const leftX = 18;
+  const rightX = pageWidth - 18;
+  const contentWidth = rightX - leftX;
+
+  let y = drawOfficialKop(doc, schoolConfig, false);
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+  const noSurat = nomorSurat || `421.3/${String(now.getMonth() + 1).padStart(2, '0')}.088/SMP-PGRI/2026`;
+
+  // Judul Surat Keterangan
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(15, 23, 42);
+  doc.text('SURAT KETERANGAN AKTIF SEKOLAH', 105, y, { align: 'center' });
+  
+  const titleWidth = doc.getTextWidth('SURAT KETERANGAN AKTIF SEKOLAH');
+  doc.setLineWidth(0.4);
+  doc.line(105 - titleWidth / 2, y + 1.2, 105 + titleWidth / 2, y + 1.2);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(`Nomor: ${noSurat}`, 105, y + 5.5, { align: 'center' });
+
+  y += 15;
+
+  // Kalimat Pembuka
+  doc.text('Yang bertanda tangan di bawah ini Kepala Sekolah Menengah Pertama (SMP) PGRI 1 Cikadu menerangkan bahwa:', leftX, y);
+  y += 6;
+
+  // Data Siswa Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
+  doc.rect(leftX, y, contentWidth, 32, 'FD');
+
+  const rows = [
+    { label: 'Nama Lengkap Siswa', val: student.nama.toUpperCase() },
+    { label: 'Nomor Induk Siswa Nasional (NISN)', val: student.nisn },
+    { label: 'Jenis Kelamin', val: student.jk === 'L' ? 'Laki-Laki (L)' : 'Perempuan (P)' },
+    { label: 'Tingkat / Kelas / Rombel', val: `Kelas ${student.kelas}` },
+    { label: 'Nama Orang Tua / Wali', val: (student as any).namaOrtu || 'Orang Tua / Wali Siswa' },
+    { label: 'Alamat Siswa', val: (student as any).alamat || schoolConfig.alamat || 'Kecamatan Cikadu, Kabupaten Cianjur' },
+  ];
+
+  rows.forEach((r, idx) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(r.label, leftX + 4, y + 5 + idx * 4.8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`:  ${r.val}`, leftX + 66, y + 5 + idx * 4.8);
+  });
+
+  y += 38;
+
+  // Isi Keterangan
+  const isiText = `Adalah benar nama peserta didik tersebut di atas saat ini tercatat aktif sebagai Peserta Didik Kelas ${student.kelas} pada ${schoolConfig.namaSekolah} Tahun Pelajaran ${tahunPelajaran}, serta berkelakuan baik dan mematuhi seluruh tata tertib sekolah.`;
+  const splitIsi = doc.splitTextToSize(isiText, contentWidth);
+  doc.text(splitIsi, leftX, y);
+  y += splitIsi.length * 4.5 + 4;
+
+  const tujuanKeperluan = keperluan || 'Persyaratan kelengkapan administrasi beasiswa / tunjangan / pemutakhiran data kependudukan.';
+  const kepText = `Surat keterangan ini diberikan kepada yang bersangkutan untuk dipergunakan sebagai: ${tujuanKeperluan}`;
+  const splitKep = doc.splitTextToSize(kepText, contentWidth);
+  doc.text(splitKep, leftX, y);
+  y += splitKep.length * 4.5 + 6;
+
+  const closingText = 'Demikian surat keterangan ini kami buat dengan sebenarnya agar dapat dipergunakan sebagaimana mestinya.';
+  doc.text(closingText, leftX, y);
+  y += 12;
+
+  // Tanda Tangan Kepala Sekolah Tunggal di Kanan
+  if (y + 36 > 280) {
+    doc.addPage();
+    y = 25;
+  }
+
+  const kota = schoolConfig.kota || 'Cianjur';
+  const rightTTDX = 145;
+  const kepsekNama = (schoolConfig.namaKepsek || 'CUNCUN MUHLISOH, S.Pd.').toUpperCase();
+  const kepsekNip = schoolConfig.nipKepsek && schoolConfig.nipKepsek !== '-' ? schoolConfig.nipKepsek : '-';
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.text(`${kota}, ${dateStr}`, rightTTDX, y);
+  doc.text('Kepala Sekolah,', rightTTDX, y + 4.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.text(kepsekNama, rightTTDX, y + 23);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`NUPTK: ${kepsekNip}`, rightTTDX, y + 27.5);
+
+  const cleanName = student.nama.replace(/[^\w]/g, '_');
+  doc.save(`Surat_Keterangan_Aktif_${cleanName}_${student.nisn}.pdf`);
+}
+
+/**
+ * 17. LEMBAR REKAPITULASI PERINGKAT & PRESTASI KELAS (PDF)
+ */
+export function generateClassRankingsPdf({
+  kelas,
+  semester = 'Semester Ganjil',
+  tahunPelajaran = '2026/2027',
+  rankedStudents,
+  schoolConfig,
+  waliKelasNama,
+  waliKelasNip,
+}: {
+  kelas: string;
+  semester?: string;
+  tahunPelajaran?: string;
+  rankedStudents: Array<{
+    rank: number;
+    student: Student;
+    nilaiRataRata: number;
+    persentaseKehadiran: number;
+    predikat: string;
+  }>;
+  schoolConfig: SchoolConfig;
+  waliKelasNama?: string;
+  waliKelasNip?: string;
+}): void {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = 210;
+  let y = drawOfficialKop(doc, schoolConfig, false);
+
+  // JUDUL
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  doc.text('LEMBAR REKAPITULASI PERINGKAT & PRESTASI AKADEMIK KELAS', 105, y, { align: 'center' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(
+    `Kelas: ${kelas.startsWith('KELAS') ? kelas : `KELAS ${kelas}`}  |  ${semester.toUpperCase()} • TA ${tahunPelajaran}  |  Total: ${rankedStudents.length} Siswa`,
+    105,
+    y + 4.8,
+    { align: 'center' }
+  );
+
+  y += 10;
+
+  // DEFINISI KOLOM TABEL
+  const cols = [
+    { title: 'Rank', width: 14, align: 'center' as const },
+    { title: 'NISN', width: 24, align: 'center' as const },
+    { title: 'Nama Lengkap Siswa', width: 68, align: 'left' as const },
+    { title: 'L/P', width: 10, align: 'center' as const },
+    { title: 'Rata-Rata Nilai', width: 24, align: 'center' as const },
+    { title: '% Presensi', width: 22, align: 'center' as const },
+    { title: 'Apresiasi', width: 24, align: 'center' as const },
+  ];
+
+  const startX = 12;
+  const headerHeight = 7.5;
+  const rowHeight = 6.2;
+
+  const drawTableHeader = (curY: number) => {
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(0, 0, 0);
+
+    let colX = startX;
+    cols.forEach((c) => {
+      doc.rect(colX, curY, c.width, headerHeight);
+      const textX = c.align === 'center' ? colX + c.width / 2 : colX + 2;
+      doc.text(c.title, textX, curY + 5, { align: c.align });
+      colX += c.width;
+    });
+  };
+
+  drawTableHeader(y);
+  y += headerHeight;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+
+  rankedStudents.forEach((item) => {
+    if (y + rowHeight > 255) {
+      doc.addPage();
+      y = 20;
+      drawTableHeader(y);
+      y += headerHeight;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+    }
+
+    const badgeLabel = item.rank === 1 ? 'Juara 1' : item.rank === 2 ? 'Juara 2' : item.rank === 3 ? 'Juara 3' : (item.rank <= 10 ? 'Top 10' : '-');
+
+    const rowValues = [
+      String(item.rank),
+      item.student.nisn,
+      item.student.nama.toUpperCase(),
+      item.student.jk || 'L',
+      String(item.nilaiRataRata),
+      `${item.persentaseKehadiran}%`,
+      badgeLabel,
+    ];
+
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+
+    let colX = startX;
+    cols.forEach((c, cIdx) => {
+      doc.rect(colX, y, c.width, rowHeight);
+      doc.setTextColor(0, 0, 0);
+
+      let val = rowValues[cIdx];
+      if (c.align === 'left' && val.length > 34) {
+        val = val.substring(0, 32) + '..';
+      }
+
+      if (cIdx === 0 && item.rank <= 3) {
+        doc.setFont('helvetica', 'bold');
+      } else {
+        doc.setFont('helvetica', 'normal');
+      }
+
+      const textX = c.align === 'center' ? colX + c.width / 2 : colX + 2;
+      doc.text(val, textX, y + 4.3, { align: c.align });
+      colX += c.width;
+    });
+
+    y += rowHeight;
+  });
+
+  y += 10;
+
+  // Lembar Pengesahan
+  if (y + 36 > 280) {
+    doc.addPage();
+    y = 25;
+  }
+
+  drawSignatures(
+    doc,
+    y,
+    schoolConfig,
+    `Wali Kelas ${kelas},`,
+    waliKelasNama || schoolConfig.namaPetugasPiket || 'AI SITI ROSITA',
+    waliKelasNip || schoolConfig.nipPetugasPiket || '-',
+    false
+  );
+
+  const cleanKelas = kelas.replace(/[^\w]/g, '_');
+  doc.save(`Rekap_Peringkat_Kelas_${cleanKelas}_${semester.replace(/\s+/g, '_')}.pdf`);
+}
+
+

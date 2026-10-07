@@ -30,9 +30,10 @@ import {
 } from '../types';
 import { DatabaseService } from '../services/db';
 import { exportDailyAttendanceExcel } from '../utils/exportExcel';
-import { generateDailyAttendancePdf } from '../utils/exportPdf';
+import { generateDailyAttendancePdf, generateParentSummonsPdf } from '../utils/exportPdf';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, UserCheck, GraduationCap, ArrowLeft, Sparkles } from 'lucide-react';
+import { useToast } from '../context/ToastContext';
+import { ShieldCheck, UserCheck, GraduationCap, ArrowLeft, Sparkles, AlertTriangle, Printer, Send } from 'lucide-react';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { 
   filterStudentsForTeacher, 
@@ -180,6 +181,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const totalRecorded = countHadir + countTerlambat + countIzin + countSakit + countAlpaRecorded;
   const belumHadir = Math.max(0, totalSiswa - (countHadir + countTerlambat + countIzin + countSakit));
   const ratePersentase = totalSiswa > 0 ? Math.min(100, Math.round(((countHadir + countTerlambat) / totalSiswa) * 100)) : 0;
+
+  // Early Warning System - Students needing attention
+  const riskStudents = React.useMemo(() => {
+    return scopedStudents.map((s) => {
+      const sRecords = scopedRecords.filter((r) => r.nisn === s.nisn && (r.kategori === 'APEL' || !r.kategori));
+      const alpaCount = sRecords.filter((r) => r.status === 'Alpa').length;
+      const telatCount = sRecords.filter((r) => r.status === 'Terlambat').length;
+      const totalSesi = sRecords.length;
+      const hadirCount = sRecords.filter((r) => r.status === 'Hadir' || r.status === 'Terlambat').length;
+      const persentase = totalSesi > 0 ? Math.round((hadirCount / totalSesi) * 100) : 100;
+
+      const isHighRisk = alpaCount >= 3 || (totalSesi >= 4 && persentase < 70);
+      const isMediumRisk = !isHighRisk && (alpaCount >= 2 || telatCount >= 4 || (totalSesi >= 4 && persentase < 80));
+
+      return {
+        student: s,
+        alpaCount,
+        telatCount,
+        persentase,
+        isHighRisk,
+        isMediumRisk,
+        needsAttention: isHighRisk || isMediumRisk,
+      };
+    }).filter((item) => item.needsAttention)
+      .sort((a, b) => b.alpaCount - a.alpaCount || a.persentase - b.persentase);
+  }, [scopedStudents, scopedRecords]);
 
   // Handle refresh
   const handleRefresh = async () => {
@@ -472,6 +499,105 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
       </div>
+
+      {/* Early Warning System: Siswa Butuh Perhatian Khusus */}
+      {riskStudents.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-transparent p-5 rounded-3xl border-2 border-amber-300/80 shadow-xs space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-xs shrink-0 animate-pulse">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <span>Sistem Deteksi Dini: Siswa Butuh Perhatian Khusus</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white">
+                    {riskStudents.length} Siswa Terdeteksi
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Daftar peserta didik dengan akumulasi Alpa $\ge$ 2 hari atau tingkat kehadiran di bawah 80%. Tindak lanjuti via WhatsApp atau Surat Panggilan Ortu.
+                </p>
+              </div>
+            </div>
+
+            {onOpenWhatsApp && (
+              <button
+                type="button"
+                onClick={() => onOpenWhatsApp(riskStudents.map((r) => r.student), 'alpa')}
+                className="self-start sm:self-auto px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Kirim WA Peringatan Massal ({riskStudents.length})</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+            {riskStudents.slice(0, 6).map((item) => (
+              <div
+                key={item.student.nisn}
+                className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-3 hover:border-amber-300 transition-colors"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-extrabold text-xs text-slate-900 truncate">
+                      {item.student.nama}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-slate-100 text-slate-700">
+                      Kls {item.student.kelas}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1">
+                    <span className="text-rose-600 font-bold">Alpa: {item.alpaCount}x</span>
+                    <span>•</span>
+                    <span className="text-slate-700 font-semibold">Hadir: {item.persentase}%</span>
+                    <span>•</span>
+                    <span className={`font-black text-[9px] px-1.5 py-0.2 rounded ${
+                      item.isHighRisk ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {item.isHighRisk ? 'Risiko Tinggi' : 'Perhatian'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Cetak Surat Panggilan Ortu PDF */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      generateParentSummonsPdf({
+                        student: item.student,
+                        alasanPanggilan: `Tercatat tidak hadir tanpa keterangan (Alpa) sebanyak ${item.alpaCount} kali dengan persentase kehadiran ${item.persentase}%.`,
+                        catatanKhusus: `Mohon hadir tepat waktu untuk pembinaan kelanjutan belajar ananda ${item.student.nama}.`,
+                        schoolConfig,
+                        waliKelasNama: user?.role === 'guru' ? user.nama : schoolConfig.namaPetugasPiket,
+                        waliKelasNip: user?.nip || schoolConfig.nipPetugasPiket,
+                      });
+                    }}
+                    className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition-colors cursor-pointer"
+                    title="Cetak Surat Panggilan Orang Tua (PDF)"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                  </button>
+
+                  {/* Kirim WA Ortu */}
+                  {onOpenWhatsApp && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenWhatsApp([item.student], 'alpa')}
+                      className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors cursor-pointer"
+                      title="Kirim Pesan WhatsApp ke Orang Tua"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Class Breakdown Progress Bars */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm">

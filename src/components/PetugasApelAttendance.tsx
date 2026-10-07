@@ -17,7 +17,11 @@ import {
   Moon,
   Info,
   Check,
-  ChevronRight
+  ChevronRight,
+  Printer,
+  FileSpreadsheet,
+  FileText,
+  X
 } from 'lucide-react';
 import { 
   Student, 
@@ -28,8 +32,11 @@ import {
   TeacherUser 
 } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { soundService } from '../utils/audio';
+import { generateDailyAttendancePdf, generateApelRecapPdf } from '../utils/exportPdf';
+import { exportDailyAttendanceExcel, exportApelRecapExcel } from '../utils/exportExcel';
 
 interface PetugasApelAttendanceProps {
   students: Student[];
@@ -53,7 +60,9 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
   onRefresh,
 }) => {
   const { user } = useAuth();
-  const today = new Date().toISOString().split('T')[0];
+  const { toast } = useToast();
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
 
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [selectedSession, setSelectedSession] = useState<AttendanceSession>(currentSession);
@@ -61,6 +70,15 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [showExportModal, setShowExportModal] = useState<boolean>(false);
+  const [exportMonth, setExportMonth] = useState<number>(now.getMonth());
+  const [exportYear, setExportYear] = useState<number>(now.getFullYear());
+  const [exportClassChoice, setExportClassChoice] = useState<string>('Semua');
+
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
   // Local state of statuses for the currently selected class, date, and session
   // Key: NISN => { status: AttendanceStatus, catatan?: string, waktu?: string }
@@ -266,16 +284,29 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
           </div>
         </div>
 
-        {/* Action button to open Scanner Kiosk */}
-        {onOpenScanner && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Action button to open Export PDF & Excel Modal */}
           <button
-            onClick={onOpenScanner}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+            type="button"
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs rounded-xl border border-rose-200 shadow-2xs transition-colors cursor-pointer"
+            title="Cetak Berkas Presensi Harian & Rekap Bulanan PDF"
           >
-            <QrCode className="w-4 h-4 text-emerald-400" />
-            <span>Buka Layar Pindai Kartu</span>
+            <Printer className="w-4 h-4 text-rose-600" />
+            <span>Cetak / Ekspor PDF</span>
           </button>
-        )}
+
+          {/* Action button to open Scanner Kiosk */}
+          {onOpenScanner && (
+            <button
+              onClick={onOpenScanner}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+            >
+              <QrCode className="w-4 h-4 text-emerald-400" />
+              <span>Buka Layar Pindai Kartu</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter and Session Controls */}
@@ -653,6 +684,209 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
           </button>
         </div>
       </div>
+
+      {/* ======================================================== */}
+      {/* MODAL: CETAK & EKSPOR DOKUMEN PRESENSI (PDF & EXCEL)     */}
+      {/* ======================================================== */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 my-8 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
+                  <Printer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">
+                    Cetak Berkas Presensi Petugas (PDF / Excel)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Pilih format laporan harian atau rekapitulasi kehadiran bulanan resmi.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter Parameter Pemilihan Periode */}
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                  Pilih Bulan:
+                </label>
+                <select
+                  value={exportMonth}
+                  onChange={(e) => setExportMonth(Number(e.target.value))}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800"
+                >
+                  {monthNames.map((m, idx) => (
+                    <option key={m} value={idx}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                  Pilih Tahun:
+                </label>
+                <select
+                  value={exportYear}
+                  onChange={(e) => setExportYear(Number(e.target.value))}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800"
+                >
+                  {[now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1].map((y) => (
+                    <option key={y} value={y}>
+                      Tahun {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500 mb-1">
+                  Pilih Rombel / Kelas:
+                </label>
+                <select
+                  value={exportClassChoice}
+                  onChange={(e) => setExportClassChoice(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold text-slate-800"
+                >
+                  <option value="Semua">Semua Kelas ({students.length} Siswa)</option>
+                  {classesList.map((c) => (
+                    <option key={c} value={c}>
+                      Kelas {c} ({students.filter((s) => s.kelas === c).length} Siswa)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Opsi Unduhan */}
+            <div className="space-y-3">
+              {/* Opsi 1: Rekapitulasi Presensi Apel Bulanan PDF */}
+              <button
+                type="button"
+                onClick={() => {
+                  const bulanStr = monthNames[exportMonth];
+                  // Calculate HEB approx
+                  const daysInM = new Date(exportYear, exportMonth + 1, 0).getDate();
+                  let hebCount = 0;
+                  for (let d = 1; d <= daysInM; d++) {
+                    const dayIdx = new Date(exportYear, exportMonth, d).getDay();
+                    if (dayIdx !== 0) hebCount++; // default non-Sunday
+                  }
+
+                  generateApelRecapPdf(
+                    students,
+                    records,
+                    selectedSession,
+                    bulanStr,
+                    exportYear,
+                    hebCount,
+                    schoolConfig,
+                    exportClassChoice
+                  );
+                  setShowExportModal(false);
+                  toast.success('Rekap Bulanan Diunduh', `Laporan rekap presensi apel ${bulanStr} ${exportYear} siap dicetak.`);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-rose-50/80 hover:bg-rose-100 border border-rose-200 text-left flex items-start gap-3 transition-all cursor-pointer group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <Printer className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-xs text-rose-950 flex items-center justify-between">
+                    <span>1. Rekapitulasi Presensi Apel Bulanan (PDF Portrait)</span>
+                    <span className="text-[10px] font-bold bg-rose-200/70 text-rose-900 px-1.5 py-0.5 rounded">PDF Bulanan</span>
+                  </h4>
+                  <p className="text-[11px] text-rose-800 mt-0.5">
+                    Format resmi tabel rekapitulasi kehadiran apel (Pagi, Siang, Total, %) bertanda tangan Petugas Piket & Kepala Sekolah.
+                  </p>
+                </div>
+              </button>
+
+              {/* Opsi 2: Daftar Hadir Harian Siswa PDF */}
+              <button
+                type="button"
+                onClick={() => {
+                  generateDailyAttendancePdf(
+                    records.filter((r) => r.tanggal === selectedDate && (r.kategori === 'APEL' || !r.kategori)),
+                    selectedDate,
+                    schoolConfig,
+                    exportClassChoice === 'Semua' ? selectedClass : exportClassChoice
+                  );
+                  setShowExportModal(false);
+                  toast.success('Daftar Hadir Harian Diunduh', `Presensi tanggal ${selectedDate} siap dicetak.`);
+                }}
+                className="w-full p-3.5 rounded-2xl bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200 text-left flex items-start gap-3 transition-all cursor-pointer group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-xs text-indigo-950 flex items-center justify-between">
+                    <span>2. Daftar Hadir Harian Siswa (PDF Tanggal {selectedDate})</span>
+                    <span className="text-[10px] font-bold bg-indigo-200/70 text-indigo-900 px-1.5 py-0.5 rounded">PDF Harian</span>
+                  </h4>
+                  <p className="text-[11px] text-indigo-800 mt-0.5">
+                    Daftar rincian presensi siswa per jam scan, nama, NISN, status, dan catatan terlambat.
+                  </p>
+                </div>
+              </button>
+
+              {/* Opsi 3: Ekspor Format Spreadsheet Excel */}
+              <button
+                type="button"
+                onClick={() => {
+                  exportApelRecapExcel(
+                    students,
+                    records,
+                    selectedSession,
+                    monthNames[exportMonth],
+                    exportYear,
+                    24,
+                    schoolConfig,
+                    exportClassChoice
+                  );
+                  setShowExportModal(false);
+                  toast.success('Ekspor Excel Selesai', 'File spreadsheet rekap apel berhasil diunduh.');
+                }}
+                className="w-full p-3.5 rounded-2xl bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200 text-left flex items-start gap-3 transition-all cursor-pointer group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-extrabold text-xs text-emerald-950 flex items-center justify-between">
+                    <span>3. Ekspor Spreadsheet Excel (.xlsx)</span>
+                    <span className="text-[10px] font-bold bg-emerald-200/70 text-emerald-900 px-1.5 py-0.5 rounded">Excel</span>
+                  </h4>
+                  <p className="text-[11px] text-emerald-800 mt-0.5">
+                    Rekapitulasi data tabular apel untuk backup dan kompilasi laporan sekolah.
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer transition-colors"
+              >
+                Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
