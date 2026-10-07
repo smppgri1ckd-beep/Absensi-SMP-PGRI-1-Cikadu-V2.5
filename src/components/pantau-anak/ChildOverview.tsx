@@ -86,7 +86,7 @@ export const ChildOverview: React.FC<ChildOverviewProps> = ({
                 </span>
               </div>
 
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h1 className="text-xl sm:text-3xl font-black text-white tracking-tight">
                 Perkembangan {student.nama}
               </h1>
 

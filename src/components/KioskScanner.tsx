@@ -671,43 +671,43 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
     <div className="space-y-6">
       
       {/* Top Banner / Session Header */}
-      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-blue-900/10 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 rounded-3xl p-4 sm:p-8 text-white shadow-xl shadow-blue-900/10 relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 transform skew-x-12 pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-start sm:items-center gap-4">
-            <SchoolLogo src={schoolConfig?.logoUrl} className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 bg-white/15 p-2 rounded-3xl border border-white/25 drop-shadow-lg shadow-inner" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4 sm:gap-6">
+          <div className="flex items-start sm:items-center gap-3 sm:gap-4">
+            <SchoolLogo src={schoolConfig?.logoUrl} className="w-12 h-12 sm:w-20 sm:h-20 shrink-0 bg-white/15 p-1.5 sm:p-2 rounded-2xl sm:rounded-3xl border border-white/25 drop-shadow-lg shadow-inner" />
             <div>
-              <div className="flex items-center gap-2.5 mb-2 flex-wrap">
-                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-white/20 backdrop-blur-xs text-white border border-white/20 flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-300" />
-                  PEMINDAI KARTU AKTIF
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-white/20 backdrop-blur-xs text-white border border-white/20 flex items-center gap-1">
+                  <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300" />
+                  PEMINDAI KARTU
                 </span>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
                   currentSession === 'Pagi' ? 'bg-amber-400 text-amber-950' : 'bg-sky-300 text-sky-950'
                 }`}>
                   SESI {currentSession.toUpperCase()}
                 </span>
               </div>
               
-              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">
                 Pindai Kartu Presensi Siswa
               </h1>
-              <p className="text-blue-100 text-sm mt-1 max-w-xl">
-                {schoolConfig.namaSekolah} • Arahkan QR Code kartu siswa ke kamera, atau masukkan nomor NISN.
+              <p className="text-blue-100 text-xs sm:text-sm mt-0.5 max-w-xl">
+                {schoolConfig.namaSekolah} • Arahkan QR Code kartu siswa ke kamera atau masukkan NISN.
               </p>
 
             {/* Duty Officer Status Strip */}
-            <div className="mt-3.5 flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-blue-200 font-semibold">Petugas Bertugas:</span>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/15 backdrop-blur-xs font-bold text-white border border-white/20">
+            <div className="mt-2.5 sm:mt-3.5 flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
+              <span className="text-blue-200 font-semibold">Petugas:</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl bg-white/15 backdrop-blur-xs font-bold text-white border border-white/20">
                 <UserCheck className="w-3.5 h-3.5 text-emerald-300" />
-                <span>{dutyOfficerDisplay}</span>
+                <span className="truncate max-w-[180px] sm:max-w-none">{dutyOfficerDisplay}</span>
               </span>
               {onOpenLogin && (
                 <button
                   onClick={onOpenLogin}
-                  className="px-2.5 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-[11px] transition-colors cursor-pointer shadow-xs"
+                  className="px-2 py-0.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-[10px] sm:text-[11px] transition-colors cursor-pointer shadow-xs"
                 >
                   Ganti Petugas
                 </button>
@@ -717,33 +717,33 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
         </div>
 
           {/* Big Live Clock Display */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-white/20 flex flex-col items-center md:items-end justify-center shrink-0">
-            <div className="flex items-center gap-2 text-blue-200 text-xs font-semibold mb-1">
-              <CalendarDays className="w-4 h-4" />
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 sm:p-5 border border-white/20 flex flex-col items-center md:items-end justify-center shrink-0">
+            <div className="flex items-center gap-1.5 text-blue-200 text-[11px] sm:text-xs font-semibold mb-0.5">
+              <CalendarDays className="w-3.5 h-3.5" />
               <span>{formattedDate}</span>
             </div>
-            <div className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-white">
+            <div className="text-2xl sm:text-4xl font-extrabold font-mono tracking-tight text-white">
               {formattedTime}
             </div>
-            <div className="text-[11px] text-blue-200 mt-1 font-medium">
+            <div className="text-[10px] sm:text-[11px] text-blue-200 mt-0.5 font-medium">
               Batas Tepat Waktu: <strong className="text-white">{currentSession === 'Pagi' ? (schoolConfig?.jadwal?.pagiBatasTepatWaktu || '07:15') : (schoolConfig?.jadwal?.siangBatasTepatWaktu || '13:30')}</strong>
             </div>
           </div>
         </div>
 
         {/* Counter Stats in Header */}
-        <div className="grid grid-cols-3 gap-3 mt-6 pt-6 border-t border-white/15">
-          <div className="bg-white/10 rounded-xl p-3 text-center border border-white/10">
-            <span className="text-xs text-blue-200 font-medium block">Total Presensi Sesi Ini</span>
-            <span className="text-2xl sm:text-3xl font-black text-white">{totalScanned}</span>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-white/15">
+          <div className="bg-white/10 rounded-xl p-2 sm:p-3 text-center border border-white/10">
+            <span className="text-[10px] sm:text-xs text-blue-200 font-medium block truncate">Total Presensi</span>
+            <span className="text-xl sm:text-3xl font-black text-white">{totalScanned}</span>
           </div>
-          <div className="bg-emerald-500/20 rounded-xl p-3 text-center border border-emerald-400/30">
-            <span className="text-xs text-emerald-200 font-medium block">Hadir Tepat Waktu</span>
-            <span className="text-2xl sm:text-3xl font-black text-emerald-300">{countHadir}</span>
+          <div className="bg-emerald-500/20 rounded-xl p-2 sm:p-3 text-center border border-emerald-400/30">
+            <span className="text-[10px] sm:text-xs text-emerald-200 font-medium block truncate">Tepat Waktu</span>
+            <span className="text-xl sm:text-3xl font-black text-emerald-300">{countHadir}</span>
           </div>
-          <div className="bg-amber-500/20 rounded-xl p-3 text-center border border-amber-400/30">
-            <span className="text-xs text-amber-200 font-medium block">Terlambat</span>
-            <span className="text-2xl sm:text-3xl font-black text-amber-300">{countTerlambat}</span>
+          <div className="bg-amber-500/20 rounded-xl p-2 sm:p-3 text-center border border-amber-400/30">
+            <span className="text-[10px] sm:text-xs text-amber-200 font-medium block truncate">Terlambat</span>
+            <span className="text-xl sm:text-3xl font-black text-amber-300">{countTerlambat}</span>
           </div>
         </div>
       </div>

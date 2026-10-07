@@ -713,7 +713,7 @@ function AppContent() {
         )}
 
         {/* Main Content Body */}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 pb-24 md:pb-8">
           {isLoading ? (
             <div className="py-16 sm:py-24 flex flex-col items-center justify-center px-4">
               <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xl relative overflow-hidden">
