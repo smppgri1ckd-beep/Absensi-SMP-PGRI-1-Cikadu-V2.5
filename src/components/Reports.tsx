@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   FileText, 
   FileSpreadsheet, 
@@ -21,7 +21,9 @@ import {
   Sun,
   Moon,
   Info,
-  X
+  X,
+  Target,
+  Bookmark
 } from 'lucide-react';
 import { 
   Student, 
@@ -36,7 +38,14 @@ import { generateApelRecapPdf, generateLearningRecapPdf, generateTeachingJournal
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
-import { isSubjectMatch, isSubjectAllowedForTeacher, isClassMatch } from '../utils/teacherFilter';
+import { 
+  isSubjectMatch, 
+  isSubjectAllowedForTeacher, 
+  isClassMatch,
+  getTeacherAssignedSubjects,
+  getTeacherAccessibleClasses,
+  getTeacherClassesForSubject
+} from '../utils/teacherFilter';
 
 interface ReportsProps {
   students: Student[];
@@ -60,27 +69,18 @@ export const Reports: React.FC<ReportsProps> = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const now = new Date();
+  const isTeacher = user?.role === 'guru';
 
   // Active Report Category: 'apel' (Absensi Apel Pagi & Siang) OR 'kbm' (Absensi Pembelajaran Guru)
   const [reportType, setReportType] = useState<'apel' | 'kbm'>(
-    initialReportType || (user?.role === 'guru' ? 'kbm' : 'apel')
+    initialReportType || (isTeacher ? 'kbm' : 'apel')
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (initialReportType) {
       setReportType(initialReportType);
     }
   }, [initialReportType]);
-
-  React.useEffect(() => {
-    if (user?.role === 'guru' && user.nama) {
-      setSelectedTeacher(user.nama);
-      if (user.mapel) {
-        setSelectedMapel(user.mapel);
-      }
-      setReportType('kbm');
-    }
-  }, [user]);
 
   // Common Filters
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -96,24 +96,13 @@ export const Reports: React.FC<ReportsProps> = ({
   const [apelSessionFilter, setApelSessionFilter] = useState<'Semua' | 'Pagi' | 'Siang'>('Semua');
 
   // KBM Specific Filters
-  const [selectedMapel, setSelectedMapel] = useState<string>(
-    user?.role === 'guru' && user.mapel ? user.mapel : 'Semua'
-  );
+  const [selectedMapel, setSelectedMapel] = useState<string>('Semua');
   const [selectedTeacher, setSelectedTeacher] = useState<string>(
-    user?.role === 'guru' ? user.nama : 'Semua'
+    isTeacher && user?.nama ? user.nama : 'Semua'
   );
   const [kbmSubView, setKbmSubView] = useState<'students' | 'journals'>('students');
 
-  const monthNames = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-
-  const classesList = useMemo(() => {
-    return Array.from(new Set(students.map((s) => s.kelas))).sort();
-  }, [students]);
-
-  // Distinct subjects from journals and teachers
+  // Distinct master subject list across all journals & teachers
   const mapelList = useMemo(() => {
     const set = new Set<string>();
     journals.forEach((j) => { if (j.mapel) set.add(j.mapel); });
@@ -124,30 +113,82 @@ export const Reports: React.FC<ReportsProps> = ({
     return Array.from(set).sort();
   }, [journals, teachers]);
 
-  // If user is a guru, prioritize/limit to their specific subjects
-  const teacherMapelList = useMemo(() => {
-    if (user?.role === 'guru') {
-      const set = new Set<string>();
-      if (user.mapel) set.add(user.mapel);
-      user.penugasanMapel?.forEach((p) => { if (p.mapel) set.add(p.mapel); });
-      journals.forEach((j) => {
-        if (j.guruNama?.toLowerCase() === user.nama?.toLowerCase() && j.mapel) {
-          set.add(j.mapel);
-        }
-      });
-      const list = Array.from(set).sort();
-      return list.length > 0 ? list : mapelList;
+  // 1. Resolve Teacher's Assigned Subjects
+  const teacherAssignedSubjects = useMemo(() => {
+    if (!isTeacher) return mapelList;
+    const fromFn = getTeacherAssignedSubjects(user);
+    const set = new Set<string>(fromFn);
+    if (user?.mapel) set.add(user.mapel);
+    user?.penugasanMapel?.forEach((p) => { if (p.mapel) set.add(p.mapel); });
+    journals.forEach((j) => {
+      if ((j.guruNama?.toLowerCase() === user?.nama?.toLowerCase() || j.guruId === user?.id) && j.mapel) {
+        set.add(j.mapel);
+      }
+    });
+    const list = Array.from(set).sort();
+    return list.length > 0 ? list : (user?.mapel ? [user.mapel] : mapelList);
+  }, [isTeacher, user, journals, mapelList]);
+
+  // All school classes
+  const allClassesList = useMemo(() => {
+    return Array.from(new Set(students.map((s) => s.kelas))).sort();
+  }, [students]);
+
+  // 2. Resolve Teacher's Accessible Classes
+  const teacherAccessibleClasses = useMemo(() => {
+    if (!isTeacher) return allClassesList;
+    if (selectedMapel !== 'Semua') {
+      const clsForMapel = getTeacherClassesForSubject(user, selectedMapel);
+      if (clsForMapel.length > 0) return clsForMapel;
     }
-    return mapelList;
-  }, [user, journals, mapelList]);
+    const fromFn = getTeacherAccessibleClasses(user);
+    const set = new Set<string>(fromFn);
+    journals.forEach((j) => {
+      if ((j.guruNama?.toLowerCase() === user?.nama?.toLowerCase() || j.guruId === user?.id) && j.kelas) {
+        set.add(j.kelas);
+      }
+    });
+    const list = Array.from(set).sort();
+    return list.length > 0 ? list : allClassesList;
+  }, [isTeacher, user, selectedMapel, journals, allClassesList]);
+
+  // Classes list to display in the dropdown
+  const displayedClassesList = useMemo(() => {
+    if (reportType === 'kbm' && isTeacher) {
+      return teacherAccessibleClasses;
+    }
+    return allClassesList;
+  }, [reportType, isTeacher, teacherAccessibleClasses, allClassesList]);
+
+  // Auto-set teacher state on login
+  useEffect(() => {
+    if (isTeacher && user?.nama) {
+      setSelectedTeacher(user.nama);
+      setSelectedMapel('Semua');
+      setSelectedClass('Semua');
+      setReportType('kbm');
+    }
+  }, [isTeacher, user?.nama]);
+
+  // Reset selectedClass if it is no longer valid for the selectedMapel
+  useEffect(() => {
+    if (isTeacher && selectedClass !== 'Semua' && !teacherAccessibleClasses.includes(selectedClass)) {
+      setSelectedClass('Semua');
+    }
+  }, [selectedMapel, isTeacher, teacherAccessibleClasses, selectedClass]);
+
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
 
   const currentTeacherObj = useMemo(() => {
-    const targetName = user?.role === 'guru' ? user.nama : selectedTeacher;
-    if (targetName === 'Semua') return null;
+    const targetName = isTeacher ? user?.nama : selectedTeacher;
+    if (!targetName || targetName === 'Semua') return null;
     return teachers.find(
       (t) => t.nama.toLowerCase() === targetName.toLowerCase() || t.username === targetName
     ) || null;
-  }, [user, selectedTeacher, teachers]);
+  }, [isTeacher, user?.nama, selectedTeacher, teachers]);
 
   // Calculate Target HEB for selected month
   const daysInMonth = new Date(selectedYear, selectedMonth + 1, 0).getDate();
@@ -171,7 +212,6 @@ export const Reports: React.FC<ReportsProps> = ({
   // =========================================================
   const apelRecords = useMemo(() => {
     return records.filter((r) => {
-      // Must be strictly Apel (not in-class KBM)
       const isApel = r.kategori === 'APEL' || (!r.kategori && !r.id.startsWith('PRESENSI_KBM_') && !r.mapel);
       if (!isApel) return false;
       if (filterMode === 'bulan') {
@@ -184,17 +224,32 @@ export const Reports: React.FC<ReportsProps> = ({
     });
   }, [records, filterMode, monthPrefix, activeStartDate, activeEndDate, apelSessionFilter]);
 
+  // Students list filtered by Class & Teacher scope
   const filteredStudents = useMemo(() => {
-    let list = selectedClass === 'Semua'
-      ? students
-      : students.filter((s) => s.kelas === selectedClass);
+    let list = students;
+
+    if (reportType === 'kbm' && isTeacher) {
+      if (selectedClass !== 'Semua') {
+        list = list.filter((s) => isClassMatch(s.kelas, selectedClass));
+      } else {
+        list = list.filter((s) => teacherAccessibleClasses.some((c) => isClassMatch(s.kelas, c)));
+      }
+    } else {
+      if (selectedClass !== 'Semua') {
+        list = list.filter((s) => isClassMatch(s.kelas, selectedClass));
+      }
+    }
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((s) => s.nama.toLowerCase().includes(q) || s.nisn.includes(q));
     }
-    return list;
-  }, [students, selectedClass, searchQuery]);
+
+    return list.sort((a, b) => {
+      if (a.kelas !== b.kelas) return a.kelas.localeCompare(b.kelas);
+      return a.nama.localeCompare(b.nama);
+    });
+  }, [students, reportType, isTeacher, selectedClass, teacherAccessibleClasses, searchQuery]);
 
   const apelSummaryRows = useMemo(() => {
     const targetKehadiran = apelSessionFilter === 'Semua' ? totalHebDays * 2 : totalHebDays;
@@ -253,55 +308,77 @@ export const Reports: React.FC<ReportsProps> = ({
   // 2. DATA COMPUTATION FOR REPORT 2: ABSENSI PEMBELAJARAN (KBM)
   // =========================================================
   const kbmJournals = useMemo(() => {
-    const targetGuru = user?.role === 'guru' ? user.nama : selectedTeacher;
+    const targetGuru = isTeacher && user?.nama ? user.nama : selectedTeacher;
 
     return journals.filter((j) => {
+      // 1. Filter Date / Month
       if (filterMode === 'bulan') {
         if (!j.tanggal.startsWith(monthPrefix)) return false;
       } else {
         if (j.tanggal < activeStartDate || j.tanggal > activeEndDate) return false;
       }
-      if (user?.role === 'guru') {
+
+      // 2. Filter Teacher Scope
+      if (isTeacher) {
+        const isMyJournal = (user?.nama && j.guruNama.toLowerCase() === user.nama.toLowerCase()) || (user?.id && j.guruId === user.id);
+        const isMySubject = isSubjectAllowedForTeacher(user, j.mapel);
+        if (!isMyJournal && !isMySubject) return false;
+
+        // Filter Subject
         if (selectedMapel !== 'Semua') {
           if (!isSubjectMatch(j.mapel, selectedMapel)) return false;
-        } else {
-          if (!isSubjectAllowedForTeacher(user, j.mapel)) return false;
         }
-        if (j.guruNama.toLowerCase() !== user.nama.toLowerCase() && j.guruId !== user.id) {
-          if (!isSubjectAllowedForTeacher(user, j.mapel)) return false;
+
+        // Filter Class
+        if (selectedClass !== 'Semua') {
+          if (!isClassMatch(j.kelas, selectedClass)) return false;
+        } else {
+          if (!teacherAccessibleClasses.some((c) => isClassMatch(j.kelas, c))) return false;
         }
       } else {
-        if (selectedMapel !== 'Semua' && !isSubjectMatch(j.mapel, selectedMapel)) return false;
+        // Admin
         if (targetGuru !== 'Semua' && j.guruNama.toLowerCase() !== targetGuru.toLowerCase() && j.guruId !== targetGuru) return false;
+        if (selectedMapel !== 'Semua' && !isSubjectMatch(j.mapel, selectedMapel)) return false;
+        if (selectedClass !== 'Semua' && !isClassMatch(j.kelas, selectedClass)) return false;
       }
-      if (selectedClass !== 'Semua' && !isClassMatch(j.kelas, selectedClass)) return false;
+
       return true;
     });
-  }, [journals, filterMode, monthPrefix, activeStartDate, activeEndDate, selectedMapel, user, selectedTeacher, selectedClass]);
+  }, [journals, filterMode, monthPrefix, activeStartDate, activeEndDate, isTeacher, user, selectedTeacher, selectedMapel, selectedClass, teacherAccessibleClasses]);
 
   const kbmClassRecords = useMemo(() => {
     return records.filter((r) => {
-      // Must be KELAS / PEMBELAJARAN
       const isKbm = r.kategori === 'KELAS' || r.kategori === 'PEMBELAJARAN' || r.id.startsWith('PRESENSI_KBM_') || !!r.mapel;
       if (!isKbm) return false;
+
+      // 1. Filter Date / Month
       if (filterMode === 'bulan') {
         if (!r.tanggal.startsWith(monthPrefix)) return false;
       } else {
         if (r.tanggal < activeStartDate || r.tanggal > activeEndDate) return false;
       }
-      if (user?.role === 'guru') {
+
+      // 2. Filter Teacher Scope
+      if (isTeacher) {
         if (selectedMapel !== 'Semua') {
           if (!isSubjectMatch(r.mapel, selectedMapel)) return false;
         } else {
           if (!isSubjectAllowedForTeacher(user, r.mapel)) return false;
         }
+
+        if (selectedClass !== 'Semua') {
+          if (!isClassMatch(r.kelas, selectedClass)) return false;
+        } else {
+          if (!teacherAccessibleClasses.some((c) => isClassMatch(r.kelas, c))) return false;
+        }
       } else {
         if (selectedMapel !== 'Semua' && !isSubjectMatch(r.mapel, selectedMapel)) return false;
+        if (selectedClass !== 'Semua' && !isClassMatch(r.kelas, selectedClass)) return false;
       }
-      if (selectedClass !== 'Semua' && !isClassMatch(r.kelas, selectedClass)) return false;
+
       return true;
     });
-  }, [records, filterMode, monthPrefix, activeStartDate, activeEndDate, selectedMapel, selectedClass, user]);
+  }, [records, filterMode, monthPrefix, activeStartDate, activeEndDate, isTeacher, user, selectedMapel, selectedClass, teacherAccessibleClasses]);
 
   const totalKbmPertemuan = kbmJournals.length;
 
@@ -315,15 +392,25 @@ export const Reports: React.FC<ReportsProps> = ({
       const alpa = sRecords.filter((r) => r.status === 'Alpa').length;
 
       const totalHadir = hadir + terlambat;
-      const totalPertemuanTarget = totalKbmPertemuan > 0 ? totalKbmPertemuan : sRecords.length;
+      
+      // Calculate target meetings for this specific student's class
+      const classJournals = kbmJournals.filter((j) => isClassMatch(j.kelas, s.kelas));
+      const totalPertemuanTarget = classJournals.length > 0 ? classJournals.length : sRecords.length;
+
       const persentase = totalPertemuanTarget > 0 
         ? Math.min(100, Math.round((totalHadir / totalPertemuanTarget) * 100)) 
-        : 100;
+        : (totalHadir > 0 ? 100 : 100);
+
+      const resolvedMapel = selectedMapel === 'Semua' 
+        ? (isTeacher 
+            ? (teacherAssignedSubjects.length === 1 ? teacherAssignedSubjects[0] : `Semua Mapel Guru (${teacherAssignedSubjects.length})`) 
+            : 'Seluruh Mapel KBM')
+        : selectedMapel;
 
       return {
         no: idx + 1,
         student: s,
-        mapel: selectedMapel === 'Semua' ? 'Seluruh Mapel KBM' : selectedMapel,
+        mapel: resolvedMapel,
         totalPertemuan: totalPertemuanTarget,
         hadir,
         terlambat,
@@ -335,7 +422,7 @@ export const Reports: React.FC<ReportsProps> = ({
         predikat: persentase >= 85 ? 'Tuntas' : (persentase >= 75 ? 'Cukup' : 'Perlu Pembinaan'),
       };
     });
-  }, [filteredStudents, kbmClassRecords, totalKbmPertemuan, selectedMapel]);
+  }, [filteredStudents, kbmClassRecords, kbmJournals, selectedMapel, isTeacher, teacherAssignedSubjects]);
 
   const avgKbmPercentage = useMemo(() => {
     if (kbmStudentSummaryRows.length === 0) return 0;
@@ -372,7 +459,7 @@ export const Reports: React.FC<ReportsProps> = ({
   const handleExportApelExcel = () => {
     try {
       exportApelRecapExcel(
-        students,
+        filteredStudents,
         records,
         apelSessionFilter,
         monthNames[selectedMonth],
@@ -394,7 +481,7 @@ export const Reports: React.FC<ReportsProps> = ({
     setTimeout(() => {
       try {
         generateApelRecapPdf(
-          students,
+          filteredStudents,
           records,
           apelSessionFilter,
           monthNames[selectedMonth],
@@ -416,12 +503,13 @@ export const Reports: React.FC<ReportsProps> = ({
 
   const handleExportKbmExcel = () => {
     try {
+      const activeGuru = isTeacher && user?.nama ? user.nama : selectedTeacher;
       exportLearningRecapExcel(
-        students,
-        records,
-        journals,
+        filteredStudents,
+        kbmClassRecords,
+        kbmJournals,
         selectedMapel,
-        selectedTeacher,
+        activeGuru,
         selectedClass,
         monthNames[selectedMonth],
         selectedYear,
@@ -439,25 +527,30 @@ export const Reports: React.FC<ReportsProps> = ({
     showNotice('Menyusun PDF Rekapitulasi Presensi KBM Siswa...', 'info');
     setTimeout(() => {
       try {
+        const activeGuru = isTeacher && user?.nama ? user.nama : (selectedTeacher !== 'Semua' ? selectedTeacher : (journals[0]?.guruNama || 'Guru Mata Pelajaran'));
+        const activeMapel = selectedMapel !== 'Semua' 
+          ? selectedMapel 
+          : (isTeacher ? (teacherAssignedSubjects.join(', ') || user?.mapel || '') : 'Semua Mapel');
+
         const teacherInfo = {
-          nama: user?.role === 'guru' ? user.nama : (selectedTeacher !== 'Semua' ? selectedTeacher : (journals[0]?.guruNama || 'Guru Mata Pelajaran')),
-          nip: (user?.role === 'guru' ? user.nip : currentTeacherObj?.nip) || '-',
-          mapel: user?.role === 'guru' ? (selectedMapel !== 'Semua' ? selectedMapel : (user.mapel || '')) : (selectedMapel !== 'Semua' ? selectedMapel : ''),
+          nama: activeGuru,
+          nip: (isTeacher ? user?.nip : currentTeacherObj?.nip) || '-',
+          mapel: activeMapel,
         };
 
         generateLearningRecapPdf(
-          students,
-          records,
-          journals,
+          filteredStudents,
+          kbmClassRecords,
+          kbmJournals,
           selectedMapel,
-          selectedTeacher,
+          activeGuru,
           selectedClass,
           monthNames[selectedMonth],
           selectedYear,
           schoolConfig,
           teacherInfo
         );
-        showNotice(`Dokumen PDF Rekap KBM (${selectedMapel} - ${monthNames[selectedMonth]} ${selectedYear}) berhasil diunduh!`);
+        showNotice(`Dokumen PDF Rekap KBM (${activeMapel} - ${monthNames[selectedMonth]} ${selectedYear}) berhasil diunduh!`);
       } catch (e) {
         console.error(e);
         showNotice('Gagal menyusun PDF presensi KBM.', 'error');
@@ -472,16 +565,21 @@ export const Reports: React.FC<ReportsProps> = ({
     showNotice('Menyusun PDF Buku Agenda Catatan Jurnal KBM Guru...', 'info');
     setTimeout(() => {
       try {
+        const activeGuru = isTeacher && user?.nama ? user.nama : (selectedTeacher !== 'Semua' ? selectedTeacher : (journals[0]?.guruNama || 'Guru Mata Pelajaran'));
+        const activeMapel = selectedMapel !== 'Semua' 
+          ? selectedMapel 
+          : (isTeacher ? (teacherAssignedSubjects.join(', ') || user?.mapel || '') : 'Semua Mapel');
+
         const teacherInfo = {
-          nama: user?.role === 'guru' ? user.nama : (selectedTeacher !== 'Semua' ? selectedTeacher : (journals[0]?.guruNama || 'Guru Mata Pelajaran')),
-          nip: (user?.role === 'guru' ? user.nip : currentTeacherObj?.nip) || '-',
-          mapel: user?.role === 'guru' ? (selectedMapel !== 'Semua' ? selectedMapel : (user.mapel || '')) : (selectedMapel !== 'Semua' ? selectedMapel : ''),
+          nama: activeGuru,
+          nip: (isTeacher ? user?.nip : currentTeacherObj?.nip) || '-',
+          mapel: activeMapel,
         };
 
         generateTeachingJournalsPdf(
-          journals,
+          kbmJournals,
           schoolConfig,
-          selectedTeacher,
+          activeGuru,
           selectedClass,
           selectedMapel,
           monthNames[selectedMonth],
@@ -589,6 +687,40 @@ export const Reports: React.FC<ReportsProps> = ({
         </div>
       </div>
 
+      {/* Teacher Role Context Banner in KBM Report */}
+      {reportType === 'kbm' && isTeacher && (
+        <div className="bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 p-4 rounded-3xl border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold shadow-xs">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-black text-sm text-slate-900">
+                  Laporan KBM Guru: {user?.nama}
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-indigo-100 text-indigo-800 border border-indigo-300">
+                  {teacherAssignedSubjects.length} Mata Pelajaran
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs text-slate-600">
+                <span className="font-bold text-slate-500">Mapel Aktif:</span>
+                {teacherAssignedSubjects.map((m) => (
+                  <span key={m} className="px-2 py-0.5 rounded-lg bg-white border border-indigo-200 font-bold text-indigo-900 text-[11px]">
+                    {m}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <Bookmark className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Kelas Binaan: <strong>{teacherAccessibleClasses.join(', ') || '-'}</strong></span>
+          </div>
+        </div>
+      )}
+
       {/* 2. FILTER CONTROLS BAR */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -672,8 +804,12 @@ export const Reports: React.FC<ReportsProps> = ({
                 onChange={(e) => setSelectedClass(e.target.value)}
                 className="bg-transparent text-xs font-extrabold text-slate-800 focus:outline-hidden cursor-pointer"
               >
-                <option value="Semua">Semua Kelas</option>
-                {classesList.map((c) => (
+                <option value="Semua">
+                  {reportType === 'kbm' && isTeacher 
+                    ? `Semua Kelas Binaan (${displayedClassesList.length} Kelas)` 
+                    : 'Semua Kelas'}
+                </option>
+                {displayedClassesList.map((c) => (
                   <option key={c} value={c}>Kelas {c}</option>
                 ))}
               </select>
@@ -707,10 +843,14 @@ export const Reports: React.FC<ReportsProps> = ({
                   <select
                     value={selectedMapel}
                     onChange={(e) => setSelectedMapel(e.target.value)}
-                    className="bg-transparent text-xs font-extrabold text-slate-800 focus:outline-hidden cursor-pointer max-w-[200px] truncate"
+                    className="bg-transparent text-xs font-extrabold text-slate-800 focus:outline-hidden cursor-pointer max-w-[240px] truncate"
                   >
-                    <option value="Semua">{user?.role === 'guru' ? 'Semua Mapel Saya' : 'Semua Mata Pelajaran'}</option>
-                    {teacherMapelList.map((m) => (
+                    <option value="Semua">
+                      {isTeacher 
+                        ? `Semua Mapel Saya (${teacherAssignedSubjects.length} Mapel)` 
+                        : 'Semua Mata Pelajaran'}
+                    </option>
+                    {teacherAssignedSubjects.map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
@@ -719,9 +859,9 @@ export const Reports: React.FC<ReportsProps> = ({
                 {/* Filter Guru */}
                 <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5">
                   <GraduationCap className="w-3.5 h-3.5 text-slate-400" />
-                  {user?.role === 'guru' ? (
+                  {isTeacher ? (
                     <div className="text-xs font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded-lg max-w-[220px] truncate">
-                      Guru: <span className="font-black">{user.nama}</span>
+                      Guru: <span className="font-black">{user?.nama}</span>
                     </div>
                   ) : (
                     <select
@@ -792,7 +932,7 @@ export const Reports: React.FC<ReportsProps> = ({
         </div>
 
         {/* Search bar inside filter */}
-        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-4">
+        <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="relative w-full max-w-sm">
             <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -805,7 +945,7 @@ export const Reports: React.FC<ReportsProps> = ({
           </div>
 
           {reportType === 'kbm' && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-end sm:self-auto">
               <span className="text-xs font-bold text-slate-500">Tampilan KBM:</span>
               <div className="flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200">
                 <button
@@ -1015,7 +1155,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 {totalKbmPertemuan} Pertemuan
               </span>
               <span className="text-[10px] text-slate-400 block mt-0.5">
-                Mapel: {selectedMapel === 'Semua' ? 'Seluruh Mapel' : selectedMapel}
+                Mapel: {selectedMapel === 'Semua' ? (isTeacher ? `Semua Mapel Guru (${teacherAssignedSubjects.length})` : 'Seluruh Mapel') : selectedMapel}
               </span>
             </div>
 
@@ -1066,7 +1206,7 @@ export const Reports: React.FC<ReportsProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-500 hidden sm:inline">
-                    Mapel: <strong className="text-indigo-700">{selectedMapel}</strong> • Kelas: <strong>{selectedClass}</strong>
+                    Mapel: <strong className="text-indigo-700">{selectedMapel === 'Semua' ? (isTeacher ? 'Semua Mapel Guru' : 'Semua Mapel') : selectedMapel}</strong> • Kelas: <strong>{selectedClass === 'Semua' ? (isTeacher ? 'Semua Kelas Binaan' : 'Semua Kelas') : selectedClass}</strong>
                   </span>
                   <button
                     type="button"
@@ -1105,7 +1245,9 @@ export const Reports: React.FC<ReportsProps> = ({
                     {kbmStudentSummaryRows.length === 0 ? (
                       <tr>
                         <td colSpan={14} className="py-12 text-center text-slate-400">
-                          Tidak ada data catatan presensi KBM yang sesuai filter.
+                          {isTeacher 
+                            ? `Tidak ada siswa atau rekaman KBM pada kelas binaan Anda (${teacherAccessibleClasses.join(', ') || '-'}).`
+                            : 'Tidak ada data catatan presensi KBM yang sesuai filter.'}
                         </td>
                       </tr>
                     ) : (
@@ -1257,3 +1399,4 @@ export const Reports: React.FC<ReportsProps> = ({
     </div>
   );
 };
+

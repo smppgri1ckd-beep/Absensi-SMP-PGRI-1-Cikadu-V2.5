@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import { Student, AttendanceRecord, TeachingJournal, SchoolConfig } from '../types';
+import { Student, AttendanceRecord, TeachingJournal, SchoolConfig, StudentGradeItem } from '../types';
 
 export function exportDailyAttendanceExcel(
   records: AttendanceRecord[],
@@ -562,4 +562,166 @@ export function exportTeacherListExcel(teachers: any[], schoolConfig: SchoolConf
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Guru');
   const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
   XLSX.writeFile(workbook, `Daftar_Guru_${cleanSchool}.xlsx`);
+}
+
+/**
+ * 10. UNDUH TEMPLATE EXCEL INPUT NILAI & RAPOR SISWA PER KELAS / MAPEL
+ */
+export function exportGradeTemplateExcel(
+  students: Student[],
+  schoolConfig: SchoolConfig,
+  kelas: string = '7A',
+  mapel: string = 'Pendidikan Pancasila & PKN',
+  jenisPenilaian: string = 'Tugas',
+  namaPenilaian: string = 'Tugas 1',
+  tanggal: string = new Date().toISOString().split('T')[0]
+): void {
+  const targetStudents = kelas === 'Semua' 
+    ? students 
+    : students.filter((s) => s.kelas.toUpperCase() === kelas.toUpperCase());
+
+  const sampleStudents = targetStudents.length > 0 ? targetStudents : students.slice(0, 5);
+
+  const rows = sampleStudents.map((s, idx) => ({
+    'No': idx + 1,
+    'NISN': s.nisn,
+    'Nama Lengkap Siswa': s.nama,
+    'Kelas': s.kelas,
+    'Mata Pelajaran': mapel,
+    'Jenis Penilaian': jenisPenilaian,
+    'Nama Penilaian / KD / Materi': namaPenilaian,
+    'Tanggal (YYYY-MM-DD)': tanggal,
+    'Nilai (0 - 100)': '',
+    'Catatan / Komentar Guru': '',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 16 }, // NISN
+    { wch: 30 }, // Nama
+    { wch: 10 }, // Kelas
+    { wch: 32 }, // Mapel
+    { wch: 18 }, // Jenis Penilaian
+    { wch: 30 }, // Nama Penilaian
+    { wch: 22 }, // Tanggal
+    { wch: 16 }, // Nilai
+    { wch: 36 }, // Catatan
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Format Nilai Siswa');
+  const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
+  const cleanMapel = mapel.replace(/[^a-zA-Z0-9]/g, '_');
+  XLSX.writeFile(workbook, `Template_Nilai_${cleanSchool}_Kelas_${kelas}_${cleanMapel}.xlsx`);
+}
+
+/**
+ * 11. UNDUH TEMPLATE BUKU NILAI KOMPLET (LEGER MULTI-PENILAIAN) EXCEL
+ */
+export function exportClassGradeLedgerTemplateExcel(
+  students: Student[],
+  schoolConfig: SchoolConfig,
+  kelas: string = '7A',
+  mapel: string = 'Pendidikan Pancasila & PKN'
+): void {
+  const targetStudents = kelas === 'Semua' 
+    ? students 
+    : students.filter((s) => s.kelas.toUpperCase() === kelas.toUpperCase());
+
+  const sampleStudents = targetStudents.length > 0 ? targetStudents : students.slice(0, 5);
+
+  const rows = sampleStudents.map((s, idx) => ({
+    'No': idx + 1,
+    'NISN': s.nisn,
+    'Nama Lengkap Siswa': s.nama,
+    'Kelas': s.kelas,
+    'Mata Pelajaran': mapel,
+    'Tugas 1': '',
+    'Tugas 2': '',
+    'UH 1 (Ulangan Harian 1)': '',
+    'UH 2 (Ulangan Harian 2)': '',
+    'PTS / UTS': '',
+    'PAS / UAS': '',
+    'Catatan & Evaluasi Guru': '',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 6 },  // No
+    { wch: 16 }, // NISN
+    { wch: 30 }, // Nama
+    { wch: 10 }, // Kelas
+    { wch: 30 }, // Mapel
+    { wch: 12 }, // Tugas 1
+    { wch: 12 }, // Tugas 2
+    { wch: 16 }, // UH 1
+    { wch: 16 }, // UH 2
+    { wch: 14 }, // PTS
+    { wch: 14 }, // PAS
+    { wch: 40 }, // Catatan
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Leger Nilai Lengkap');
+  const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
+  const cleanMapel = mapel.replace(/[^a-zA-Z0-9]/g, '_');
+  XLSX.writeFile(workbook, `Template_Leger_Nilai_${cleanSchool}_Kelas_${kelas}_${cleanMapel}.xlsx`);
+}
+
+/**
+ * 12. EKSPOR REKAP DATA NILAI SISWA KE EXCEL
+ */
+export function exportStudentGradesExcel(
+  grades: StudentGradeItem[],
+  students: Student[],
+  schoolConfig: SchoolConfig,
+  kelasFilter = 'Semua',
+  mapelFilter = 'Semua'
+): void {
+  const rows = grades.map((g, idx) => {
+    const student = students.find((s) => s.nisn === g.nisn);
+    const predikat = g.nilai >= 85 ? 'A (Sangat Baik)' : g.nilai >= 75 ? 'B (Baik)' : g.nilai >= 65 ? 'C (Cukup)' : 'D (Perlu Bimbingan)';
+    const status = g.nilai >= 75 ? 'Tuntas' : 'Belum Tuntas (Remedial)';
+
+    return {
+      'No': idx + 1,
+      'Tanggal Penilaian': g.tanggal,
+      'NISN': g.nisn,
+      'Nama Siswa': student?.nama || '-',
+      'Kelas': student?.kelas || '-',
+      'Mata Pelajaran': g.mapel,
+      'Jenis Penilaian': g.jenisPenilaian,
+      'Nama Penilaian / KD': g.namaPenilaian,
+      'Nilai Angka': g.nilai,
+      'Predikat': predikat,
+      'Status Ketuntasan': status,
+      'Catatan / Komentar Guru': g.komentarGuru || '-',
+      'Semester': g.semester || 'Ganjil',
+      'Tahun Ajaran': g.tahunAjaran || '2026/2027',
+    };
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 30 },
+    { wch: 10 },
+    { wch: 32 },
+    { wch: 18 },
+    { wch: 28 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 24 },
+    { wch: 35 },
+    { wch: 12 },
+    { wch: 14 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap Nilai Siswa');
+  const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
+  XLSX.writeFile(workbook, `Rekap_Nilai_${cleanSchool}_${kelasFilter}_${mapelFilter.replace(/\s+/g, '_')}.xlsx`);
 }

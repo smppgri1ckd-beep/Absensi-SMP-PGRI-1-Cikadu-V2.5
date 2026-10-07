@@ -186,6 +186,86 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       const groups: MenuGroup[] = [];
 
+      // JIKA SEDANG BERTINDAK SEBAGAI PETUGAS PIKET (Mode Ruang Kerja Piket Terisolasi)
+      // Seluruh menu Guru Mapel & Wali Kelas disembunyikan agar fokus pada tugas operasional piket
+      if (actingAsPiket || user.role === 'piket') {
+        groups.push({
+          groupTitle: 'Ruang Kerja Petugas Piket',
+          items: [
+            {
+              id: 'apel-attendance',
+              label: 'Absensi Apel Petugas',
+              desc: 'Input kehadiran apel pagi & siang per rombel',
+              icon: UserCheck,
+              tag: 'Operasional',
+              tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
+            },
+            {
+              id: 'kiosk',
+              label: 'Pindai Presensi Siswa',
+              desc: 'Pindai kartu QR apel pagi & siang di gerbang',
+              icon: QrCode,
+              tag: isAssignedPiketToday ? 'Hari Ini' : 'Gerbang',
+              tagColor: isAssignedPiketToday ? 'bg-emerald-600 text-white font-bold' : 'bg-blue-100 text-blue-800 font-bold',
+            },
+            {
+              id: 'dashboard',
+              label: 'Monitoring Presensi Apel',
+              desc: 'Kelola & pantau presensi apel harian real-time',
+              icon: LayoutDashboard,
+              tag: 'Live',
+              tagColor: 'bg-emerald-100 text-emerald-800 font-bold',
+            },
+            {
+              id: 'action-leave-approval',
+              label: 'Verifikasi Izin & Sakit',
+              desc: 'Pemeriksaan surat dokter & izin mandiri siswa',
+              icon: FileText,
+              isAction: true,
+              tag: pendingLeaveCount > 0 ? `${pendingLeaveCount} Pengajuan` : undefined,
+              tagColor: 'bg-rose-500 text-white font-bold',
+            },
+            {
+              id: 'guru-piket',
+              label: 'Jadwal & Rekan Piket',
+              desc: 'Lihat jadwal tugas piket harian sekolah',
+              icon: UserCheck,
+            },
+            {
+              id: 'reports-apel',
+              label: 'Rekap Laporan Apel',
+              desc: 'Laporan resmi apel pagi & siang (PDF & Excel)',
+              icon: FileSpreadsheet,
+              tag: 'Laporan',
+              tagColor: 'bg-amber-100 text-amber-900 font-bold',
+            },
+          ],
+        });
+
+        // Layanan Pendukung & Informasi Sekolah
+        groups.push({
+          groupTitle: 'Layanan & Info Sekolah',
+          items: [
+            {
+              id: 'action-agenda',
+              label: 'Agenda Kegiatan Sekolah',
+              desc: 'Kalender kegiatan, rapat & event sekolah',
+              icon: Calendar,
+              isAction: true,
+            },
+            {
+              id: 'public-info',
+              label: 'Jadwal & Info Sekolah',
+              desc: 'Profil & jam operasional sekolah',
+              icon: Info,
+            },
+          ],
+        });
+
+        return groups;
+      }
+
+      // JIKA DALAM MODE RUANG KERJA GURU (Guru Mapel & Wali Kelas)
       // 1. Penugasan Guru Mapel
       if (isMapelAssigned) {
         groups.push({
@@ -240,6 +320,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
               tagColor: 'bg-amber-100 text-amber-900 font-bold',
             },
             {
+              id: 'action-grades',
+              label: `Rekap Nilai & Rapor ${user.waliKelas || 'Binaan'}`,
+              desc: 'Input nilai, rekap leger & cetak rapor kelas',
+              icon: Award,
+              isAction: true,
+              tag: 'Rapor',
+              tagColor: 'bg-amber-100 text-amber-900 font-bold',
+            },
+            {
               id: 'pantau-anak',
               label: `Pantau Siswa ${user.waliKelas || 'Binaan'}`,
               desc: 'Perkembangan nilai, tugas & presensi siswa binaan',
@@ -269,61 +358,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         });
       }
 
-      // 3. Penugasan Guru Piket
-      if (isPiketAssigned) {
-        groups.push({
-          groupTitle: 'Penugasan Guru Piket',
-          items: [
-            {
-              id: 'apel-attendance',
-              label: 'Absensi Apel Petugas',
-              desc: 'Input kehadiran apel pagi & siang per rombel',
-              icon: UserCheck,
-              tag: 'Piket',
-              tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
-            },
-            {
-              id: 'kiosk',
-              label: 'Pindai Presensi Siswa',
-              desc: 'Pindai kartu QR apel pagi & siang di gerbang',
-              icon: QrCode,
-              tag: isAssignedPiketToday ? 'Hari Ini' : 'Gerbang',
-              tagColor: isAssignedPiketToday ? 'bg-emerald-600 text-white font-bold' : 'bg-blue-100 text-blue-800 font-bold',
-            },
-            {
-              id: 'dashboard',
-              label: 'Monitoring Presensi Apel',
-              desc: 'Kelola & pantau presensi apel harian',
-              icon: LayoutDashboard,
-            },
-            ...(!isWaliAssigned ? [{
-              id: 'action-leave-approval',
-              label: 'Verifikasi Izin & Sakit',
-              desc: 'Pemeriksaan berkas surat ortu / dokter',
-              icon: FileText,
-              isAction: true,
-              tag: pendingLeaveCount > 0 ? `${pendingLeaveCount} Pengajuan` : undefined,
-              tagColor: 'bg-rose-500 text-white font-bold',
-            }] : []),
-            {
-              id: 'guru-piket',
-              label: 'Jadwal Guru Piket',
-              desc: 'Lihat jadwal tugas piket sekolah',
-              icon: UserCheck,
-            },
-            {
-              id: 'reports-apel',
-              label: 'Rekap Laporan Apel',
-              desc: 'Laporan resmi apel pagi & siang',
-              icon: FileSpreadsheet,
-              tag: 'Apel',
-              tagColor: 'bg-amber-100 text-amber-900 font-bold',
-            },
-          ],
-        });
-      }
-
-      // 4. Layanan Pendukung & Informasi Sekolah
+      // 3. Layanan Pendukung & Informasi Sekolah
       groups.push({
         groupTitle: 'Layanan & Info Sekolah',
         items: [

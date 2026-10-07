@@ -67,6 +67,8 @@ interface TeachingJournalProps {
   schoolConfig: SchoolConfig;
   teachers: TeacherUser[];
   schedules?: ClassScheduleItem[];
+  records?: AttendanceRecord[];
+  leaveRequests?: import('../types').LeaveRequest[];
   onSaveJournal: (journal: TeachingJournal, classAttendanceRecords?: AttendanceRecord[]) => Promise<void>;
   onDeleteJournal: (id: string) => Promise<void>;
   onBulkDeleteJournals?: (ids: string[]) => Promise<void>;
@@ -82,6 +84,8 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   schoolConfig,
   teachers,
   schedules = [],
+  records = [],
+  leaveRequests = [],
   onSaveJournal,
   onDeleteJournal,
   onBulkDeleteJournals,
@@ -161,6 +165,44 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   // Class students for selected formKelas
   const currentClassStudents = students.filter((s) => s.kelas === formKelas);
 
+  // Helper to determine initial student attendance status for a given date
+  const getInitialStatusForStudent = (nisn: string, date: string): { status: AttendanceStatus; isVerifiedLeave: boolean; leaveReason?: string } => {
+    // 1. Check if there's an approved leave request on this date
+    if (leaveRequests && leaveRequests.length > 0) {
+      const activeLeave = leaveRequests.find((l) => {
+        if (l.nisn !== nisn || l.statusPengajuan !== 'Disetujui') return false;
+        const start = l.tanggalMulai;
+        const end = l.tanggalSelesai || start;
+        return date >= start && date <= end;
+      });
+      if (activeLeave) {
+        return {
+          status: activeLeave.jenis === 'Sakit' ? 'Sakit' : 'Izin',
+          isVerifiedLeave: true,
+          leaveReason: `[${activeLeave.jenis} Disetujui] ${activeLeave.alasan}`,
+        };
+      }
+    }
+
+    // 2. Check if there's an attendance record on this date marked as Izin or Sakit
+    if (records && records.length > 0) {
+      const rec = records.find((r) => r.nisn === nisn && r.tanggal === date && (r.status === 'Izin' || r.status === 'Sakit'));
+      if (rec) {
+        return {
+          status: rec.status,
+          isVerifiedLeave: true,
+          leaveReason: rec.catatan || `Tercatat ${rec.status} pada presensi harian`,
+        };
+      }
+    }
+
+    // 3. Default to Alpa until scanned or manually verified
+    return {
+      status: 'Alpa',
+      isVerifiedLeave: false,
+    };
+  };
+
   // Active selected teacher in form
   const activeTeacher = user?.role === 'guru'
     ? { id: user.id, nama: user.nama, mapel: user.mapel, penugasanMapel: user.penugasanMapel, isGuruMapel: user.isGuruMapel }
@@ -215,17 +257,39 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   };
 
   // Change class in form
-  const handleClassChange = (newKelas: string) => {
+  const handleClassChange = (newKelas: string, targetDate = formTanggal) => {
     setFormKelas(newKelas);
     const newStudents = students.filter((s) => s.kelas === newKelas);
     const newMap: Record<string, AttendanceStatus> = {};
     newStudents.forEach((s) => {
-      newMap[s.nisn] = 'Alpa'; // Default to Alpa until scanned or manually verified
+      const init = getInitialStatusForStudent(s.nisn, targetDate);
+      newMap[s.nisn] = init.status;
     });
     setStudentStatuses(newMap);
     setScannedViaQrNisns(new Set());
     setLastScannedResult(null);
     setScanAlert(null);
+  };
+
+  // Change date in form
+  const handleDateChange = (newDate: string) => {
+    setFormTanggal(newDate);
+    const targetStudents = students.filter((s) => s.kelas === formKelas);
+    setStudentStatuses((prev) => {
+      const updated: Record<string, AttendanceStatus> = {};
+      targetStudents.forEach((s) => {
+        const init = getInitialStatusForStudent(s.nisn, newDate);
+        if (init.isVerifiedLeave) {
+          updated[s.nisn] = init.status;
+        } else if (prev[s.nisn] === 'Izin' || prev[s.nisn] === 'Sakit') {
+          // If previously Izin/Sakit only due to old date, re-evaluate
+          updated[s.nisn] = init.status;
+        } else {
+          updated[s.nisn] = prev[s.nisn] || 'Alpa';
+        }
+      });
+      return updated;
+    });
   };
 
   // Determine current day of week in Indonesian
@@ -324,7 +388,8 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
     const targetStudents = students.filter((s) => s.kelas === sch.kelas);
     const initialMap: Record<string, AttendanceStatus> = {};
     targetStudents.forEach((s) => {
-      initialMap[s.nisn] = 'Alpa';
+      const init = getInitialStatusForStudent(s.nisn, today);
+      initialMap[s.nisn] = init.status;
     });
     setStudentStatuses(initialMap);
     setScannedViaQrNisns(new Set());
@@ -371,10 +436,11 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
 
     const targetStudents = students.filter((s) => s.kelas === targetClass);
 
-    // Initial map: default to 'Alpa' so scanner and manual verification explicitly mark 'Hadir'
+    // Initial map: check verified leaves from leave requests / records
     const initialMap: Record<string, AttendanceStatus> = {};
     targetStudents.forEach((s) => {
-      initialMap[s.nisn] = 'Alpa';
+      const init = getInitialStatusForStudent(s.nisn, formTanggal);
+      initialMap[s.nisn] = init.status;
     });
     setStudentStatuses(initialMap);
     setScannedViaQrNisns(new Set());
@@ -645,13 +711,18 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   const handleMarkAllPresent = () => {
     const updated: Record<string, AttendanceStatus> = {};
     currentClassStudents.forEach((s) => {
-      updated[s.nisn] = 'Hadir';
+      const init = getInitialStatusForStudent(s.nisn, formTanggal);
+      if (init.isVerifiedLeave) {
+        updated[s.nisn] = init.status; // Pertahankan status Izin/Sakit yang sudah disetujui
+      } else {
+        updated[s.nisn] = 'Hadir';
+      }
     });
     setStudentStatuses(updated);
     soundService.playSuccess();
     setScanAlert({
       type: 'info',
-      message: `Seluruh siswa rombel Kelas ${formKelas} (${currentClassStudents.length} siswa) ditandai Hadir.`,
+      message: `Seluruh siswa Kelas ${formKelas} (${currentClassStudents.length} siswa) ditandai Hadir (siswa izin/sakit terverifikasi tetap dipertahankan).`,
     });
   };
 
@@ -659,7 +730,10 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
     setStudentStatuses((prev) => {
       const copy = { ...prev };
       currentClassStudents.forEach((s) => {
-        if (!copy[s.nisn] || copy[s.nisn] === 'Alpa') {
+        const init = getInitialStatusForStudent(s.nisn, formTanggal);
+        if (init.isVerifiedLeave) {
+          copy[s.nisn] = init.status;
+        } else if (!copy[s.nisn] || copy[s.nisn] === 'Alpa') {
           copy[s.nisn] = 'Alpa';
         }
       });
@@ -1511,7 +1585,7 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                     type="date"
                     required
                     value={formTanggal}
-                    onChange={(e) => setFormTanggal(e.target.value)}
+                    onChange={(e) => handleDateChange(e.target.value)}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1835,7 +1909,7 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                               <span className="font-extrabold text-slate-900 truncate block text-xs">
                                 {s.nama}
                               </span>
-                              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-mono">
+                              <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-400 font-mono">
                                 <span>{s.nisn}</span>
                                 {isScanned && (
                                   <span className="px-1 py-0.2 rounded bg-emerald-100 text-emerald-800 font-sans font-bold text-[9px] flex items-center gap-0.5">
@@ -1843,6 +1917,25 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                                     Scan QR
                                   </span>
                                 )}
+                                {(() => {
+                                  const init = getInitialStatusForStudent(s.nisn, formTanggal);
+                                  if (init.isVerifiedLeave) {
+                                    return (
+                                      <span 
+                                        className={`px-1.5 py-0.2 rounded font-sans font-bold text-[9px] flex items-center gap-0.5 ${
+                                          init.status === 'Sakit'
+                                            ? 'bg-sky-100 text-sky-800 border border-sky-200'
+                                            : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                                        }`}
+                                        title={init.leaveReason || `Surat ${init.status} Disetujui`}
+                                      >
+                                        <Sparkles className="w-2.5 h-2.5" />
+                                        <span>{init.status} Terverifikasi</span>
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </div>
                             </div>
                           </div>

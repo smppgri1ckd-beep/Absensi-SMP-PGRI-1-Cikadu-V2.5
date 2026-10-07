@@ -1740,69 +1740,75 @@ export function exportStudentReportCardPdf({
   // 1. Kop Surat Resmi Kedinasan
   let y = drawOfficialKop(doc, schoolConfig, false);
 
-  // 2. Judul Rapor
+  // 2. Judul Rapor (Jelas, Bersih, Format Resmi Kedinasan)
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
-  doc.setTextColor(15, 23, 42);
+  doc.setTextColor(15, 23, 42); // Hitam tegas kontras tinggi
   doc.text('LAPORAN HASIL BELAJAR SISWA (RAPOR SISIPAN DIGITAL)', 105, y, { align: 'center' });
 
   // Subtitle
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
-  doc.text(`${semester.toUpperCase()} • TAHUN PELAJARAN ${tahunPelajaran}`, 105, y + 4.5, { align: 'center' });
+  doc.text(`${semester.toUpperCase()} • TAHUN PELAJARAN ${tahunPelajaran}`, 105, y + 4.2, { align: 'center' });
 
-  y += 8.5;
+  y += 7.5;
 
-  // 3. Kotak Biodata Siswa
+  // 3. Kotak Biodata Siswa (Background Terang Bersih & Teks Jelas Terbaca)
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.3);
-  doc.roundedRect(leftX, y, contentWidth, 18, 1.5, 1.5, 'FD');
+  doc.roundedRect(leftX, y, contentWidth, 16.5, 1.2, 1.2, 'FD');
 
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(30, 41, 59);
 
   // Kolom Kiri
-  const leftColX = leftX + 4;
+  const leftColX = leftX + 3.5;
   doc.setFont('helvetica', 'bold');
-  doc.text('Nama Peserta Didik', leftColX, y + 5);
-  doc.text('Nomor Induk / NISN', leftColX, y + 10);
-  doc.text('Jenis Kelamin', leftColX, y + 15);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Nama Peserta Didik', leftColX, y + 4.2);
+  doc.text('Nomor Induk / NISN', leftColX, y + 8.6);
+  doc.text('Jenis Kelamin', leftColX, y + 13.0);
 
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(`: ${student.nama.toUpperCase()}`, leftColX + 30, y + 4.2);
   doc.setFont('helvetica', 'normal');
-  doc.text(`: ${student.nama.toUpperCase()}`, leftColX + 33, y + 5);
-  doc.text(`: ${student.nisn}`, leftColX + 33, y + 10);
-  doc.text(`: ${student.jk === 'L' ? 'Laki-Laki (L)' : 'Perempuan (P)'}`, leftColX + 33, y + 15);
+  doc.text(`: ${student.nisn}`, leftColX + 30, y + 8.6);
+  doc.text(`: ${student.jk === 'L' ? 'Laki-Laki (L)' : 'Perempuan (P)'}`, leftColX + 30, y + 13.0);
 
   // Kolom Kanan
-  const rightColX = leftX + 100;
+  const rightColX = leftX + 96;
   doc.setFont('helvetica', 'bold');
-  doc.text('Kelas / Rombel', rightColX, y + 5);
-  doc.text('Wali Kelas', rightColX, y + 10);
-  doc.text('Rata-Rata Capaian', rightColX, y + 15);
+  doc.setTextColor(71, 85, 105);
+  doc.text('Kelas / Rombel', rightColX, y + 4.2);
+  doc.text('Wali Kelas', rightColX, y + 8.6);
+  doc.text('Rata-Rata Capaian', rightColX, y + 13.0);
 
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text(`: Kelas ${student.kelas}`, rightColX + 28, y + 4.2);
   doc.setFont('helvetica', 'normal');
-  doc.text(`: Kelas ${student.kelas}`, rightColX + 30, y + 5);
-  doc.text(`: ${waliKelasNama}`, rightColX + 30, y + 10);
+  doc.text(`: ${waliKelasNama}`, rightColX + 28, y + 8.6);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(30, 58, 138);
-  doc.text(`: ${overallAvg} / 100 (${overallPredikat})`, rightColX + 30, y + 15);
+  doc.text(`: ${overallAvg} / 100 (${overallPredikat})`, rightColX + 28, y + 13.0);
 
-  y += 22;
+  y += 20;
 
   // 4. Tabel A: Capaian Nilai Pembelajaran & Keterampilan
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
   doc.text('A. Capaian Nilai Pembelajaran & Keterampilan (Auto-Rekap Database)', leftX, y + 1);
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.setTextColor(100, 116, 139);
   doc.text('KKM Satuan: 75', rightX, y + 1, { align: 'right' });
 
-  y += 4;
+  y += 3.5;
 
   // Kolom Tabel: total 182mm (Margin kiri 14mm, Margin kanan 14mm)
   const cols = [
@@ -1814,21 +1820,32 @@ export function exportStudentReportCardPdf({
     { title: 'PAS', width: 11, align: 'center' as const },
     { title: 'Nilai Akhir', width: 15, align: 'center' as const },
     { title: 'Predikat', width: 12, align: 'center' as const },
-    { title: 'Deskripsi Capaian Pembelajaran', width: 55, align: 'left' as const },
+    { title: 'Deskripsi Capaian Kompetensi / Pembelajaran', width: 55, align: 'left' as const },
   ];
 
-  const headerHeight = 6;
+  const headerHeight = 6.2;
   const drawTableHeader = (curY: number) => {
     doc.setDrawColor(148, 163, 184);
     doc.setLineWidth(0.3);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
-    doc.setTextColor(15, 23, 42);
-    doc.setFillColor(241, 245, 249);
+    doc.setFillColor(241, 245, 249); // Warna header tabel: Abu-abu muda terang bersih (tidak gelap/hitam)
 
     let curX = leftX;
     cols.forEach((c) => {
+      // Gambar kotak latar belakang kolom judul
+      doc.setFillColor(241, 245, 249);
       doc.rect(curX, curY, c.width, headerHeight, 'FD');
+
+      // Teks kolom judul selalu hitam pekat dan jelas terbaca
+      doc.setTextColor(15, 23, 42);
+      if (c.title.length > 20) {
+        doc.setFontSize(6);
+      } else if (c.title === 'Nilai Akhir') {
+        doc.setFontSize(6.5);
+      } else {
+        doc.setFontSize(7);
+      }
+
       const textX = c.align === 'center' ? curX + c.width / 2 : curX + 2;
       doc.text(c.title, textX, curY + 4.2, { align: c.align });
       curX += c.width;
@@ -1843,7 +1860,7 @@ export function exportStudentReportCardPdf({
     const descLines = doc.splitTextToSize(row.deskripsi, 52);
     const mapelLines = doc.splitTextToSize(row.mapel, 46);
     const lineCount = Math.max(descLines.length, mapelLines.length);
-    const rowH = Math.max(5.0, lineCount * 3.1 + 2);
+    const rowH = Math.max(4.8, lineCount * 3.0 + 1.8);
 
     if (y + rowH > 275) {
       doc.addPage();
@@ -1861,55 +1878,61 @@ export function exportStudentReportCardPdf({
         doc.setFillColor(248, 250, 252);
         doc.rect(curX, y, c.width, rowH, 'FD');
       } else {
-        doc.rect(curX, y, c.width, rowH);
+        doc.setFillColor(255, 255, 255);
+        doc.rect(curX, y, c.width, rowH, 'FD');
       }
       curX += c.width;
     });
 
     // Isi Teks
     doc.setTextColor(15, 23, 42);
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
 
     // No
     doc.setFont('helvetica', 'normal');
-    doc.text(String(row.no), leftX + cols[0].width / 2, y + 3.6, { align: 'center' });
+    doc.setTextColor(71, 85, 105);
+    doc.text(String(row.no), leftX + cols[0].width / 2, y + 3.4, { align: 'center' });
 
     // Mapel
     doc.setFont('helvetica', 'bold');
-    doc.text(mapelLines, leftX + cols[0].width + 2, y + 3.6);
+    doc.setTextColor(15, 23, 42);
+    doc.text(mapelLines, leftX + cols[0].width + 2, y + 3.4);
 
     // Nilai Komponen
     let xOffset = leftX + cols[0].width + cols[1].width;
     doc.setFont('helvetica', 'normal');
-    doc.text(String(row.tugas), xOffset + cols[2].width / 2, y + 3.6, { align: 'center' });
+    doc.setTextColor(51, 65, 85);
+    doc.text(String(row.tugas), xOffset + cols[2].width / 2, y + 3.4, { align: 'center' });
     xOffset += cols[2].width;
-    doc.text(String(row.uh), xOffset + cols[3].width / 2, y + 3.6, { align: 'center' });
+    doc.text(String(row.uh), xOffset + cols[3].width / 2, y + 3.4, { align: 'center' });
     xOffset += cols[3].width;
-    doc.text(String(row.uts), xOffset + cols[4].width / 2, y + 3.6, { align: 'center' });
+    doc.text(String(row.uts), xOffset + cols[4].width / 2, y + 3.4, { align: 'center' });
     xOffset += cols[4].width;
-    doc.text(String(row.uas), xOffset + cols[5].width / 2, y + 3.6, { align: 'center' });
+    doc.text(String(row.uas), xOffset + cols[5].width / 2, y + 3.4, { align: 'center' });
     xOffset += cols[5].width;
 
     // Nilai Akhir
     doc.setFont('helvetica', 'bold');
-    doc.text(String(row.nilaiAkhir), xOffset + cols[6].width / 2, y + 3.6, { align: 'center' });
+    doc.setTextColor(15, 23, 42);
+    doc.text(String(row.nilaiAkhir), xOffset + cols[6].width / 2, y + 3.4, { align: 'center' });
     xOffset += cols[6].width;
 
     // Predikat
-    doc.text(row.predikat, xOffset + cols[7].width / 2, y + 3.6, { align: 'center' });
+    doc.setTextColor(30, 58, 138);
+    doc.text(row.predikat, xOffset + cols[7].width / 2, y + 3.4, { align: 'center' });
     xOffset += cols[7].width;
 
     // Deskripsi
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.3);
     doc.setTextColor(51, 65, 85);
-    doc.text(descLines, xOffset + 2, y + 3.3);
+    doc.text(descLines, xOffset + 2, y + 3.2);
 
     y += rowH;
   });
 
   // Table Footer: Rata-Rata Nilai Akhir Siswa
-  const footerH = 5.8;
+  const footerH = 5.5;
   if (y + footerH > 275) {
     doc.addPage();
     y = 18;
@@ -1926,39 +1949,39 @@ export function exportStudentReportCardPdf({
   doc.rect(leftX + leftWidth + cols[6].width + cols[7].width, y, cols[8].width, footerH, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.2);
   doc.setTextColor(15, 23, 42);
-  doc.text('RATA-RATA NILAI AKHIR SISWA', leftX + leftWidth - 3, y + 4.1, { align: 'right' });
-  doc.text(String(overallAvg), leftX + leftWidth + cols[6].width / 2, y + 4.1, { align: 'center' });
+  doc.text('RATA-RATA NILAI AKHIR SISWA', leftX + leftWidth - 3, y + 3.8, { align: 'right' });
+  doc.text(String(overallAvg), leftX + leftWidth + cols[6].width / 2, y + 3.8, { align: 'center' });
   doc.setTextColor(30, 58, 138);
-  doc.text(overallAvg >= 90 ? 'A' : overallAvg >= 80 ? 'B' : 'C', leftX + leftWidth + cols[6].width + cols[7].width / 2, y + 4.1, { align: 'center' });
+  doc.text(overallAvg >= 90 ? 'A' : overallAvg >= 80 ? 'B' : 'C', leftX + leftWidth + cols[6].width + cols[7].width / 2, y + 3.8, { align: 'center' });
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.3);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Ketuntasan: Terlampaui (${overallPredikat})`, leftX + leftWidth + cols[6].width + cols[7].width + 2, y + 4.1);
+  doc.text(`Ketuntasan: Terlampaui (${overallPredikat})`, leftX + leftWidth + cols[6].width + cols[7].width + 2, y + 3.8);
 
-  y += footerH + 1.5;
+  y += footerH + 1.2;
 
   // Catatan Auto-Rekap
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(6);
+  doc.setFontSize(5.8);
   doc.setTextColor(148, 163, 184);
   doc.text('*Nilai Akhir dan Predikat dikompilasi secara otomatis (Auto-Rekap) dari data penilaian harian tugas, UH, PTS, dan PAS di database sekolah.', leftX, y + 2);
 
-  y += 5.5;
+  y += 5.0;
 
   // 5. Tabel B: Rekapitulasi Presensi & Disiplin Belajar
-  if (y + 18 > 275) {
+  if (y + 16 > 275) {
     doc.addPage();
     y = 18;
   }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
   doc.text('B. Rekapitulasi Presensi & Disiplin Belajar', leftX, y + 1);
 
-  y += 3.5;
+  y += 3.2;
 
   const presensiItems = [
     { label: 'Hadir', value: `${attendance.hadir} Hari` },
@@ -1970,7 +1993,7 @@ export function exportStudentReportCardPdf({
   ];
 
   const boxW = contentWidth / 6;
-  const boxH = 9.5;
+  const boxH = 9.0;
   let curBoxX = leftX;
 
   presensiItems.forEach((p, idx) => {
@@ -1981,21 +2004,21 @@ export function exportStudentReportCardPdf({
     doc.roundedRect(curBoxX, y, boxW - 1.5, boxH, 1, 1, 'FD');
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6);
+    doc.setFontSize(5.8);
     doc.setTextColor(isHighlight ? 49 : 100, isHighlight ? 46 : 116, isHighlight ? 129 : 139);
-    doc.text(p.label.toUpperCase(), curBoxX + (boxW - 1.5) / 2, y + 3.6, { align: 'center' });
+    doc.text(p.label.toUpperCase(), curBoxX + (boxW - 1.5) / 2, y + 3.4, { align: 'center' });
 
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(isHighlight ? 30 : 15, isHighlight ? 58 : 23, isHighlight ? 138 : 42);
-    doc.text(p.value, curBoxX + (boxW - 1.5) / 2, y + 7.6, { align: 'center' });
+    doc.text(p.value, curBoxX + (boxW - 1.5) / 2, y + 7.2, { align: 'center' });
 
     curBoxX += boxW;
   });
 
-  y += boxH + 3.5;
+  y += boxH + 3.2;
 
   // 6. Catatan Wali Kelas
-  if (y + 15 > 275) {
+  if (y + 14 > 275) {
     doc.addPage();
     y = 18;
   }
@@ -2003,27 +2026,27 @@ export function exportStudentReportCardPdf({
   const defaultNote = `Ananda ${student.nama} memiliki tingkat kehadiran yang sangat baik (${attendance.persentase}%) dan capaian belajar memuaskan. Pertahankan kedisiplinan belajar, tingkatkan keaktifan dalam diskusi kelompok, serta terus asah minat bakat pada kegiatan ekstrakurikuler sekolah.`;
   const noteText = catatanWaliKelas || defaultNote;
   const noteLines = doc.splitTextToSize(`"${noteText}"`, contentWidth - 8);
-  const noteBoxH = Math.max(10, noteLines.length * 3.1 + 5);
+  const noteBoxH = Math.max(9.5, noteLines.length * 2.8 + 4.5);
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
   doc.setLineWidth(0.2);
-  doc.roundedRect(leftX, y, contentWidth, noteBoxH, 1.5, 1.5, 'FD');
+  doc.roundedRect(leftX, y, contentWidth, noteBoxH, 1.2, 1.2, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(6.5);
   doc.setTextColor(30, 41, 59);
-  doc.text('Catatan & Saran Wali Kelas:', leftX + 4, y + 3.6);
+  doc.text('Catatan & Saran Wali Kelas:', leftX + 4, y + 3.4);
 
   doc.setFont('helvetica', 'italic');
-  doc.setFontSize(6.5);
+  doc.setFontSize(6.2);
   doc.setTextColor(71, 85, 105);
-  doc.text(noteLines, leftX + 4, y + 7.2);
+  doc.text(noteLines, leftX + 4, y + 6.8);
 
-  y += noteBoxH + 4.5;
+  y += noteBoxH + 4.0;
 
   // 7. Lembar Pengesahan / Tanda Tangan (Kepala Sekolah di Bagian Tengah Bawah Dokumen)
-  if (y + 36 > 280) {
+  if (y + 34 > 280) {
     doc.addPage();
     y = 20;
   }
@@ -2048,66 +2071,66 @@ export function exportStudentReportCardPdf({
 
     // Kolom 1 (Kiri): Orang Tua / Wali Siswa
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(71, 85, 105);
     doc.text('Mengetahui,', col1X, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text('Orang Tua / Wali Siswa', col1X, y + 4.5, { align: 'center' });
+    doc.text('Orang Tua / Wali Siswa', col1X, y + 4.2, { align: 'center' });
 
     doc.setDrawColor(15, 23, 42);
     doc.setLineWidth(0.3);
-    doc.line(col1X - 22, y + 23, col1X + 22, y + 23);
+    doc.line(col1X - 22, y + 21, col1X + 22, y + 21);
     doc.setFont('helvetica', 'italic');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.2);
     doc.setTextColor(100, 116, 139);
-    doc.text('( .................................................. )', col1X, y + 26.5, { align: 'center' });
+    doc.text('( .................................................. )', col1X, y + 24.5, { align: 'center' });
 
-    // Kolom 2 (Tengah): Kepala Sekolah (Tanpa Garis / Border Kolom)
+    // Kolom 2 (Tengah): Kepala Sekolah
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(71, 85, 105);
     doc.text('Mengetahui & Mengesahkan,', col2X, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, col2X, y + 4.5, { align: 'center' });
+    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, col2X, y + 4.2, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(15, 23, 42);
-    doc.text(kepsekNama, col2X, y + 22, { align: 'center' });
+    doc.text(kepsekNama, col2X, y + 20, { align: 'center' });
     const kWidth = doc.getTextWidth(kepsekNama);
     doc.setDrawColor(15, 23, 42);
     doc.setLineWidth(0.3);
-    doc.line(col2X - kWidth / 2, y + 22.8, col2X + kWidth / 2, y + 22.8);
+    doc.line(col2X - kWidth / 2, y + 20.8, col2X + kWidth / 2, y + 20.8);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`NUPTK. ${kepsekNip}`, col2X, y + 26.5, { align: 'center' });
+    doc.text(`NUPTK. ${kepsekNip}`, col2X, y + 24.5, { align: 'center' });
 
     // Kolom 3 (Kanan): Wali Kelas
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(71, 85, 105);
     doc.text(`${kota}, ${formattedDate}`, col3X, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`Wali Kelas ${student.kelas}`, col3X, y + 4.5, { align: 'center' });
+    doc.text(`Wali Kelas ${student.kelas}`, col3X, y + 4.2, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(15, 23, 42);
-    doc.text(waliNama, col3X, y + 22, { align: 'center' });
+    doc.text(waliNama, col3X, y + 20, { align: 'center' });
     const wWidth = doc.getTextWidth(waliNama);
     doc.setDrawColor(15, 23, 42);
     doc.setLineWidth(0.3);
-    doc.line(col3X - wWidth / 2, y + 22.8, col3X + wWidth / 2, y + 22.8);
+    doc.line(col3X - wWidth / 2, y + 20.8, col3X + wWidth / 2, y + 20.8);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`NUPTK. ${waliNip}`, col3X, y + 26.5, { align: 'center' });
+    doc.text(`NUPTK. ${waliNip}`, col3X, y + 24.5, { align: 'center' });
   } else {
     // 2 TINGKAT: Orang Tua di Kiri & Wali Kelas di Kanan (Atas), Kepala Sekolah Rapi di TENGAH BAWAH DOKUMEN
     const leftTTDX = leftX + 35;
@@ -2116,63 +2139,63 @@ export function exportStudentReportCardPdf({
 
     // Tingkat 1: Orang Tua (Kiri) & Wali Kelas (Kanan)
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(71, 85, 105);
     doc.text('Mengetahui,', leftTTDX, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text('Orang Tua / Wali Siswa', leftTTDX, y + 4.5, { align: 'center' });
+    doc.text('Orang Tua / Wali Siswa', leftTTDX, y + 4.2, { align: 'center' });
 
     doc.setDrawColor(15, 23, 42);
     doc.setLineWidth(0.3);
-    doc.line(leftTTDX - 22, y + 21, leftTTDX + 22, y + 21);
+    doc.line(leftTTDX - 22, y + 19, leftTTDX + 22, y + 19);
     doc.setFont('helvetica', 'italic');
-    doc.setFontSize(6.5);
+    doc.setFontSize(6.2);
     doc.setTextColor(100, 116, 139);
-    doc.text('( .................................................. )', leftTTDX, y + 24.5, { align: 'center' });
+    doc.text('( .................................................. )', leftTTDX, y + 22.5, { align: 'center' });
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(71, 85, 105);
     doc.text(`${kota}, ${formattedDate}`, rightTTDX, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`Wali Kelas ${student.kelas}`, rightTTDX, y + 4.5, { align: 'center' });
+    doc.text(`Wali Kelas ${student.kelas}`, rightTTDX, y + 4.2, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(15, 23, 42);
-    doc.text(waliNama, rightTTDX, y + 20, { align: 'center' });
+    doc.text(waliNama, rightTTDX, y + 18, { align: 'center' });
     const wWidth = doc.getTextWidth(waliNama);
-    doc.line(rightTTDX - wWidth / 2, y + 20.8, rightTTDX + wWidth / 2, y + 20.8);
+    doc.line(rightTTDX - wWidth / 2, y + 18.8, rightTTDX + wWidth / 2, y + 18.8);
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`NUPTK. ${waliNip}`, rightTTDX, y + 24.5, { align: 'center' });
+    doc.text(`NUPTK. ${waliNip}`, rightTTDX, y + 22.5, { align: 'center' });
 
-    y += 27;
+    y += 25;
 
-    // Tingkat 2: Kepala Sekolah di TENGAH BAWAH DOKUMEN (Tanpa Garis / Border Kolom)
+    // Tingkat 2: Kepala Sekolah di TENGAH BAWAH DOKUMEN
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(71, 85, 105);
     doc.text('Mengetahui & Mengesahkan,', centerTTDX, y, { align: 'center' });
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, centerTTDX, y + 4.5, { align: 'center' });
+    doc.text(`Kepala ${schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}`, centerTTDX, y + 4.2, { align: 'center' });
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.text(kepsekNama, centerTTDX, y + 20, { align: 'center' });
+    doc.setFontSize(7.2);
+    doc.text(kepsekNama, centerTTDX, y + 18, { align: 'center' });
     const kWidth = doc.getTextWidth(kepsekNama);
     doc.setDrawColor(15, 23, 42);
     doc.setLineWidth(0.3);
-    doc.line(centerTTDX - kWidth / 2, y + 20.8, centerTTDX + kWidth / 2, y + 20.8);
+    doc.line(centerTTDX - kWidth / 2, y + 18.8, centerTTDX + kWidth / 2, y + 18.8);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7);
+    doc.setFontSize(6.8);
     doc.setTextColor(71, 85, 105);
-    doc.text(`NUPTK. ${kepsekNip}`, centerTTDX, y + 24.5, { align: 'center' });
+    doc.text(`NUPTK. ${kepsekNip}`, centerTTDX, y + 22.5, { align: 'center' });
   }
 
   // Unduh Berkas PDF Langsung

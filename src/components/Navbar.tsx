@@ -223,7 +223,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
 
             {/* Quick Button: Input Nilai (Guru & Admin) */}
-            {user && (user.role === 'guru' || user.role === 'admin') && (
+            {user && (user.role === 'guru' || user.role === 'admin') && !actingAsPiket && (
               <button
                 onClick={onOpenGradeManagement}
                 title="Input & Kelola Nilai Siswa"
@@ -232,6 +232,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Award className="w-4 h-4 text-indigo-600" />
                 <span className="text-xs font-bold">Kelola Nilai</span>
               </button>
+            )}
+
+            {/* Quick Teacher Role/Workspace Switcher Button (Guru Mapel <-> Petugas Piket) */}
+            {user && user.role === 'guru' && (
+              actingAsPiket ? (
+                <button
+                  onClick={() => {
+                    setActingAsPiket(false);
+                    setActiveTab?.('journal');
+                  }}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs shadow-xs transition-all cursor-pointer ring-2 ring-emerald-400/50"
+                  title="Kembali ke Ruang Kerja Guru Mapel & Wali Kelas"
+                >
+                  <GraduationCap className="w-3.5 h-3.5" />
+                  <span>Kembali ke Guru</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setActingAsPiket(true);
+                    setActiveTab?.('apel-attendance');
+                  }}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold text-xs shadow-xs transition-all cursor-pointer"
+                  title="Beralih ke Ruang Kerja Petugas Piket"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Bertindak Piket</span>
+                </button>
+              )
             )}
 
             {/* Quick Settings & Logo Button (Khusus Administrator) */}

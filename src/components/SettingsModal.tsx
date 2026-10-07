@@ -14,13 +14,31 @@ import {
   Image as ImageIcon,
   Cloud,
   Database,
-  RefreshCw
+  RefreshCw,
+  Award,
+  Sparkles
 } from 'lucide-react';
 import { SchoolConfig } from '../types';
 import { DatabaseService, DEFAULT_SCHOOL_CONFIG } from '../services/db';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+
+const STANDARD_MAPEL_LIST = [
+  'Pendidikan Agama Islam (PAI)',
+  'Pendidikan Pancasila & PKN',
+  'Bahasa Indonesia',
+  'Matematika',
+  'Ilmu Pengetahuan Alam (IPA)',
+  'Ilmu Pengetahuan Sosial (IPS)',
+  'Bahasa Inggris',
+  'Seni Budaya',
+  'Pendidikan Jasmani & Olahraga (PJOK)',
+  'Informatika',
+  'Prakarya & Kewirausahaan',
+  'Bahasa Sunda (Mulok)',
+  'Bahasa Arab (Mulok)',
+];
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -469,6 +487,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   placeholder="NUPTK Petugas Piket..."
                   className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-mono"
                 />
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Pengaturan Standar KKM (Kriteria Ketuntasan Minimal) */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50/60 border border-purple-200/80 space-y-3.5">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-xs font-black uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                <Award className="w-4 h-4 text-purple-600" />
+                <span>Kriteria Ketuntasan Minimal (KKM) Sekolah</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => {
+                  const def = formData.kkmDefault || 75;
+                  const next: Record<string, number> = {};
+                  STANDARD_MAPEL_LIST.forEach((m) => {
+                    next[m] = def;
+                  });
+                  setFormData((prev) => ({
+                    ...prev,
+                    kkmPerMapel: next,
+                  }));
+                  toast.info('KKM Diterapkan', `KKM standar (${def}) disalin ke seluruh mata pelajaran.`);
+                }}
+                className="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-white hover:bg-purple-100 text-purple-800 border border-purple-300 transition-colors cursor-pointer shadow-2xs"
+              >
+                ⚡ Terapkan KKM Standar ke Semua Mapel
+              </button>
+            </div>
+
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Atur nilai ambang batas KKM standar sekolah serta nilai KKM spesifik untuk masing-masing mata pelajaran. Nilai ini otomatis menjadi acuan ketuntasan nilai di daftar nilai guru dan rapor digital.
+            </p>
+
+            <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-purple-200">
+              <label className="text-xs font-bold text-slate-700">KKM Standar Sekolah:</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={formData.kkmDefault ?? 75}
+                onChange={(e) => {
+                  const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                  setFormData((prev) => ({ ...prev, kkmDefault: val }));
+                }}
+                className="w-20 text-center font-mono font-black text-sm bg-purple-50 border border-purple-300 text-purple-950 rounded-lg px-2 py-1"
+              />
+              <span className="text-[11px] text-slate-400 font-medium">(Rentang 0 - 100, standar umum: 75)</span>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <span className="text-[11px] font-extrabold text-slate-700 block">Daftar KKM Spesifik Per Mata Pelajaran:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-52 overflow-y-auto pr-1 border border-purple-100 rounded-xl p-2 bg-white/70">
+                {STANDARD_MAPEL_LIST.map((m) => {
+                  const currentKkm = formData.kkmPerMapel?.[m] ?? formData.kkmDefault ?? 75;
+                  return (
+                    <div key={m} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200/80 text-xs">
+                      <span className="font-bold text-slate-800 text-[11px] truncate max-w-[170px]" title={m}>
+                        {m}
+                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={currentKkm}
+                          onChange={(e) => {
+                            const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                            setFormData((prev) => ({
+                              ...prev,
+                              kkmPerMapel: {
+                                ...(prev.kkmPerMapel || {}),
+                                [m]: val,
+                              },
+                            }));
+                          }}
+                          className="w-14 text-center font-mono font-black text-xs bg-white border border-purple-300 rounded-md py-0.5"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

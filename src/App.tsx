@@ -535,6 +535,13 @@ function AppContent() {
     toast.delete('Nilai Dihapus Massal', `${ids.length} data nilai siswa berhasil dihapus.`);
   };
 
+  const handleBulkSaveGrades = async (newGrades: StudentGradeItem[]) => {
+    await DatabaseService.bulkSaveStudentGrades(newGrades);
+    const updated = await DatabaseService.getStudentGrades();
+    setGrades(updated);
+    toast.success('Nilai Siswa Disimpan', `${newGrades.length} data nilai siswa berhasil dicatat ke database.`);
+  };
+
   // Schedule Handlers (Debounced pada penulisan database, State instan)
   const handleSaveSchedule = async (schedule: ClassScheduleItem) => {
     setSchedules((prev) => {
@@ -937,6 +944,8 @@ function AppContent() {
                     schoolConfig={schoolConfig}
                     teachers={teachers}
                     schedules={schedules}
+                    records={records}
+                    leaveRequests={leaveRequests}
                     onSaveJournal={handleSaveJournal}
                     onDeleteJournal={handleDeleteJournal}
                     onBulkDeleteJournals={handleBulkDeleteJournals}
@@ -1210,7 +1219,11 @@ function AppContent() {
           onClose={() => setIsGradeManagementOpen(false)}
           students={students}
           grades={grades}
+          schoolConfig={schoolConfig}
+          attendanceRecords={records}
+          teachers={teachers}
           onSaveGrade={handleSaveGrade}
+          onBulkSaveGrades={handleBulkSaveGrades}
           onDeleteGrade={handleDeleteGrade}
           onBulkDeleteGrades={handleBulkDeleteGrades}
           currentTeacherName={user?.nama}

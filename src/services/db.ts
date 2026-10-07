@@ -12,6 +12,7 @@ import { db } from '../firebase';
 import { 
   Student, 
   AttendanceRecord, 
+  AttendanceStatus,
   TeachingJournal, 
   TeacherUser, 
   SchoolConfig, 
@@ -50,6 +51,23 @@ export const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
   nipPetugasPiket: '-',
   logoUrl: SCHOOL_LOGO_PNG_DATA_URL,
   sistemHariSekolah: '6_HARI',
+  kkmDefault: 75,
+  kkmPerMapel: {
+    'Pendidikan Agama Islam (PAI)': 75,
+    'Pendidikan Pancasila & PKN': 75,
+    'Pendidikan Pancasila dan Kewarganegaraan (PPKn)': 75,
+    'Bahasa Indonesia': 75,
+    'Matematika': 70,
+    'Ilmu Pengetahuan Alam (IPA)': 70,
+    'Ilmu Pengetahuan Sosial (IPS)': 75,
+    'Bahasa Inggris': 70,
+    'Seni Budaya': 75,
+    'Pendidikan Jasmani & Olahraga (PJOK)': 75,
+    'Informatika': 75,
+    'Prakarya & Kewirausahaan': 75,
+    'Bahasa Sunda (Mulok)': 75,
+    'Bahasa Arab (Mulok)': 75,
+  },
   jadwal: {
     pagiMulai: '06:30',
     pagiBatasTepatWaktu: '07:15',
@@ -1521,39 +1539,86 @@ export class DatabaseService {
       }
     }
 
-    // Auto-sinkronisasi ke AttendanceRecords jika disetujui
+    // Auto-sinkronisasi ke AttendanceRecords jika disetujui ke seluruh tanggal & sesi
     if (status === 'Disetujui') {
       const attendances = await this.getAttendanceRecords();
       const sessions: ('Pagi' | 'Siang')[] = ['Pagi', 'Siang'];
-      
-      const newRecords: AttendanceRecord[] = [];
-      for (const ses of sessions) {
-        const recId = `PRESENSI_${item.nisn}_${item.tanggalMulai}_${ses}`;
-        const existingIdx = attendances.findIndex((a) => a.id === recId);
-        const recordData: AttendanceRecord = {
-          id: recId,
-          tanggal: item.tanggalMulai,
-          waktu: '07:00:00',
-          nisn: item.nisn,
-          nama: item.nama,
-          kelas: item.kelas,
-          sesi: ses,
-          status: item.jenis === 'Sakit' ? 'Sakit' : 'Izin',
-          kategori: 'APEL',
-          catatan: `[Izin Mandiri Disetujui] ${item.alasan}${item.disetujuiOleh ? ` (Oleh: ${item.disetujuiOleh})` : ''}`,
-        };
 
-        if (existingIdx >= 0) {
-          attendances[existingIdx] = recordData;
+      // Ambil seluruh rentang tanggal dari tanggalMulai sampai tanggalSelesai
+      const datesInRange: string[] = [];
+      const startDateStr = item.tanggalMulai || new Date().toISOString().split('T')[0];
+      const endDateStr = item.tanggalSelesai || startDateStr;
+
+      try {
+        const start = new Date(startDateStr);
+        const end = new Date(endDateStr);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime()) && start <= end) {
+          const curr = new Date(start);
+          let count = 0;
+          while (curr <= end && count < 60) {
+            datesInRange.push(curr.toISOString().split('T')[0]);
+            curr.setDate(curr.getDate() + 1);
+            count++;
+          }
         } else {
-          attendances.unshift(recordData);
+          datesInRange.push(startDateStr);
         }
-        newRecords.push(recordData);
+      } catch {
+        datesInRange.push(startDateStr);
+      }
+
+      if (datesInRange.length === 0) {
+        datesInRange.push(startDateStr);
+      }
+
+      const leaveStatus: AttendanceStatus = item.jenis === 'Sakit' ? 'Sakit' : 'Izin';
+      const approverNote = item.disetujuiOleh ? ` (Oleh: ${item.disetujuiOleh})` : '';
+      const fullNote = `[${item.jenis} Disetujui] ${item.alasan}${approverNote}`;
+
+      const newRecords: AttendanceRecord[] = [];
+
+      for (const dStr of datesInRange) {
+        for (const ses of sessions) {
+          const recId = `PRESENSI_${item.nisn}_${dStr}_${ses}`;
+          const existingIdx = attendances.findIndex((a) => a.id === recId || (a.nisn === item.nisn && a.tanggal === dStr && a.sesi === ses && (a.kategori === 'APEL' || !a.kategori)));
+          
+          const recordData: AttendanceRecord = {
+            id: existingIdx >= 0 ? attendances[existingIdx].id : recId,
+            tanggal: dStr,
+            waktu: '07:00:00',
+            nisn: item.nisn,
+            nama: item.nama,
+            kelas: item.kelas,
+            sesi: ses,
+            status: leaveStatus,
+            kategori: 'APEL',
+            catatan: fullNote,
+          };
+
+          if (existingIdx >= 0) {
+            attendances[existingIdx] = recordData;
+          } else {
+            attendances.unshift(recordData);
+          }
+          newRecords.push(recordData);
+        }
+
+        // Sinkronkan juga jika ada record KBM pada tanggal tersebut agar statusnya otomatis Izin/Sakit
+        attendances.forEach((rec, idx) => {
+          if (rec.nisn === item.nisn && rec.tanggal === dStr && (rec.kategori === 'KELAS' || rec.kategori === 'PEMBELAJARAN' || rec.id.startsWith('PRESENSI_KBM_'))) {
+            attendances[idx] = {
+              ...rec,
+              status: leaveStatus,
+              catatan: `${rec.catatan ? `${rec.catatan} • ` : ''}${fullNote}`,
+            };
+            newRecords.push(attendances[idx]);
+          }
+        });
       }
 
       setLocal('attendance', attendances);
 
-      if (db) {
+      if (db && newRecords.length > 0) {
         try {
           const batch = writeBatch(db);
           newRecords.forEach((r) => {

@@ -130,6 +130,8 @@ export interface SchoolConfig {
   logoUrl?: string;
   sistemHariSekolah: '5_HARI' | '6_HARI';
   jadwal: AttendanceTimeSettings;
+  kkmDefault?: number; // KKM Standar Sekolah (e.g. 75)
+  kkmPerMapel?: Record<string, number>; // KKM per Mata Pelajaran (e.g. { "Matematika": 70, "IPA": 70, "Bahasa Indonesia": 75 })
 }
 
 export type DayOfWeek = 'Senin' | 'Selasa' | 'Rabu' | 'Kamis' | 'Jumat' | 'Sabtu';
