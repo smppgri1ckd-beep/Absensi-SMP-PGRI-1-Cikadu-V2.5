@@ -36,6 +36,7 @@ import { generateApelRecapPdf, generateLearningRecapPdf, generateTeachingJournal
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { isSubjectMatch, isSubjectAllowedForTeacher, isClassMatch } from '../utils/teacherFilter';
 
 interface ReportsProps {
   students: Student[];
@@ -260,9 +261,20 @@ export const Reports: React.FC<ReportsProps> = ({
       } else {
         if (j.tanggal < activeStartDate || j.tanggal > activeEndDate) return false;
       }
-      if (selectedMapel !== 'Semua' && j.mapel.toLowerCase() !== selectedMapel.toLowerCase()) return false;
-      if (targetGuru !== 'Semua' && j.guruNama.toLowerCase() !== targetGuru.toLowerCase() && j.guruId !== targetGuru) return false;
-      if (selectedClass !== 'Semua' && j.kelas !== selectedClass) return false;
+      if (user?.role === 'guru') {
+        if (selectedMapel !== 'Semua') {
+          if (!isSubjectMatch(j.mapel, selectedMapel)) return false;
+        } else {
+          if (!isSubjectAllowedForTeacher(user, j.mapel)) return false;
+        }
+        if (j.guruNama.toLowerCase() !== user.nama.toLowerCase() && j.guruId !== user.id) {
+          if (!isSubjectAllowedForTeacher(user, j.mapel)) return false;
+        }
+      } else {
+        if (selectedMapel !== 'Semua' && !isSubjectMatch(j.mapel, selectedMapel)) return false;
+        if (targetGuru !== 'Semua' && j.guruNama.toLowerCase() !== targetGuru.toLowerCase() && j.guruId !== targetGuru) return false;
+      }
+      if (selectedClass !== 'Semua' && !isClassMatch(j.kelas, selectedClass)) return false;
       return true;
     });
   }, [journals, filterMode, monthPrefix, activeStartDate, activeEndDate, selectedMapel, user, selectedTeacher, selectedClass]);
@@ -277,11 +289,19 @@ export const Reports: React.FC<ReportsProps> = ({
       } else {
         if (r.tanggal < activeStartDate || r.tanggal > activeEndDate) return false;
       }
-      if (selectedMapel !== 'Semua' && r.mapel?.toLowerCase() !== selectedMapel.toLowerCase()) return false;
-      if (selectedClass !== 'Semua' && r.kelas !== selectedClass) return false;
+      if (user?.role === 'guru') {
+        if (selectedMapel !== 'Semua') {
+          if (!isSubjectMatch(r.mapel, selectedMapel)) return false;
+        } else {
+          if (!isSubjectAllowedForTeacher(user, r.mapel)) return false;
+        }
+      } else {
+        if (selectedMapel !== 'Semua' && !isSubjectMatch(r.mapel, selectedMapel)) return false;
+      }
+      if (selectedClass !== 'Semua' && !isClassMatch(r.kelas, selectedClass)) return false;
       return true;
     });
-  }, [records, filterMode, monthPrefix, activeStartDate, activeEndDate, selectedMapel, selectedClass]);
+  }, [records, filterMode, monthPrefix, activeStartDate, activeEndDate, selectedMapel, selectedClass, user]);
 
   const totalKbmPertemuan = kbmJournals.length;
 

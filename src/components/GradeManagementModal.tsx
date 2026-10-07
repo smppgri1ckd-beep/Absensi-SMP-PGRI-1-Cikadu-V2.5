@@ -18,7 +18,14 @@ import {
 import { Student, StudentGradeItem } from '../types';
 import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
-import { getTeacherAccessibleClasses, isClassMatch, isTeacherWaliKelas } from '../utils/teacherFilter';
+import { 
+  getTeacherAccessibleClasses, 
+  isClassMatch, 
+  isTeacherWaliKelas,
+  getTeacherAssignedSubjects,
+  getTeacherClassesForSubject,
+  isSubjectMatch
+} from '../utils/teacherFilter';
 
 interface GradeManagementModalProps {
   isOpen: boolean;
@@ -70,17 +77,32 @@ export const GradeManagementModal: React.FC<GradeManagementModalProps> = ({
     return isTeacher ? getTeacherAccessibleClasses(user) : [];
   }, [isTeacher, user]);
 
-  // Classes list
+  const teacherAssignedSubjects = React.useMemo(() => {
+    if (isTeacher) {
+      const subs = getTeacherAssignedSubjects(user);
+      return subs.length > 0 ? subs : [user.mapel || 'Pendidikan Pancasila & PKN'];
+    }
+    return DEFAULT_MAPEL_LIST;
+  }, [isTeacher, user]);
+
+  const [mapel, setMapel] = useState<string>(
+    isTeacher && teacherAssignedSubjects.length > 0 
+      ? teacherAssignedSubjects[0] 
+      : (user?.mapel || defaultMapel || 'Pendidikan Pancasila & PKN')
+  );
+
+  // Classes list scoped per subject for teacher
   const classes = React.useMemo(() => {
-    if (isTeacher && teacherClasses.length > 0) {
-      return teacherClasses;
+    if (isTeacher) {
+      const cls = getTeacherClassesForSubject(user, mapel);
+      if (cls.length > 0) return cls;
+      if (teacherClasses.length > 0) return teacherClasses;
     }
     return Array.from(new Set(students.map((s) => s.kelas))).sort();
-  }, [isTeacher, teacherClasses, students]);
+  }, [isTeacher, teacherClasses, students, user, mapel]);
 
   const [selectedClass, setSelectedClass] = useState<string>(classes[0] || '9A');
   const [selectedStudentNisn, setSelectedStudentNisn] = useState<string>('');
-  const [mapel, setMapel] = useState<string>(user?.mapel || defaultMapel || 'Pendidikan Pancasila & PKN');
   const [jenisPenilaian, setJenisPenilaian] = useState<StudentGradeItem['jenisPenilaian']>('Tugas');
   const [namaPenilaian, setNamaPenilaian] = useState<string>('');
   const [nilai, setNilai] = useState<number>(85);
@@ -167,10 +189,14 @@ export const GradeManagementModal: React.FC<GradeManagementModalProps> = ({
     }
   };
 
-  // Filter grades
+  // Filter grades strictly
   const filteredGrades = grades.filter((g) => {
+    if (isTeacher && teacherAssignedSubjects.length > 0) {
+      const isAllowed = teacherAssignedSubjects.some((m) => isSubjectMatch(m, g.mapel));
+      if (!isAllowed) return false;
+    }
     const student = students.find((s) => s.nisn === g.nisn);
-    const matchesClass = selectedClass === 'Semua' || (student && student.kelas === selectedClass);
+    const matchesClass = selectedClass === 'Semua' || (student && isClassMatch(student.kelas, selectedClass));
     const matchesSearch = 
       (student && student.nama.toLowerCase().includes(searchQuery.toLowerCase())) ||
       g.nisn.includes(searchQuery) ||
@@ -278,7 +304,7 @@ export const GradeManagementModal: React.FC<GradeManagementModalProps> = ({
                     onChange={(e) => setMapel(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-slate-800"
                   >
-                    {DEFAULT_MAPEL_LIST.map((m) => (
+                    {teacherAssignedSubjects.map((m) => (
                       <option key={m} value={m}>{m}</option>
                     ))}
                   </select>

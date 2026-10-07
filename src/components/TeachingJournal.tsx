@@ -46,7 +46,16 @@ import { generateTeachingJournalsPdf } from '../utils/exportPdf';
 import { useAuth } from '../context/AuthContext';
 import { soundService } from '../utils/audio';
 import { SchoolLogo } from '../assets/schoolLogo';
-import { getTeacherAccessibleClasses, isClassMatch, normalizeClassName } from '../utils/teacherFilter';
+import { 
+  getTeacherAccessibleClasses, 
+  isClassMatch, 
+  normalizeClassName,
+  getTeacherAssignedSubjects,
+  getTeacherClassesForSubject,
+  filterJournalsForTeacher,
+  isSubjectMatch,
+  isSubjectAllowedForTeacher
+} from '../utils/teacherFilter';
 import { DatabaseService } from '../services/db';
 import { useToast } from '../context/ToastContext';
 import { TeachingScheduleManager } from './TeachingScheduleManager';
@@ -153,18 +162,33 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   const currentClassStudents = students.filter((s) => s.kelas === formKelas);
 
   // Active selected teacher in form
-  const activeTeacher = teachers.find((t) => t.id === formGuruId) || 
-    (user?.role === 'guru' ? { id: user.id, nama: user.nama, mapel: user.mapel, penugasanMapel: user.penugasanMapel } : null);
+  const activeTeacher = user?.role === 'guru'
+    ? { id: user.id, nama: user.nama, mapel: user.mapel, penugasanMapel: user.penugasanMapel, isGuruMapel: user.isGuruMapel }
+    : (teachers.find((t) => t.id === formGuruId) || null);
 
   const teacherAssignments = activeTeacher?.penugasanMapel && activeTeacher.penugasanMapel.length > 0
     ? activeTeacher.penugasanMapel
     : [{ id: 'asgn_def', mapel: activeTeacher?.mapel || formMapel, kelas: classesList, bebanJam: 4 }];
 
-  const availableMapelList = Array.from(new Set(teacherAssignments.map((a) => a.mapel)));
-  const currentAssignment = teacherAssignments.find((a) => a.mapel === formMapel) || teacherAssignments[0];
-  const availableClassesForMapel = currentAssignment?.kelas && currentAssignment.kelas.length > 0
-    ? currentAssignment.kelas
-    : classesList;
+  const assignedSubjects = useMemo(() => {
+    if (user?.role === 'guru') {
+      const subs = getTeacherAssignedSubjects(user);
+      return subs.length > 0 ? subs : [user.mapel || 'Pendidikan Pancasila & PKN'];
+    }
+    return Array.from(new Set(teacherAssignments.map((a) => a.mapel)));
+  }, [user, teacherAssignments]);
+
+  const availableMapelList = assignedSubjects;
+  const currentAssignment = teacherAssignments.find((a) => isSubjectMatch(a.mapel, formMapel)) || teacherAssignments[0];
+  const availableClassesForMapel = useMemo(() => {
+    if (user?.role === 'guru') {
+      const classesForMapel = getTeacherClassesForSubject(user, formMapel);
+      return classesForMapel.length > 0 ? classesForMapel : displayClasses;
+    }
+    return currentAssignment?.kelas && currentAssignment.kelas.length > 0
+      ? currentAssignment.kelas
+      : classesList;
+  }, [user, formMapel, displayClasses, currentAssignment, classesList]);
 
   // Change teacher in form
   const handleTeacherChange = (teacherId: string) => {
@@ -722,16 +746,22 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
     setIsModalOpen(false);
   };
 
-  // Filter journals
-  const filteredJournals = journals.filter((j) => {
-    if (onlyMyJournals && user?.role === 'guru') {
-      if (j.guruId !== user.id && j.guruNama !== user.nama) return false;
-    }
-    if (selectedClassFilter !== 'Semua' && j.kelas !== selectedClassFilter) {
-      return false;
-    }
-    return true;
-  });
+  // Filter journals strictly for teacher
+  const teacherScopedJournals = useMemo(() => {
+    return filterJournalsForTeacher(journals, user);
+  }, [journals, user]);
+
+  const filteredJournals = useMemo(() => {
+    return teacherScopedJournals.filter((j) => {
+      if (onlyMyJournals && user?.role === 'guru') {
+        if (j.guruId !== user.id && j.guruNama !== user.nama) return false;
+      }
+      if (selectedClassFilter !== 'Semua' && !isClassMatch(j.kelas, selectedClassFilter)) {
+        return false;
+      }
+      return true;
+    });
+  }, [teacherScopedJournals, onlyMyJournals, user, selectedClassFilter]);
 
   const handleBulkDelete = async () => {
     if (selectedJournalIds.length === 0) return;
@@ -1041,7 +1071,7 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
               {/* Export Excel */}
               <button
                 onClick={() => {
-                  exportTeachingJournalsExcel(journals, schoolConfig);
+                  exportTeachingJournalsExcel(filteredJournals, schoolConfig);
                   toast.success('Ekspor Excel Selesai', 'File spreadsheet jurnal mengajar berhasil diunduh.');
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-extrabold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer"
@@ -1054,7 +1084,12 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
               {/* Export PDF */}
               <button
                 onClick={() => {
-                  generateTeachingJournalsPdf(journals, schoolConfig, 'Semua', selectedClassFilter);
+                  generateTeachingJournalsPdf(
+                    filteredJournals, 
+                    schoolConfig, 
+                    user?.role === 'guru' ? user.nama : 'Semua', 
+                    selectedClassFilter
+                  );
                   toast.success('Dokumen PDF Disiapkan', 'Berkas jurnal KBM guru siap dicetak.');
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 font-extrabold text-xs rounded-xl border border-rose-200 transition-colors cursor-pointer"
