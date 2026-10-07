@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Save, 
@@ -16,10 +16,17 @@ import {
   Database,
   RefreshCw,
   Award,
-  Sparkles
+  Sparkles,
+  ShieldCheck,
+  KeyRound,
+  Lock,
+  Eye,
+  EyeOff,
+  UserCog,
+  Check
 } from 'lucide-react';
-import { SchoolConfig } from '../types';
-import { DatabaseService, DEFAULT_SCHOOL_CONFIG } from '../services/db';
+import { SchoolConfig, AdminAccountConfig } from '../types';
+import { DatabaseService, DEFAULT_SCHOOL_CONFIG, DEFAULT_ADMIN_ACCOUNT } from '../services/db';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -53,7 +60,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   config,
   onSaveConfig,
 }) => {
-  const { user } = useAuth();
+  const { user, adminAccount, updateAdminAccount } = useAuth();
   const { toast } = useToast();
 
   const getSafeConfig = (cfg: SchoolConfig): SchoolConfig => ({
@@ -69,6 +76,73 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [saveBanner, setSaveBanner] = useState(false);
   const [isSyncingCloud, setIsSyncingCloud] = useState(false);
   const [cloudSyncMessage, setCloudSyncMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  // Admin Credentials Form State
+  const [adminForm, setAdminForm] = useState<AdminAccountConfig>(() => adminAccount || DEFAULT_ADMIN_ACCOUNT);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
+  const [isSavingAdmin, setIsSavingAdmin] = useState(false);
+  const [adminSaveMessage, setAdminSaveMessage] = useState<{ text: string; isError: boolean } | null>(null);
+
+  useEffect(() => {
+    if (adminAccount) {
+      setAdminForm(adminAccount);
+    }
+  }, [adminAccount, isOpen]);
+
+  const handleAdminFormChange = (field: keyof AdminAccountConfig, value: string) => {
+    setAdminForm((prev: AdminAccountConfig) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const handleSaveAdminAccount = async () => {
+    const cleanUser = adminForm.username.trim();
+    const cleanPass = (adminForm.password || '').trim();
+    const cleanNama = adminForm.nama.trim();
+
+    if (!cleanUser) {
+      toast.error('Username Tidak Boleh Kosong', 'Harap tentukan username untuk akun administrator.');
+      return;
+    }
+    if (!cleanPass || cleanPass.length < 4) {
+      toast.error('Kata Sandi Terlalu Pendek', 'Kata sandi minimal harus 4 karakter untuk keamanan sistem.');
+      return;
+    }
+    if (confirmAdminPassword && confirmAdminPassword.trim() !== cleanPass) {
+      toast.error('Konfirmasi Password Tidak Cocok', 'Kata sandi yang Anda konfirmasi tidak sesuai dengan kata sandi baru.');
+      return;
+    }
+
+    setIsSavingAdmin(true);
+    setAdminSaveMessage(null);
+    try {
+      const payload: AdminAccountConfig = {
+        ...adminForm,
+        username: cleanUser,
+        password: cleanPass,
+        nama: cleanNama || 'Administrator Sistem',
+        updatedAt: new Date().toISOString(),
+      };
+      await updateAdminAccount(payload);
+      setAdminSaveMessage({
+        text: 'Akun & kata sandi Administrator berhasil disimpan ke Cloud Database!',
+        isError: false,
+      });
+      setConfirmAdminPassword('');
+      toast.success('Akun Admin Diperbarui', `Username "${cleanUser}" dan kata sandi baru berhasil disimpan.`);
+      setTimeout(() => setAdminSaveMessage(null), 4000);
+    } catch (err: any) {
+      setAdminSaveMessage({
+        text: `Gagal memperbarui akun admin: ${err?.message || 'Koneksi error'}`,
+        isError: true,
+      });
+      toast.error('Gagal Menyimpan', 'Terjadi gangguan saat menyimpan ke Firestore.');
+    } finally {
+      setIsSavingAdmin(false);
+    }
+  };
 
   const [isTestingDb, setIsTestingDb] = useState(false);
   const [dbTestResult, setDbTestResult] = useState<{
@@ -741,6 +815,164 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span className="text-xs font-bold text-slate-800">{th.name}</span>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Section: Pengaturan Akun & Password Administrator */}
+            <div className="p-5 rounded-2xl bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white border border-blue-800/60 space-y-4 shadow-sm relative overflow-hidden">
+              <div className="flex items-center justify-between flex-wrap gap-2 relative z-10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-600/30 border border-blue-400/40 flex items-center justify-center text-blue-300 shadow-inner">
+                    <ShieldCheck className="w-4 h-4 text-blue-300" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                      <span>Pengaturan Akun & Kata Sandi Administrator</span>
+                    </h4>
+                    <p className="text-[10px] text-blue-200/80">
+                      Kelola kredensial login (username & password) untuk akses administrator sistem
+                    </p>
+                  </div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                  Akses Utama Sistem
+                </span>
+              </div>
+
+              {adminSaveMessage && (
+                <div className={`p-3 rounded-xl text-xs flex items-center gap-2 relative z-10 ${
+                  adminSaveMessage.isError 
+                    ? 'bg-rose-950/90 border border-rose-700 text-rose-200' 
+                    : 'bg-emerald-950/90 border border-emerald-600 text-emerald-200'
+                }`}>
+                  {adminSaveMessage.isError ? <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" /> : <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />}
+                  <span>{adminSaveMessage.text}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 relative z-10 pt-1">
+                {/* Username Admin */}
+                <div>
+                  <label className="block text-[11px] font-extrabold text-blue-100 mb-1">
+                    Username Administrator <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={adminForm.username}
+                      onChange={(e) => handleAdminFormChange('username', e.target.value)}
+                      placeholder="admin"
+                      className="w-full bg-white/10 text-white placeholder-slate-400 border border-blue-400/30 focus:border-blue-400 rounded-xl px-3.5 py-2 text-xs font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500/40"
+                    />
+                  </div>
+                  <span className="text-[10px] text-blue-300/70 mt-0.5 block">
+                    Username untuk login admin (bawaan: <code className="font-mono text-white">admin</code>)
+                  </span>
+                </div>
+
+                {/* Nama Admin */}
+                <div>
+                  <label className="block text-[11px] font-extrabold text-blue-100 mb-1">
+                    Nama Tampilan / Jabatan <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={adminForm.nama}
+                    onChange={(e) => handleAdminFormChange('nama', e.target.value)}
+                    placeholder="Administrator Sistem"
+                    className="w-full bg-white/10 text-white placeholder-slate-400 border border-blue-400/30 focus:border-blue-400 rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500/40"
+                  />
+                  <span className="text-[10px] text-blue-300/70 mt-0.5 block">
+                    Nama yang tertera pada sesi aktif & laporan
+                  </span>
+                </div>
+
+                {/* Email Admin */}
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-extrabold text-blue-100 mb-1">
+                    Email Kontak Administrator
+                  </label>
+                  <input
+                    type="email"
+                    value={adminForm.email || ''}
+                    onChange={(e) => handleAdminFormChange('email', e.target.value)}
+                    placeholder="smp.pgri1ckd@gmail.com"
+                    className="w-full bg-white/10 text-white placeholder-slate-400 border border-blue-400/30 focus:border-blue-400 rounded-xl px-3.5 py-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-blue-500/40"
+                  />
+                </div>
+
+                {/* Password Baru */}
+                <div>
+                  <label className="block text-[11px] font-extrabold text-blue-100 mb-1 flex items-center justify-between">
+                    <span>Kata Sandi (Password) Admin <span className="text-rose-400">*</span></span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="text-[10px] text-blue-300 hover:text-white flex items-center gap-1 cursor-pointer"
+                    >
+                      {showAdminPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                      <span>{showAdminPassword ? 'Sembunyikan' : 'Tampilkan'}</span>
+                    </button>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <Lock className="w-3.5 h-3.5 text-blue-300" />
+                    </div>
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      value={adminForm.password || ''}
+                      onChange={(e) => handleAdminFormChange('password', e.target.value)}
+                      placeholder="Masukkan kata sandi baru..."
+                      className="w-full bg-white/10 text-white placeholder-slate-400 border border-blue-400/30 focus:border-blue-400 rounded-xl pl-9 pr-3.5 py-2 text-xs font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500/40"
+                    />
+                  </div>
+                  <span className="text-[10px] text-blue-300/70 mt-0.5 block">
+                    Minimal 4 karakter (bawaan: <code className="font-mono text-white">admin</code> / <code className="font-mono text-white">admin123</code>)
+                  </span>
+                </div>
+
+                {/* Konfirmasi Password */}
+                <div>
+                  <label className="block text-[11px] font-extrabold text-blue-100 mb-1">
+                    Konfirmasi Kata Sandi Baru
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                      <KeyRound className="w-3.5 h-3.5 text-blue-300" />
+                    </div>
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      value={confirmAdminPassword}
+                      onChange={(e) => setConfirmAdminPassword(e.target.value)}
+                      placeholder="Ulangi kata sandi baru..."
+                      className="w-full bg-white/10 text-white placeholder-slate-400 border border-blue-400/30 focus:border-blue-400 rounded-xl pl-9 pr-3.5 py-2 text-xs font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-blue-500/40"
+                    />
+                  </div>
+                  {confirmAdminPassword && (
+                    <span className={`text-[10px] font-bold mt-0.5 block ${
+                      confirmAdminPassword === adminForm.password ? 'text-emerald-400' : 'text-rose-400'
+                    }`}>
+                      {confirmAdminPassword === adminForm.password ? '✓ Kata sandi cocok' : '⚠ Kata sandi tidak cocok'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Button for Admin Account */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-blue-800/40 relative z-10">
+                <div className="text-[10px] text-blue-200/80">
+                  {adminForm.updatedAt ? `Terakhir diperbarui: ${new Date(adminForm.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : 'Kata sandi bawaan aktif'}
+                </div>
+
+                <button
+                  type="button"
+                  disabled={isSavingAdmin}
+                  onClick={handleSaveAdminAccount}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-extrabold rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  <Save className={`w-3.5 h-3.5 ${isSavingAdmin ? 'animate-spin' : ''}`} />
+                  <span>{isSavingAdmin ? 'Menyimpan Akun...' : 'Simpan Akun & Kata Sandi Admin'}</span>
+                </button>
               </div>
             </div>
 

@@ -34,9 +34,18 @@ import {
   SchoolEventItem,
   WhatsAppTemplate,
   IdCardTheme,
-  AppTheme
+  AppTheme,
+  AdminAccountConfig
 } from '../types';
 import { SCHOOL_LOGO_PNG_DATA_URL } from '../assets/schoolLogo';
+
+export const DEFAULT_ADMIN_ACCOUNT: AdminAccountConfig = {
+  username: 'admin',
+  nama: 'Administrator Sistem',
+  password: 'admin',
+  email: 'smp.pgri1ckd@gmail.com',
+  updatedAt: new Date().toISOString(),
+};
 
 // Default initial config for SMP PGRI 1 CIKADU
 export const DEFAULT_SCHOOL_CONFIG: SchoolConfig = {
@@ -577,6 +586,72 @@ export class DatabaseService {
     } catch (e) {
       console.warn('Firestore saveSchoolConfig offline cache used', e);
     }
+  }
+
+  // --- ADMIN ACCOUNT CONFIG ---
+  static async getAdminAccount(): Promise<AdminAccountConfig> {
+    const rawLocal = getLocal<Partial<AdminAccountConfig>>('admin_account_data', DEFAULT_ADMIN_ACCOUNT);
+    const local: AdminAccountConfig = {
+      ...DEFAULT_ADMIN_ACCOUNT,
+      ...rawLocal,
+    };
+    if (!db) return local;
+
+    try {
+      const docRef = doc(db, 'pengaturan', 'akun_admin');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data() as Partial<AdminAccountConfig>;
+        const merged: AdminAccountConfig = {
+          ...DEFAULT_ADMIN_ACCOUNT,
+          ...data,
+        };
+        setLocal('admin_account_data', merged);
+        return merged;
+      } else {
+        await setDoc(docRef, cleanData(local));
+      }
+    } catch (e) {
+      console.warn('Firestore getAdminAccount fallback to local', e);
+    }
+    return local;
+  }
+
+  static async saveAdminAccount(account: AdminAccountConfig): Promise<void> {
+    const updated = {
+      ...account,
+      updatedAt: new Date().toISOString(),
+    };
+    setLocal('admin_account_data', updated);
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'pengaturan', 'akun_admin');
+      await setDoc(docRef, cleanData(updated));
+    } catch (e) {
+      console.warn('Firestore saveAdminAccount offline cache used', e);
+    }
+  }
+
+  static subscribeAdminAccount(callback: (account: AdminAccountConfig) => void): () => void {
+    if (!db) {
+      const handler = () => callback(getLocal<AdminAccountConfig>('admin_account_data', DEFAULT_ADMIN_ACCOUNT));
+      syncChannel?.addEventListener('message', handler);
+      return () => syncChannel?.removeEventListener('message', handler);
+    }
+    const docRef = doc(db, 'pengaturan', 'akun_admin');
+    return onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as AdminAccountConfig;
+        if (data) {
+          const merged: AdminAccountConfig = {
+            ...DEFAULT_ADMIN_ACCOUNT,
+            ...data,
+          };
+          setLocal('admin_account_data', merged);
+          callback(merged);
+        }
+      }
+    }, (err) => console.warn('Firestore onSnapshot error (akun_admin):', err));
   }
 
   // --- STUDENTS ---

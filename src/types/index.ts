@@ -109,6 +109,14 @@ export interface SchoolEventItem {
   penanggungJawab?: string;
 }
 
+export interface AdminAccountConfig {
+  username: string;
+  nama: string;
+  password?: string;
+  email?: string;
+  updatedAt?: string;
+}
+
 export interface WhatsAppTemplate {
   id: string;
   nama: string;

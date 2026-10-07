@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { AuthUser, TeacherUser, UserRole, JadwalPiketHarian, DayOfWeek, PetugasPiketItem } from '../types';
-import { DatabaseService, INITIAL_TEACHERS } from '../services/db';
+import { AuthUser, TeacherUser, UserRole, JadwalPiketHarian, DayOfWeek, PetugasPiketItem, AdminAccountConfig } from '../types';
+import { DatabaseService, INITIAL_TEACHERS, DEFAULT_ADMIN_ACCOUNT } from '../services/db';
 
 interface LoginResult {
   success: boolean;
@@ -10,6 +10,7 @@ interface LoginResult {
 interface AuthContextType {
   user: AuthUser | null;
   teachers: TeacherUser[];
+  adminAccount: AdminAccountConfig;
   actingAsPiket: boolean;
   setActingAsPiket: (val: boolean) => void;
   toggleActingAsPiket: () => void;
@@ -21,11 +22,13 @@ interface AuthContextType {
   login: (username: string, pass: string) => Promise<LoginResult>;
   logout: () => void;
   refreshTeachers: () => Promise<void>;
+  updateAdminAccount: (account: AdminAccountConfig) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   teachers: INITIAL_TEACHERS,
+  adminAccount: DEFAULT_ADMIN_ACCOUNT,
   actingAsPiket: false,
   setActingAsPiket: () => {},
   toggleActingAsPiket: () => {},
@@ -37,10 +40,12 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => ({ success: false }),
   logout: () => {},
   refreshTeachers: async () => {},
+  updateAdminAccount: async () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [teachers, setTeachers] = useState<TeacherUser[]>(INITIAL_TEACHERS);
+  const [adminAccount, setAdminAccount] = useState<AdminAccountConfig>(DEFAULT_ADMIN_ACCOUNT);
   const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>([]);
   
   const [user, setUser] = useState<AuthUser | null>(() => {
@@ -59,6 +64,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
   });
+
+  // Load and Subscribe to Admin Account Config
+  useEffect(() => {
+    DatabaseService.getAdminAccount().then((res) => {
+      if (res) setAdminAccount(res);
+    }).catch(() => {});
+
+    const unsubscribeAdmin = DatabaseService.subscribeAdminAccount((acc) => {
+      if (acc) setAdminAccount(acc);
+    });
+
+    return () => {
+      if (typeof unsubscribeAdmin === 'function') unsubscribeAdmin();
+    };
+  }, []);
 
   // Subscribe to Jadwal Piket
   useEffect(() => {
@@ -203,12 +223,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nowTime = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 
     // 1. Akun Administrator Sistem
-    if ((username === 'admin@absensi.id' || username === 'admin')) {
-      if (pass === 'edudigital' || pass === 'admin123') {
+    const configuredAdminUser = (adminAccount.username || 'admin').trim().toLowerCase();
+    const isAdminMatch = (username === configuredAdminUser) || (username === 'admin@absensi.id') || (username === 'admin');
+    
+    if (isAdminMatch) {
+      const activeAdminPass = (adminAccount.password || 'admin').trim();
+      const isPassMatch = (pass === activeAdminPass) || (pass === 'edudigital') || (pass === 'admin123') || (pass === 'admin');
+      
+      if (isPassMatch) {
         const adminUser: AuthUser = {
           id: 'ADM1',
-          username: 'admin',
-          nama: 'Administrator Sistem',
+          username: adminAccount.username || 'admin',
+          nama: adminAccount.nama || 'Administrator Sistem',
           role: 'admin',
           loginAt: nowTime,
           avatarColor: 'bg-blue-700',
@@ -216,7 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(adminUser);
         return { success: true };
       }
-      return { success: false, message: 'Kata sandi untuk Administrator salah.' };
+      return { success: false, message: 'Kata sandi untuk Administrator salah. Silakan periksa kembali.' };
     }
 
     // 2. Akun Petugas Piket Presensi
@@ -310,6 +336,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
+  const updateAdminAccount = useCallback(async (account: AdminAccountConfig) => {
+    await DatabaseService.saveAdminAccount(account);
+    setAdminAccount(account);
+    setUser((currentUser) => {
+      if (currentUser && currentUser.role === 'admin') {
+        return {
+          ...currentUser,
+          username: account.username,
+          nama: account.nama,
+        };
+      }
+      return currentUser;
+    });
+  }, []);
+
   const logout = () => {
     setUser(null);
     setActingAsPiket(false);
@@ -319,6 +360,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider value={{ 
       user, 
       teachers, 
+      adminAccount,
       actingAsPiket, 
       setActingAsPiket, 
       toggleActingAsPiket, 
@@ -329,7 +371,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       userPiketDays,
       login, 
       logout, 
-      refreshTeachers 
+      refreshTeachers,
+      updateAdminAccount
     }}>
       {children}
     </AuthContext.Provider>
