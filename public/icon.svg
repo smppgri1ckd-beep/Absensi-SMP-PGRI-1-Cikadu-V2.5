@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fde047" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <linearGradient id="flameGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#dc2626" />
+      <stop offset="50%" stop-color="#ea580c" />
+      <stop offset="100%" stop-color="#facc15" />
+    </linearGradient>
+  </defs>
+  <!-- Background Rounded Shield -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-dasharray="8 6" opacity="0.8" />
+  
+  <!-- Outer Gold Laurel / Circle -->
+  <circle cx="256" cy="256" r="190" fill="#ffffff" fill-opacity="0.06" stroke="url(#goldGrad)" stroke-width="8" />
+
+  <!-- Torch Base / Handle -->
+  <path d="M240 370 L272 370 L266 430 L246 430 Z" fill="url(#goldGrad)" />
+  <rect x="232" y="356" width="48" height="16" rx="4" fill="url(#goldGrad)" />
+  
+  <!-- Open Book Base -->
+  <path d="M160 340 Q256 310 256 345 Q256 310 352 340 L346 362 Q256 332 256 360 Q256 332 166 362 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="4" />
+  <path d="M256 345 L256 360" stroke="#0f172a" stroke-width="4" />
+
+  <!-- Flame / Obor -->
+  <path d="M256 120 C230 180 200 220 220 280 C230 305 250 325 256 330 C262 325 282 305 292 280 C312 220 282 180 256 120 Z" fill="url(#flameGrad)" />
+  <path d="M256 170 C244 205 230 230 242 270 C248 285 254 295 256 300 C258 295 264 285 270 270 C282 230 268 205 256 170 Z" fill="#fef08a" opacity="0.9" />
+
+  <!-- Center Star -->
+  <polygon points="256,70 264,95 290,95 269,111 277,135 256,120 235,135 243,111 222,95 248,95" fill="url(#goldGrad)" />
+  
+  <!-- School Text abbreviation -->
+  <text x="256" y="475" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="34" fill="#f8fafc" letter-spacing="4">SMP PGRI 1</text>
+</svg>
