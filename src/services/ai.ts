@@ -1,10 +1,16 @@
-export interface AiAnalysisResult {
+import { AttendanceRecord, Student } from '../types';
+
+export interface AttendanceAiAnalysisResult {
   ringkasanEksekutif: string;
   skorKedisiplinan: number;
   predikatKedisiplinan: string;
   rekomendasiSekolah: string[];
-  analisisPerKelas?: { kelas: string; tingkatKehadiran: string; catatan: string }[];
-  rekomendasiSiswa?: {
+  analisisPerKelas: {
+    kelas: string;
+    tingkatKehadiran: string;
+    catatan: string;
+  }[];
+  rekomendasiSiswa: {
     nisn: string;
     nama: string;
     kelas: string;
@@ -16,82 +22,130 @@ export interface AiAnalysisResult {
   }[];
 }
 
-export const analyzeAttendanceWithAi = async (data: {
-  schoolName: string;
-  date: string;
-  totalStudents: number;
-  stats: { hadir: number; terlambat: number; izin: number; sakit: number; alpa: number };
-  classSummaries: Record<string, { hadir: number; total: number }>;
-  atRiskStudents: { nisn: string; name: string; className: string; status: string; notes?: string }[];
-}): Promise<AiAnalysisResult> => {
-  try {
-    const res = await fetch('/api/ai/analyze-attendance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) {
-      throw new Error(`Server returned ${res.status}`);
-    }
-    const result = await res.json();
-    if (result.success && result.data) {
-      return result.data;
-    }
-    throw new Error(result.error || 'Gagal memproses hasil');
-  } catch (err: unknown) {
-    console.warn('Fallback to local intelligence calculation due to:', err);
-    // Graceful offline fallback
-    const { stats, totalStudents } = data;
-    const hadirPct = Math.round(((stats.hadir + stats.terlambat) / Math.max(1, totalStudents)) * 100);
-    return {
-      ringkasanEksekutif: `Tingkat kehadiran siswa hari ini mencapai ${hadirPct}%. Tingkat kedisiplinan secara umum terpantau ${hadirPct >= 90 ? 'sangat tertib' : 'perlu penguatan'}, dengan ${stats.terlambat} siswa tercatat terlambat dan ${stats.alpa} siswa alpa.`,
-      skorKedisiplinan: Math.min(100, Math.max(50, hadirPct - (stats.terlambat * 2))),
-      predikatKedisiplinan: hadirPct >= 92 ? 'Sangat Baik' : hadirPct >= 80 ? 'Baik' : 'Perlu Perhatian',
-      rekomendasiSekolah: [
-        'Petugas piket melakukan pembinaan simpatik pada siswa yang datang lewat pukul 07.00 WIB.',
-        'Wali kelas segera mengirimkan konfirmasi via WhatsApp kepada orang tua siswa yang tidak hadir tanpa keterangan (alpa).',
-        'Berikan apresiasi pada kelas dengan kehadiran 100% saat apel pagi berikutnya.'
-      ],
-      rekomendasiSiswa: data.atRiskStudents.map(s => ({
-        nisn: s.nisn,
-        nama: s.name,
-        kelas: s.className,
-        statusMasalah: s.status,
-        urgensi: s.status === 'alpa' ? 'Tinggi' : 'Sedang',
-        akarMasalahDugaan: s.notes || 'Kendala transportasi atau penyesuaian jam bangun pagi',
-        langkahPenanganan: 'Pendekatan wali kelas dan dialog suportif dengan orang tua',
-        draftPesanWhatsAppOrtu: `Yth. Bapak/Ibu Wali dari ${s.name} (${s.className}), menginformasikan bahwa ananda hari ini tercatat ${s.status}. Mohon konfirmasi kesehatan dan keberadaan ananda demi keselamatan bersama. Terima kasih - SMP PGRI 1 Cikadu`
-      }))
-    };
-  }
-};
+export class AiService {
+  /**
+   * Request server-side AI analysis for attendance data
+   */
+  static async analyzeAttendance(
+    schoolName: string,
+    date: string,
+    students: Student[],
+    records: AttendanceRecord[]
+  ): Promise<AttendanceAiAnalysisResult> {
+    const todayRecords = records.filter((r) => r.tanggal === date);
+    const hadir = todayRecords.filter((r) => r.status === 'Hadir').length;
+    const terlambat = todayRecords.filter((r) => r.status === 'Terlambat').length;
+    const izin = todayRecords.filter((r) => r.status === 'Izin').length;
+    const sakit = todayRecords.filter((r) => r.status === 'Sakit').length;
+    const alpa = students.length - (hadir + terlambat + izin + sakit);
 
-export const generateWhatsAppDraft = async (params: {
-  studentName: string;
-  className: string;
-  status: string;
-  detail?: string;
-  parentName?: string;
-  schoolName?: string;
-}): Promise<string> => {
-  try {
-    const res = await fetch('/api/ai/generate-wa-message', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params)
+    // Group by class
+    const classes = Array.from(new Set(students.map((s) => s.kelas))).sort();
+    const classSummaries = classes.map((cls) => {
+      const clsStudents = students.filter((s) => s.kelas === cls);
+      const clsRecords = todayRecords.filter((r) => r.kelas === cls);
+      const clsHadir = clsRecords.filter((r) => r.status === 'Hadir' || r.status === 'Terlambat').length;
+      const pct = clsStudents.length ? Math.round((clsHadir / clsStudents.length) * 100) : 0;
+      return {
+        kelas: cls,
+        totalSiswa: clsStudents.length,
+        hadir: clsHadir,
+        persen: `${pct}%`,
+      };
     });
-    const data = await res.json();
-    if (data.success && data.message) {
-      return data.message;
+
+    // Detect students needing attention (Late or Alpa or high absence history)
+    const atRiskMap = new Map<string, { nisn: string; nama: string; kelas: string; masalah: string; statusHariIni: string }>();
+
+    // Today's late
+    todayRecords.filter((r) => r.status === 'Terlambat').forEach((r) => {
+      atRiskMap.set(r.nisn, {
+        nisn: r.nisn,
+        nama: r.nama,
+        kelas: r.kelas,
+        masalah: 'Terlambat pada sesi ' + r.sesi + (r.catatan ? ` (${r.catatan})` : ''),
+        statusHariIni: 'Terlambat',
+      });
+    });
+
+    // Today's absent / alpa
+    students.forEach((s) => {
+      const hasRec = todayRecords.some((r) => r.nisn === s.nisn);
+      if (!hasRec) {
+        atRiskMap.set(s.nisn, {
+          nisn: s.nisn,
+          nama: s.nama,
+          kelas: s.kelas,
+          masalah: 'Tidak ada catatan presensi (Alpa)',
+          statusHariIni: 'Alpa',
+        });
+      }
+    });
+
+    const atRiskStudents = Array.from(atRiskMap.values()).slice(0, 10);
+
+    const response = await fetch('/api/ai/analyze-attendance', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        schoolName,
+        date,
+        totalStudents: students.length,
+        stats: {
+          hadir,
+          terlambat,
+          izin,
+          sakit,
+          alpa: alpa > 0 ? alpa : 0,
+        },
+        classSummaries,
+        atRiskStudents,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
     }
-  } catch (err) {
-    console.warn('Using local WA template generator', err);
+
+    const json = await response.json();
+    if (!json.success) {
+      throw new Error(json.error || 'Gagal memproses analisis AI');
+    }
+
+    return json.data;
   }
 
-  return `*PEMBERITAHUAN PRESENSI SMP PGRI 1 CIKADU*\n\n` +
-    `Yth. Bapak/Ibu Orang Tua/Wali dari ananda *${params.studentName}* (Kelas ${params.className}),\n\n` +
-    `Kami menginformasikan bahwa pada hari ini ananda tercatat *${params.status.toUpperCase()}* ${params.detail ? `(${params.detail})` : ''}.\n\n` +
-    `Mohon kerjasama Bapak/Ibu untuk terus memotivasi ananda hadir tepat waktu dan aktif dalam kegiatan belajar di sekolah.\n\n` +
-    `Hormat kami,\n` +
-    `_Wali Kelas & Guru Piket SMP PGRI 1 Cikadu_`;
-};
+  /**
+   * Request server-side AI customized WhatsApp message
+   */
+  static async generateCustomWhatsApp(
+    studentName: string,
+    className: string,
+    status: string,
+    detail: string,
+    schoolName: string
+  ): Promise<string> {
+    const response = await fetch('/api/ai/generate-wa-message', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        studentName,
+        className,
+        status,
+        detail,
+        schoolName,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Gagal menghubungi AI service');
+    }
+
+    const json = await response.json();
+    return json.message || '';
+  }
+}
