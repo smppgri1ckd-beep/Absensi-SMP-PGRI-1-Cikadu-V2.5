@@ -9,6 +9,7 @@ import {
   UserCheck, 
   GraduationCap,
   LogIn,
+  Lock,
   ChevronDown,
   LogOut,
   KeyRound,
@@ -101,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'heb-calendar':
         return 'Kalender Hari Efektif Belajar (HEB)';
       case 'public-info':
-        return 'Informasi & Agenda Satuan Pendidikan';
+        return 'Portal Informasi & Presensi Real-Time';
       case 'pantau-anak':
         return 'Portal Aktivitas Orang Tua & Siswa';
       default:
@@ -116,14 +117,16 @@ export const Navbar: React.FC<NavbarProps> = ({
           
           {/* Left: Sidebar Toggle & Screen Title */}
           <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 min-w-0">
-            {/* Hamburger Button for Mobile & Desktop Sidebar Toggle */}
-            <button
-              onClick={onToggleSidebar}
-              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 lg:hidden cursor-pointer shrink-0"
-              title="Buka Menu Navigasi Samping"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
+            {/* Hamburger Button for Mobile & Desktop Sidebar Toggle (Hanya untuk pengguna login) */}
+            {user && (
+              <button
+                onClick={onToggleSidebar}
+                className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 lg:hidden cursor-pointer shrink-0"
+                title="Buka Menu Navigasi Samping"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
 
             <div className="flex items-center gap-2.5 min-w-0">
               <SchoolLogo src={schoolConfig?.logoUrl} className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 drop-shadow-xs" />
@@ -529,10 +532,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 onClick={onOpenLogin}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors text-xs font-semibold cursor-pointer border border-transparent hover:border-slate-200"
+                title="Akses Masuk Guru & Tenaga Kependidikan"
+                aria-label="Akses Masuk Petugas"
               >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Login Pegawai / Guru</span>
+                <Lock className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-[11px] hidden sm:inline text-slate-500 font-medium">Akses Staf</span>
               </button>
             )}
 

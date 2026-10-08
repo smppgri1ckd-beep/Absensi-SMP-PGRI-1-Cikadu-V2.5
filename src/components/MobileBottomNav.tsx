@@ -34,7 +34,23 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         {/* PUBLIC MODE (Non-logged in / Orang Tua): Dedicated to Parent & Student Activities */}
         {!user || effectiveRole === 'ortu' ? (
           <>
-            {/* Tab 1: Pantau Anak */}
+            {/* Tab 1: Layanan Utama & Informasi */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('public-info')}
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-2xl transition-all cursor-pointer ${
+                activeTab === 'public-info'
+                  ? 'text-blue-600 font-extrabold scale-105'
+                  : 'text-slate-500 hover:text-slate-900 font-medium'
+              }`}
+            >
+              <div className={`p-1 rounded-xl ${activeTab === 'public-info' ? 'bg-blue-50' : ''}`}>
+                <Sparkles className="w-5 h-5 text-blue-600" />
+              </div>
+              <span className="text-[10px] mt-0.5">Layanan Publik</span>
+            </button>
+
+            {/* Tab 2: Pantau Anak */}
             <button
               type="button"
               onClick={() => setActiveTab('pantau-anak')}
@@ -45,12 +61,12 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               }`}
             >
               <div className={`p-1 rounded-xl ${activeTab === 'pantau-anak' ? 'bg-blue-50' : ''}`}>
-                <Sparkles className="w-5 h-5 text-blue-600" />
+                <GraduationCap className="w-5 h-5 text-indigo-600" />
               </div>
               <span className="text-[10px] mt-0.5">Pantau Anak</span>
             </button>
 
-            {/* Tab 2: Ajukan Izin / Sakit Mandiri */}
+            {/* Tab 3: Ajukan Izin / Sakit Mandiri */}
             <button
               type="button"
               onClick={onOpenLeaveModal}
@@ -67,39 +83,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
               <span className="text-[10px] mt-0.5 text-amber-800 font-bold">Izin / Sakit</span>
             </button>
 
-            {/* Tab 3: Papan Kehadiran Real-Time */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('dashboard')}
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-2xl transition-all cursor-pointer ${
-                activeTab === 'dashboard'
-                  ? 'text-blue-600 font-extrabold scale-105'
-                  : 'text-slate-500 hover:text-slate-900 font-medium'
-              }`}
-            >
-              <div className={`p-1 rounded-xl ${activeTab === 'dashboard' ? 'bg-blue-50' : ''}`}>
-                <LayoutDashboard className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] mt-0.5">Kehadiran</span>
-            </button>
-
-            {/* Tab 4: Info Sekolah & Agenda */}
-            <button
-              type="button"
-              onClick={() => setActiveTab('public-info')}
-              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-2xl transition-all cursor-pointer ${
-                activeTab === 'public-info'
-                  ? 'text-blue-600 font-extrabold scale-105'
-                  : 'text-slate-500 hover:text-slate-900 font-medium'
-              }`}
-            >
-              <div className={`p-1 rounded-xl ${activeTab === 'public-info' ? 'bg-blue-50' : ''}`}>
-                <Info className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] mt-0.5">Info Sekolah</span>
-            </button>
-
-            {/* Tab 5: Menu */}
+            {/* Tab 4: Menu Samping */}
             <button
               type="button"
               onClick={onOpenSidebar}

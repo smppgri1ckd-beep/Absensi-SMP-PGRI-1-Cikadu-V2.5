@@ -86,46 +86,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
     todayPiketAssignment
   } = useAuth();
 
+  // Mode Publik: Jangan tampilkan sidebar pada tampilan publik / sebelum login
+  if (!user) {
+    return null;
+  }
+
   // Functional Menu Grouping customized per role (Menu dipisah & dikelompokkan sesuai fungsi)
   const getMenuGroups = (): MenuGroup[] => {
     // 1. PUBLIC MODE (Tamu / Siswa / Orang Tua / Umum - Belum Login)
     if (!user) {
       return [
         {
-          groupTitle: 'Portal Aktivitas Orang Tua & Siswa',
+          groupTitle: 'Layanan Terpadu Sekolah',
           items: [
             {
-              id: 'pantau-anak',
-              label: 'Pantau Perkembangan Anak',
-              desc: 'Presensi harian, nilai mapel & tugas sekolah',
+              id: 'public-info',
+              label: 'Portal Informasi & Presensi Real-Time',
+              desc: 'Agenda, pengumuman & pantau kehadiran siswa',
               icon: Sparkles,
-              tag: 'Portal Utama',
-              tagColor: 'bg-blue-100 text-blue-900 font-black',
+              tag: 'Utama',
+              tagColor: 'bg-blue-100 text-blue-900 font-bold',
             },
             {
               id: 'action-leave-request',
-              label: 'Pengajuan Izin & Sakit Mandiri',
-              desc: 'Kirim surat dokter & alasan izin tanpa login',
+              label: 'Pengajuan Izin / Sakit Mandiri',
+              desc: 'Kirim surat dokter & izin tanpa login',
               icon: FileText,
               isAction: true,
               tag: 'Mandiri',
-              tagColor: 'bg-amber-100 text-amber-900 font-bold',
-            },
-            {
-              id: 'dashboard',
-              label: 'Papan Kehadiran Siswa Real-Time',
-              desc: 'Rekapitulasi statistik kehadiran per kelas',
-              icon: LayoutDashboard,
-              tag: 'Live Rekap',
-              tagColor: 'bg-emerald-100 text-emerald-800 font-bold',
-            },
-            {
-              id: 'public-info',
-              label: 'Informasi & Agenda Satuan Pendidikan',
-              desc: 'Jadwal apel, tata tertib & profil sekolah',
-              icon: Info,
-              tag: 'Informasi',
-              tagColor: 'bg-slate-100 text-slate-700 font-bold',
+              tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
             },
           ],
         },
@@ -612,7 +601,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0">
             <div 
               className="flex items-center gap-3 cursor-pointer" 
-              onClick={() => handleSelectTab(user ? (user.role === 'guru' ? 'journal' : 'dashboard') : 'pantau-anak')}
+              onClick={() => handleSelectTab(user ? (user.role === 'guru' ? 'journal' : 'dashboard') : 'public-info')}
             >
               <div className="w-11 h-11 shrink-0 flex items-center justify-center">
                 <SchoolLogo src={schoolConfig?.logoUrl} className="w-11 h-11 drop-shadow-sm hover:scale-105 transition-transform" />
@@ -786,21 +775,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
             ) : (
-              <div className="p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50/60 to-blue-50/40 border border-blue-200/80 rounded-2xl space-y-2">
+              <div className="p-3 bg-gradient-to-br from-blue-50/80 to-indigo-50/40 border border-blue-200/70 rounded-2xl space-y-1">
                 <div className="flex items-center gap-2 text-blue-950 font-black text-xs">
-                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-                  <span>Portal Orang Tua & Siswa</span>
+                  <Sparkles className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>Portal Informasi & Orang Tua</span>
                 </div>
                 <p className="text-[11px] text-blue-800 leading-snug">
-                  Layanan mandiri orang tua: pantau kehadiran harian, nilai kuis & ajukan surat izin sakit online.
+                  Layanan terpadu presensi real-time, agenda sekolah, dan pemantauan siswa.
                 </p>
-                <button
-                  onClick={onOpenLogin}
-                  className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer mt-1"
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>Masuk Akun Guru / Staf</span>
-                </button>
               </div>
             )}
           </div>
@@ -885,13 +867,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
           ) : (
-            <button
-              onClick={onOpenLogin}
-              className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs flex items-center justify-center gap-2 transition-colors shadow-xs cursor-pointer"
-            >
-              <LogIn className="w-4 h-4" />
-              <span>Login Pegawai / Guru</span>
-            </button>
+            <div className="py-1 text-center">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Layanan Publik Aktif
+              </span>
+            </div>
           )}
 
           <div className="text-[10px] text-center text-slate-400 font-medium">

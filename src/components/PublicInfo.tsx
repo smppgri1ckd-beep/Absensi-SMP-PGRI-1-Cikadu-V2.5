@@ -22,7 +22,6 @@ import {
   ShieldCheck,
   AlertTriangle,
   MessageSquare,
-  HelpCircle,
   Eye,
   ArrowRight,
   ArrowLeft,
@@ -40,7 +39,8 @@ import {
   TeachingJournal, 
   TeacherUser,
   AttendanceSession,
-  AttendanceStatus 
+  AttendanceStatus,
+  SchoolEventItem 
 } from '../types';
 import { generateQrDataUrl } from '../utils/qr';
 import { SchoolLogo } from '../assets/schoolLogo';
@@ -52,9 +52,11 @@ interface PublicInfoProps {
   journals?: TeachingJournal[];
   teachers?: TeacherUser[];
   currentSession?: AttendanceSession;
-  onOpenLogin: () => void;
+  schoolEvents?: SchoolEventItem[];
+  onOpenLogin?: () => void;
   onOpenScanner?: () => void;
   onOpenLeaveRequest?: () => void;
+  onOpenAgenda?: () => void;
   onOpenPantauAnak?: (student: Student) => void;
 }
 
@@ -65,9 +67,11 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
   journals = [],
   teachers = [],
   currentSession = 'Pagi',
+  schoolEvents = [],
   onOpenLogin,
   onOpenScanner,
   onOpenLeaveRequest,
+  onOpenAgenda,
   onOpenPantauAnak,
 }) => {
   // Parent Search & Filter State
@@ -77,8 +81,9 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
   const [isDigitalCardOpen, setIsDigitalCardOpen] = useState(false);
   const [digitalQrUrl, setDigitalQrUrl] = useState<string>('');
   const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
-  const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('Semua');
+  const [agendaCategoryFilter, setAgendaCategoryFilter] = useState<string>('Semua');
+  const [activeSection, setActiveSection] = useState<'presensi' | 'agenda' | 'jadwal' | null>(null);
   const [liveClock, setLiveClock] = useState(() => new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
 
   useEffect(() => {
@@ -136,6 +141,59 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
       rate,
     };
   }, [students, records, todayStr]);
+
+  // Curated default events when no events from database or supplementing list
+  const defaultEvents = useMemo<SchoolEventItem[]>(() => [
+    {
+      id: 'def-1',
+      judul: 'Apel Upacara Bendera Rutin Hari Senin',
+      tanggalMulai: todayStr,
+      kategori: 'Peringatan Hari Besar',
+      waktu: '07:00 - 08:00 WIB',
+      lokasi: 'Lapangan Utama SMP PGRI 1 Cikadu',
+      keterangan: 'Wajib diikuti oleh seluruh dewan guru, staf, dan peserta didik berseragam lengkap.',
+      penanggungJawab: 'Petugas Piket & Pembina OSIS',
+    },
+    {
+      id: 'def-2',
+      judul: 'Penilaian Tengah Semester (PTS) & Asesmen Sumatif',
+      tanggalMulai: '2026-10-15',
+      tanggalSelesai: '2026-10-20',
+      kategori: 'Ujian',
+      waktu: '07:30 - 12:00 WIB',
+      lokasi: 'Ruang Kelas 7, 8, dan 9',
+      keterangan: 'Pelaksanaan ujian asesmen capaian belajar siswa semester ganjil.',
+      penanggungJawab: 'Tim Kurikulum & Panitia Penilaian',
+    },
+    {
+      id: 'def-3',
+      judul: 'Rapat Koordinasi Komite Sekolah & Paguyuban Wali Murid',
+      tanggalMulai: '2026-10-24',
+      kategori: 'Rapat',
+      waktu: '09:00 - 11:30 WIB',
+      lokasi: 'Aula SMP PGRI 1 Cikadu',
+      keterangan: 'Sosialisasi perkembangan sarana prasarana sekolah dan evaluasi presensi digital siswa.',
+      penanggungJawab: 'Kepala Sekolah & Pengurus Komite',
+    },
+    {
+      id: 'def-4',
+      judul: 'Latihan Kepemimpinan & Pemilihan Ketua OSIS',
+      tanggalMulai: '2026-11-05',
+      tanggalSelesai: '2026-11-06',
+      kategori: 'Kegiatan OSIS',
+      waktu: '08:00 - 14:00 WIB',
+      lokasi: 'Laboratorium & Lapangan Sekolah',
+      keterangan: 'Kegiatan pemilu OSIS periode 2026/2027 dan pengukuhan kader kepemimpinan siswa.',
+      penanggungJawab: 'Kesiswaan & Pembina OSIS',
+    },
+  ], [todayStr]);
+
+  // Merged & filtered events list for real-time display
+  const effectiveEvents = useMemo(() => {
+    const list = schoolEvents && schoolEvents.length > 0 ? schoolEvents : defaultEvents;
+    if (agendaCategoryFilter === 'Semua') return list;
+    return list.filter((e) => e.kategori === agendaCategoryFilter);
+  }, [schoolEvents, defaultEvents, agendaCategoryFilter]);
 
   // Filter students based on search query AND class filter
   const searchResults = useMemo(() => {
@@ -401,30 +459,49 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
           <div className="flex items-start sm:items-center gap-4">
             <SchoolLogo src={schoolConfig?.logoUrl} className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 bg-white p-2 rounded-3xl shadow-xl border border-white/20 drop-shadow-md" />
             <div className="space-y-2 max-w-xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-xs font-bold uppercase tracking-wider">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/30 text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>Portal Informasi Publik & Pemantauan Wali Murid</span>
+                <span>Portal Informasi Resmi & Presensi Real-Time</span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
                 {schoolConfig.namaSekolah}
               </h1>
 
-              <p className="text-sm text-blue-100/90 leading-relaxed font-medium">
-                Selamat datang di portal informasi resmi sekolah. Disediakan khusus bagi orang tua dan wali murid untuk memantau kehadiran harian putra/putri, mengirim surat izin/sakit mandiri, memeriksa jam belajar, dan mengakses profil akademik.
+              <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed font-medium">
+                Layanan terpadu orang tua & publik: pantau kehadiran siswa real-time, cek agenda kegiatan sekolah, jadwal KBM, dan kirim permohonan izin/sakit mandiri.
               </p>
 
               <div className="flex flex-wrap items-center gap-2.5 pt-2">
-                <a
-                  href="#portal-cek-presensi"
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-600/30 transition-all cursor-pointer"
+                <button
+                  type="button"
+                  onClick={() => setActiveSection(activeSection === 'presensi' ? null : 'presensi')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm shadow-md transition-all cursor-pointer ${
+                    activeSection === 'presensi'
+                      ? 'bg-white text-blue-900 ring-2 ring-white shadow-white/20'
+                      : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/30'
+                  }`}
                 >
                   <Search className="w-4 h-4" />
-                  <span>Cek Kehadiran Anak</span>
-                </a>
+                  <span>{activeSection === 'presensi' ? 'Tutup Cek Presensi' : 'Cek Kehadiran Anak'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveSection(activeSection === 'agenda' ? null : 'agenda')}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+                    activeSection === 'agenda'
+                      ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-300'
+                      : 'bg-white/15 hover:bg-white/25 text-white border border-white/20'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 text-amber-300" />
+                  <span>{activeSection === 'agenda' ? 'Tutup Agenda' : 'Agenda Kegiatan'}</span>
+                </button>
 
                 {onOpenLeaveRequest && (
                   <button
+                    type="button"
                     onClick={onOpenLeaveRequest}
                     className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
                   >
@@ -432,14 +509,6 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
                     <span>Ajukan Izin / Sakit</span>
                   </button>
                 )}
-
-                <button
-                  onClick={onOpenLogin}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm rounded-xl border border-white/20 transition-all cursor-pointer"
-                >
-                  <LogIn className="w-4 h-4 text-amber-300" />
-                  <span>Login Petugas / Guru</span>
-                </button>
               </div>
             </div>
           </div>
@@ -477,22 +546,62 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
       {/* 4 Quick Parent Service Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Cek Kehadiran */}
-        <a 
-          href="#portal-cek-presensi" 
-          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all group block"
+        <button 
+          type="button"
+          onClick={() => setActiveSection(activeSection === 'presensi' ? null : 'presensi')}
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all cursor-pointer group ${
+            activeSection === 'presensi'
+              ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-300 shadow-sm'
+              : 'bg-white border-slate-200 shadow-2xs hover:border-blue-400 hover:shadow-xs'
+          }`}
         >
-          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold mb-2 group-hover:scale-105 transition-transform">
-            <Search className="w-4.5 h-4.5" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold group-hover:scale-105 transition-transform">
+              <Search className="w-4.5 h-4.5" />
+            </div>
+            {activeSection === 'presensi' && (
+              <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[10px] font-black uppercase">
+                Aktif
+              </span>
+            )}
           </div>
           <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-blue-600 transition-colors">
             Cek Kehadiran Anak
           </h4>
           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-            Pantau jam apel kedatangan & kehadiran jam pelajaran KBM
+            Periksa absensi harian, jam apel & jam pelajaran KBM
           </p>
-        </a>
+        </button>
 
-        {/* Card 2: Pengajuan Izin Mandiri */}
+        {/* Card 2: Agenda Kegiatan */}
+        <button 
+          type="button"
+          onClick={() => setActiveSection(activeSection === 'agenda' ? null : 'agenda')}
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all cursor-pointer group ${
+            activeSection === 'agenda'
+              ? 'bg-amber-50/80 border-amber-500 ring-2 ring-amber-300 shadow-sm'
+              : 'bg-white border-slate-200 shadow-2xs hover:border-amber-400 hover:shadow-xs'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold group-hover:scale-105 transition-transform">
+              <Calendar className="w-4.5 h-4.5" />
+            </div>
+            {activeSection === 'agenda' && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
+                Aktif
+              </span>
+            )}
+          </div>
+          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-amber-600 transition-colors">
+            Agenda Kegiatan
+          </h4>
+          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            Jadwal kegiatan akademik, ujian, kalender & acara sekolah
+          </p>
+        </button>
+
+        {/* Card 3: Pengajuan Izin Mandiri */}
         <button 
           type="button"
           onClick={onOpenLeaveRequest}
@@ -505,42 +614,37 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
             Ajukan Izin / Sakit
           </h4>
           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-            Kirim surat dokter atau permohonan izin keluarga mandiri
+            Kirim surat dokter atau permohonan izin mandiri tanpa login
           </p>
         </button>
 
-        {/* Card 3: Pantau Nilai & Rapor */}
+        {/* Card 4: Jadwal & Panduan */}
         <button 
           type="button"
-          onClick={() => onOpenPantauAnak?.(students[0] || ({} as any))}
-          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-amber-400 hover:shadow-xs transition-all group text-left cursor-pointer"
+          onClick={() => setActiveSection(activeSection === 'jadwal' ? null : 'jadwal')}
+          className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all cursor-pointer group ${
+            activeSection === 'jadwal'
+              ? 'bg-indigo-50/80 border-indigo-500 ring-2 ring-indigo-300 shadow-sm'
+              : 'bg-white border-slate-200 shadow-2xs hover:border-indigo-400 hover:shadow-xs'
+          }`}
         >
-          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold mb-2 group-hover:scale-105 transition-transform">
-            <Sparkles className="w-4.5 h-4.5" />
-          </div>
-          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-amber-600 transition-colors">
-            Rapor & Pantau Anak
-          </h4>
-          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-            Akses rekap nilai tugas, ujian, dan catatan wali kelas
-          </p>
-        </button>
-
-        {/* Card 4: Jam Sekolah & Info */}
-        <a 
-          href="#info-operasional" 
-          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all group block"
-        >
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold mb-2 group-hover:scale-105 transition-transform">
-            <Clock className="w-4.5 h-4.5" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold group-hover:scale-105 transition-transform">
+              <Clock className="w-4.5 h-4.5" />
+            </div>
+            {activeSection === 'jadwal' && (
+              <span className="px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-black uppercase">
+                Aktif
+              </span>
+            )}
           </div>
           <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-indigo-600 transition-colors">
-            Jam KBM & Kontak
+            Jadwal & Panduan
           </h4>
           <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
-            Jadwal apel, tata tertib sekolah, dan nomor kontak resmi
+            Aturan waktu presensi apel, batas terlambat & tata cara
           </p>
-        </a>
+        </button>
       </div>
 
       {/* Ringkasan Kehadiran Sekolah Hari Ini (KPI Publik) */}
@@ -555,9 +659,13 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 font-mono font-bold">
                 {formattedToday}
               </span>
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Live Real-Time
+              </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
-              Transparansi apel kedatangan gerbang ({currentSession}) untuk seluruh peserta didik.
+              Transparansi apel kedatangan gerbang ({currentSession}) dari total <strong className="text-white">{schoolTodayStats.total} Siswa</strong> terdaftar.
             </p>
           </div>
         </div>
@@ -582,40 +690,206 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
             <span className="text-[10px] text-slate-400 block font-semibold">Izin / Sakit</span>
             <span className="text-lg sm:text-xl font-black text-sky-300">{schoolTodayStats.izinSakit}</span>
           </div>
+          <div className="h-7 w-px bg-white/15" />
+          <div className="text-center">
+            <span className="text-[10px] text-slate-400 block font-semibold">Belum Hadir</span>
+            <span className="text-lg sm:text-xl font-black text-slate-300">
+              {Math.max(0, schoolTodayStats.total - schoolTodayStats.hadir - schoolTodayStats.terlambat - schoolTodayStats.izinSakit)}
+            </span>
+          </div>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* 2. PORTAL CEK PRESENSI MANDIRI SISWA (FITUR ORANG TUA)    */}
+      {/* 2. AGENDA & KEGIATAN SEKOLAH REAL-TIME                   */}
       {/* ======================================================== */}
-      <div id="portal-cek-presensi" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-6">
-        
-        {/* Section Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-              <Search className="w-6 h-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-black text-slate-900">
-                  Cek Kehadiran Anak Hari Ini
-                </h2>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
-                  Akses Terbuka
-                </span>
+      {activeSection === 'agenda' && (
+        <div id="agenda-sekolah" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-5 animate-in fade-in slide-in-from-top-2 duration-200">
+          
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                <Calendar className="w-6 h-6" />
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Cari berdasarkan Nama Siswa, nomor NISN, atau pilih Rombel Kelas untuk memeriksa status kedatangan.
-              </p>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-slate-900">
+                    Agenda & Kegiatan Sekolah Real-Time
+                  </h2>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Live Sinkron
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Kalender resmi jadwal kegiatan akademik, ujian, rapat orang tua, dan agenda penting {schoolConfig.namaSekolah}.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-600 bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200 shrink-0">
+                {effectiveEvents.length} Kegiatan Aktif
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveSection(null)}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Tutup menu agenda"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+                <span>Tutup</span>
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200 shrink-0">
-            <CalendarDays className="w-4 h-4 text-blue-600" />
-            <span>{formattedToday}</span>
-          </div>
+        {/* Category Filters */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+          {['Semua', 'Ujian', 'Peringatan Hari Besar', 'Kegiatan OSIS', 'Rapat', 'Libur'].map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setAgendaCategoryFilter(cat)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                agendaCategoryFilter === cat
+                  ? 'bg-amber-500 text-slate-950 shadow-xs font-black'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
         </div>
+
+        {/* Event Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {effectiveEvents.map((evt) => {
+            const isToday = evt.tanggalMulai === todayStr;
+            const categoryBadgeStyle = {
+              'Ujian': 'bg-rose-100 text-rose-800 border-rose-200',
+              'Peringatan Hari Besar': 'bg-blue-100 text-blue-800 border-blue-200',
+              'Kegiatan OSIS': 'bg-emerald-100 text-emerald-800 border-emerald-200',
+              'Rapat': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+              'Libur': 'bg-amber-100 text-amber-800 border-amber-200',
+              'Lainnya': 'bg-slate-100 text-slate-700 border-slate-200',
+            }[evt.kategori] || 'bg-slate-100 text-slate-700 border-slate-200';
+
+            // Format date for display
+            const dateDisplay = (() => {
+              try {
+                const d = new Date(evt.tanggalMulai);
+                return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+              } catch {
+                return evt.tanggalMulai;
+              }
+            })();
+
+            return (
+              <div
+                key={evt.id}
+                className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                  isToday 
+                    ? 'bg-amber-50/50 border-amber-300 ring-1 ring-amber-200 shadow-xs' 
+                    : 'bg-slate-50/50 hover:bg-white border-slate-200 hover:border-slate-300 shadow-2xs hover:shadow-xs'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3 mb-2.5">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${categoryBadgeStyle}`}>
+                    {evt.kategori}
+                  </span>
+                  
+                  {isToday ? (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black uppercase animate-pulse">
+                      Hari Ini!
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-mono text-slate-500 font-bold">
+                      {dateDisplay}
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="text-sm sm:text-base font-black text-slate-900 leading-snug">
+                  {evt.judul}
+                </h3>
+
+                {evt.keterangan && (
+                  <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                    {evt.keterangan}
+                  </p>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3 pt-3 mt-3 border-t border-slate-200/70 text-xs text-slate-500">
+                  {evt.waktu && (
+                    <span className="inline-flex items-center gap-1.5 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{evt.waktu}</span>
+                    </span>
+                  )}
+                  {evt.lokasi && (
+                    <span className="inline-flex items-center gap-1.5 font-medium">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{evt.lokasi}</span>
+                    </span>
+                  )}
+                  {evt.penanggungJawab && (
+                    <span className="inline-flex items-center gap-1.5 font-medium text-slate-600">
+                      <User className="w-3.5 h-3.5 text-slate-400" />
+                      <span>PJ: <strong>{evt.penanggungJawab}</strong></span>
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    )}
+
+      {/* ======================================================== */}
+      {/* 3. PORTAL CEK PRESENSI MANDIRI SISWA (FITUR ORANG TUA)    */}
+      {/* ======================================================== */}
+      {activeSection === 'presensi' && (
+        <div id="portal-cek-presensi" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+          
+          {/* Section Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                <Search className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-black text-slate-900">
+                    Cek Kehadiran Anak Hari Ini
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                    Akses Terbuka
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Cari berdasarkan Nama Siswa, nomor NISN, atau pilih Rombel Kelas untuk memeriksa status kedatangan.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200 shrink-0">
+                <CalendarDays className="w-4 h-4 text-blue-600" />
+                <span>{formattedToday}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveSection(null)}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                title="Tutup menu cek kehadiran"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+                <span>Tutup</span>
+              </button>
+            </div>
+          </div>
 
         {/* Filter Rombel Kelas Chips */}
         {classList.length > 0 && !selectedStudent && (
@@ -1369,188 +1643,167 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
         )}
 
       </div>
+      )}
 
       {/* ======================================================== */}
       {/* 4. JADWAL SEKOLAH & PANDUAN SISWA                        */}
       {/* ======================================================== */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        
-        {/* Jadwal Jam Presensi */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-base text-slate-900">
-                Jadwal & Batas Waktu Presensi
-              </h3>
-              <p className="text-xs text-slate-500">
-                Aturan waktu kehadiran apel pagi dan kepulangan
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3">
-            {/* Sesi Pagi */}
-            <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-black text-xs text-amber-950 uppercase tracking-wide">
-                  Sesi Pagi (Masuk / Apel)
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900">
-                  Wajib
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Gerbang Dibuka:</span>
-                  <strong className="text-slate-900 font-mono text-sm">{schoolConfig.jadwal?.pagiMulai || '06:30'} WIB</strong>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Batas Tepat Waktu:</span>
-                  <strong className="text-amber-800 font-mono text-sm">{schoolConfig.jadwal?.pagiBatasTepatWaktu || '07:15'} WIB</strong>
-                </div>
-              </div>
-              <p className="text-[11px] text-amber-800 mt-1 font-medium">
-                * Siswa yang memindai kartu setelah pukul {schoolConfig.jadwal?.pagiBatasTepatWaktu || '07:15'} WIB akan tercatat berstatus <strong className="text-rose-600">Terlambat</strong>.
-              </p>
-            </div>
-
-            {/* Sesi Siang */}
-            <div className="p-4 bg-indigo-50/60 rounded-2xl border border-indigo-200/80 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-black text-xs text-indigo-950 uppercase tracking-wide">
-                  Sesi Siang (Kepulangan)
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900">
-                  Kepulangan
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Mulai Presensi:</span>
-                  <strong className="text-slate-900 font-mono text-sm">{schoolConfig.jadwal?.siangMulai || '12:00'} WIB</strong>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-[11px]">Batas Akhir:</span>
-                  <strong className="text-indigo-900 font-mono text-sm">{schoolConfig.jadwal?.siangBatasAkhir || '15:30'} WIB</strong>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Petunjuk Penggunaan untuk Siswa & Orang Tua */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-              <QrCode className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-base text-slate-900">
-                Tata Cara Presensi Kartu QR
-              </h3>
-              <p className="text-xs text-slate-500">
-                Langkah mudah memindai kehadiran di sekolah
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-3 text-xs">
-            <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
-                1
+      {activeSection === 'jadwal' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                <Clock className="w-6 h-6" />
               </div>
               <div>
-                <strong className="text-slate-900 block font-bold">Siapkan Kartu Pelajar QR Code</strong>
-                <p className="text-slate-500 mt-0.5">Pastikan kartu fisik atau gambar digital QR Code tidak kotor, terlipat, atau buram.</p>
+                <h2 className="text-lg font-black text-slate-900">
+                  Jadwal Presensi & Panduan Siswa
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Aturan jam kedatangan apel, batas toleransi terlambat, dan tata cara pemindaian kartu QR.
+                </p>
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
-                2
-              </div>
-              <div>
-                <strong className="text-slate-900 block font-bold">Arahkan ke Kamera Kiosk</strong>
-                <p className="text-slate-500 mt-0.5">Posisikan kode QR di dalam kotak bidik kamera dengan jarak sekitar 15 - 25 cm.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-100">
-              <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
-                3
-              </div>
-              <div>
-                <strong className="text-slate-900 block font-bold">Dengarkan Suara Notifikasi</strong>
-                <p className="text-slate-500 mt-0.5">Sistem akan membunyikan nada dan memunculkan foto, nama, kelas, serta waktu scan.</p>
-              </div>
-            </div>
-
-            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-[11px] text-blue-900 flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-blue-700 shrink-0" />
-              <span>Jika kartu tertinggal, siswa dapat melaporkan NISN kepada Guru Piket untuk diinput manual.</span>
-            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSection(null)}
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer self-start sm:self-auto"
+              title="Tutup jadwal & panduan"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+              <span>Tutup</span>
+            </button>
           </div>
-        </div>
 
-      </div>
-
-      {/* ======================================================== */}
-      {/* 5. PERTANYAAN UMUM ORANG TUA (FAQ)                      */}
-      {/* ======================================================== */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
-        <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
-            <HelpCircle className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-extrabold text-base text-slate-900">
-              Pertanyaan yang Sering Diajukan Orang Tua (FAQ)
-            </h3>
-            <p className="text-xs text-slate-500">
-              Informasi seputar kartu presensi digital dan absensi harian
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-2.5">
-          {[
-            {
-              q: 'Bagaimana jika kartu pelajar fisik anak saya hilang atau tertinggal di rumah?',
-              a: 'Orang tua dapat membuka menu pencarian di halaman ini, lalu klik tombol "Kartu QR Digital". Gambar kode QR dapat disimpan ke galeri HP anak dan diarahkan ke kamera scanner kiosk di gerbang sekolah, atau siswa cukup melaporkan NISN ke Petugas Piket.'
-            },
-            {
-              q: 'Apakah presensi kelas (KBM) juga terpantau di sini?',
-              a: 'Ya, saat guru memulai jam mata pelajaran di kelas dan melakukan absensi (baik scan QR di kelas atau verifikasi tatap muka), status kehadiran per mata pelajaran akan tercatat secara real-time.'
-            },
-            {
-              q: 'Bagaimana cara mengajukan izin jika anak sedang sakit?',
-              a: 'Orang tua dapat mencari nama anak di halaman ini, lalu menekan tombol "Lapor Sakit (WA)" atau "Lapor Izin (WA)". Pesan konfirmasi resmi siap kirim akan langsung tersusun dan terhubung ke WhatsApp Petugas Piket Sekolah.'
-            }
-          ].map((faq, idx) => (
-            <div key={idx} className="border border-slate-200 rounded-2xl overflow-hidden transition-all">
-              <button
-                type="button"
-                onClick={() => setActiveFaq(activeFaq === idx ? null : idx)}
-                className="w-full p-4 text-left flex items-center justify-between gap-3 bg-slate-50/60 hover:bg-slate-50 font-bold text-xs sm:text-sm text-slate-800 cursor-pointer"
-              >
-                <span>{faq.q}</span>
-                <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${activeFaq === idx ? 'rotate-90' : ''}`} />
-              </button>
-              {activeFaq === idx && (
-                <div className="p-4 bg-white text-xs text-slate-600 leading-relaxed border-t border-slate-100">
-                  {faq.a}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* Jadwal Jam Presensi */}
+            <div className="bg-slate-50/70 rounded-2xl p-5 sm:p-6 border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-200/80">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
+                  <Clock className="w-5 h-5" />
                 </div>
-              )}
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    Jadwal & Batas Waktu Presensi
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Aturan waktu kehadiran apel pagi dan kepulangan
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {/* Sesi Pagi */}
+                <div className="p-4 bg-white rounded-2xl border border-amber-200/80 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-xs text-amber-950 uppercase tracking-wide">
+                      Sesi Pagi (Masuk / Apel)
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900">
+                      Wajib
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div>
+                      <span className="text-slate-500 block text-[11px]">Gerbang Dibuka:</span>
+                      <strong className="text-slate-900 font-mono text-sm">{schoolConfig.jadwal?.pagiMulai || '06:30'} WIB</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[11px]">Batas Tepat Waktu:</span>
+                      <strong className="text-amber-800 font-mono text-sm">{schoolConfig.jadwal?.pagiBatasTepatWaktu || '07:15'} WIB</strong>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-amber-800 mt-1 font-medium">
+                    * Siswa yang memindai kartu setelah pukul {schoolConfig.jadwal?.pagiBatasTepatWaktu || '07:15'} WIB akan tercatat berstatus <strong className="text-rose-600">Terlambat</strong>.
+                  </p>
+                </div>
+
+                {/* Sesi Siang */}
+                <div className="p-4 bg-white rounded-2xl border border-indigo-200/80 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-xs text-indigo-950 uppercase tracking-wide">
+                      Sesi Siang (Kepulangan)
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-200 text-indigo-900">
+                      Kepulangan
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div>
+                      <span className="text-slate-500 block text-[11px]">Mulai Presensi:</span>
+                      <strong className="text-slate-900 font-mono text-sm">{schoolConfig.jadwal?.siangMulai || '12:00'} WIB</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[11px]">Batas Akhir:</span>
+                      <strong className="text-indigo-900 font-mono text-sm">{schoolConfig.jadwal?.siangBatasAkhir || '15:30'} WIB</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          ))}
+
+            {/* Petunjuk Penggunaan untuk Siswa & Orang Tua */}
+            <div className="bg-slate-50/70 rounded-2xl p-5 sm:p-6 border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3 pb-3 border-b border-slate-200/80">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <QrCode className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    Tata Cara Presensi Kartu QR
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Langkah mudah memindai kehadiran di sekolah
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div className="flex items-start gap-3 p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                  <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
+                    1
+                  </div>
+                  <div>
+                    <strong className="text-slate-900 block font-bold">Siapkan Kartu Pelajar QR Code</strong>
+                    <p className="text-slate-500 mt-0.5">Pastikan kartu fisik atau gambar digital QR Code tidak kotor, terlipat, atau buram.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                  <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
+                    2
+                  </div>
+                  <div>
+                    <strong className="text-slate-900 block font-bold">Arahkan ke Kamera Kiosk</strong>
+                    <p className="text-slate-500 mt-0.5">Posisikan kode QR di dalam kotak bidik kamera dengan jarak sekitar 15 - 25 cm.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 p-3 rounded-2xl bg-white border border-slate-200/80 shadow-2xs">
+                  <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shrink-0 mt-0.5">
+                    3
+                  </div>
+                  <div>
+                    <strong className="text-slate-900 block font-bold">Dengarkan Suara Notifikasi</strong>
+                    <p className="text-slate-500 mt-0.5">Sistem akan membunyikan nada dan memunculkan foto, nama, kelas, serta waktu scan.</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-[11px] text-blue-900 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-blue-700 shrink-0" />
+                  <span>Jika kartu tertinggal, siswa dapat melaporkan NISN kepada Guru Piket untuk diinput manual.</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ======================================================== */}
-      {/* 6. FOOTER KONTAK & ALAMAT SEKOLAH                        */}
+      {/* 5. FOOTER KONTAK & ALAMAT SEKOLAH                        */}
       {/* ======================================================== */}
       <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
         <div className="flex items-center gap-2">

@@ -147,7 +147,7 @@ export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
 
         {/* User Role Indicator / Login CTA */}
         <div className="shrink-0">
-          {user && user.role === 'ortu' ? (
+          {user && user.role === 'ortu' && (
             <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 flex items-center gap-2.5">
               <ShieldCheck className="w-5 h-5 text-amber-600 shrink-0" />
               <div>
@@ -157,15 +157,6 @@ export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
                 </span>
               </div>
             </div>
-          ) : (
-            <button
-              type="button"
-              onClick={onOpenLoginModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black border border-blue-200 transition-colors cursor-pointer"
-            >
-              <LogIn className="w-4 h-4 text-blue-600" />
-              <span>Masuk Akun Guru / Staf</span>
-            </button>
           )}
         </div>
       </div>

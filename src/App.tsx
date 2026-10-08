@@ -55,7 +55,7 @@ import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School, 
 function AppContent() {
   const { user, actingAsPiket, effectiveRole } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<string>('pantau-anak');
+  const [activeTab, setActiveTab] = useState<string>('public-info');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   
   // Data States
@@ -101,7 +101,7 @@ function AppContent() {
     const currentRole = effectiveRole;
     if (prevUserRoleRef.current !== null && prevUserRoleRef.current !== currentRole) {
       if (currentRole === 'public') {
-        setActiveTab('pantau-anak');
+        setActiveTab('public-info');
       } else if (currentRole === 'ortu') {
         setActiveTab('pantau-anak');
       } else if (currentRole === 'guru') {
@@ -632,35 +632,37 @@ function AppContent() {
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col lg:flex-row text-slate-900 relative">
       
-      {/* 1. SIDEBAR ON THE SIDE (Memindahkan semua menu ke samping sesuai permintaan) */}
-      <Sidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-        onOpenSettings={() => {
-          if (user?.role === 'admin') setIsSettingsOpen(true);
-        }}
-        onOpenLogin={() => setIsLoginOpen(true)}
-        schoolConfig={schoolConfig}
-        pendingLeaveCount={pendingLeaveCount}
-        onOpenLeaveApproval={() => setIsLeaveApprovalOpen(true)}
-        onOpenLeaveRequest={() => {
-          setLeaveTargetStudent(null);
-          setIsLeaveRequestOpen(true);
-        }}
-        onOpenGradeManagement={() => setIsGradeManagementOpen(true)}
-        onOpenWhatsApp={() => {
-          setWhatsAppTargetStudent(null);
-          setWhatsAppDefaultContext('umum');
-          setIsWhatsAppOpen(true);
-        }}
-        onOpenAgenda={() => setIsAgendaOpen(true)}
-        onOpenAiAnalysis={() => setIsAiAnalysisOpen(true)}
-      />
+      {/* 1. SIDEBAR ON THE SIDE (Hanya aktif dan ditampilkan jika ada akun login) */}
+      {user && (
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+          onOpenSettings={() => {
+            if (user?.role === 'admin') setIsSettingsOpen(true);
+          }}
+          onOpenLogin={() => setIsLoginOpen(true)}
+          schoolConfig={schoolConfig}
+          pendingLeaveCount={pendingLeaveCount}
+          onOpenLeaveApproval={() => setIsLeaveApprovalOpen(true)}
+          onOpenLeaveRequest={() => {
+            setLeaveTargetStudent(null);
+            setIsLeaveRequestOpen(true);
+          }}
+          onOpenGradeManagement={() => setIsGradeManagementOpen(true)}
+          onOpenWhatsApp={() => {
+            setWhatsAppTargetStudent(null);
+            setWhatsAppDefaultContext('umum');
+            setIsWhatsAppOpen(true);
+          }}
+          onOpenAgenda={() => setIsAgendaOpen(true)}
+          onOpenAiAnalysis={() => setIsAiAnalysisOpen(true)}
+        />
+      )}
 
-      {/* 2. MAIN APP CONTENT CONTAINER (Offset for left sidebar on large screens) */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-72 transition-all">
+      {/* 2. MAIN APP CONTENT CONTAINER (Offset hanya jika ada sidebar akun login) */}
+      <div className={`flex-1 flex flex-col min-w-0 transition-all ${user ? 'lg:pl-72' : ''}`}>
         
         {/* Top Header Navbar */}
         <Navbar
@@ -929,8 +931,14 @@ function AppContent() {
                   journals={journals}
                   teachers={teachers}
                   currentSession={currentSession}
+                  schoolEvents={schoolEvents}
                   onOpenLogin={() => setIsLoginOpen(true)}
                   onOpenScanner={() => setActiveTab('kiosk')}
+                  onOpenLeaveRequest={() => {
+                    setLeaveTargetStudent(null);
+                    setIsLeaveRequestOpen(true);
+                  }}
+                  onOpenAgenda={() => setIsAgendaOpen(true)}
                   onOpenPantauAnak={(student) => {
                     setSelectedPantauStudent(student);
                     setActiveTab('pantau-anak');
