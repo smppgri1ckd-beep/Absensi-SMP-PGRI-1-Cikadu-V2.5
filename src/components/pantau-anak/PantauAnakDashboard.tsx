@@ -245,7 +245,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
 
       {/* 2. DASHBOARD DETAIL ANAK KETIKA SISWA DIPILIH */}
       {!isLoadingData && selectedStudent && (
-        <div className="space-y-6 animate-in fade-in duration-300">
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-300">
           
           {/* Header Overview Siswa: Nama, Kelas, Wali Kelas, Tahun Ajaran 2026/2027, Tombol [← Kembali ke Pencarian] */}
           <ChildOverview
@@ -274,7 +274,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
           />
 
           {/* Status Pengajuan Izin / Sakit Mandiri Anak */}
-          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-3">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200 shadow-xs space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
@@ -380,7 +380,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
           </div>
 
           {/* Jadwal Hari Ini & Aktivitas Terbaru */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-6">
             <div id="section-schedule">
               <TodaySchedule schedules={schedules} />
             </div>
@@ -406,7 +406,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
           </div>
 
           {/* Nilai Terbaru & Tugas */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-6">
             <div id="section-grades">
               <RecentGrades 
                 grades={grades} 
@@ -432,7 +432,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
           />
 
           {/* Pengumuman Sekolah & Catatan Guru */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5 sm:gap-6">
             <div id="section-announcements">
               <SchoolAnnouncements announcements={announcements} />
             </div>

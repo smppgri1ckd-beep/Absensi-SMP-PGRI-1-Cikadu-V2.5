@@ -436,66 +436,66 @@ export const Dashboard: React.FC<DashboardProps> = ({
       )}
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3.5">
         
         {/* Total Siswa */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold">Total Siswa</span>
-            <Users className="w-4 h-4 text-blue-600" />
+        <div className="bg-white rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border border-slate-200 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-semibold">Total Siswa</span>
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-slate-900">{totalSiswa}</div>
-          <span className="text-[10px] text-slate-400 font-medium">Target terdaftar</span>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{totalSiswa}</div>
+          <span className="text-[9.5px] sm:text-[10px] text-slate-400 font-medium truncate block">Target terdaftar</span>
         </div>
 
         {/* Hadir */}
-        <div className="bg-emerald-50/70 rounded-2xl p-4 border border-emerald-200 shadow-2xs">
-          <div className="flex items-center justify-between text-emerald-800 mb-2">
-            <span className="text-xs font-bold">Hadir Tepat</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+        <div className="bg-emerald-50/70 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border border-emerald-200 shadow-2xs">
+          <div className="flex items-center justify-between text-emerald-800 mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold">Hadir Tepat</span>
+            <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-emerald-700">{countHadir}</div>
-          <span className="text-[10px] text-emerald-600 font-bold">Tepat Waktu</span>
+          <div className="text-xl sm:text-2xl font-black text-emerald-700 tracking-tight">{countHadir}</div>
+          <span className="text-[9.5px] sm:text-[10px] text-emerald-600 font-bold truncate block">Tepat Waktu</span>
         </div>
 
         {/* Terlambat */}
-        <div className="bg-amber-50/70 rounded-2xl p-4 border border-amber-200 shadow-2xs">
-          <div className="flex items-center justify-between text-amber-800 mb-2">
-            <span className="text-xs font-bold">Terlambat</span>
-            <Clock className="w-4 h-4 text-amber-600" />
+        <div className="bg-amber-50/70 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border border-amber-200 shadow-2xs">
+          <div className="flex items-center justify-between text-amber-800 mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold">Terlambat</span>
+            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-amber-700">{countTerlambat}</div>
-          <span className="text-[10px] text-amber-600 font-bold">Presensi di atas jam</span>
+          <div className="text-xl sm:text-2xl font-black text-amber-700 tracking-tight">{countTerlambat}</div>
+          <span className="text-[9.5px] sm:text-[10px] text-amber-600 font-bold truncate block">Di atas jam apel</span>
         </div>
 
         {/* Izin & Sakit */}
-        <div className="bg-sky-50/70 rounded-2xl p-4 border border-sky-200 shadow-2xs">
-          <div className="flex items-center justify-between text-sky-800 mb-2">
-            <span className="text-xs font-bold">Izin / Sakit</span>
-            <AlertCircle className="w-4 h-4 text-sky-600" />
+        <div className="bg-sky-50/70 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border border-sky-200 shadow-2xs">
+          <div className="flex items-center justify-between text-sky-800 mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold">Izin / Sakit</span>
+            <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-sky-700">{countIzin + countSakit}</div>
-          <span className="text-[10px] text-sky-600 font-bold">Izin: {countIzin} • Sakit: {countSakit}</span>
+          <div className="text-xl sm:text-2xl font-black text-sky-700 tracking-tight">{countIzin + countSakit}</div>
+          <span className="text-[9.5px] sm:text-[10px] text-sky-600 font-bold truncate block">Izin: {countIzin} • Sakit: {countSakit}</span>
         </div>
 
         {/* Belum Presensi / Alpa */}
-        <div className="bg-rose-50/70 rounded-2xl p-4 border border-rose-200 shadow-2xs">
-          <div className="flex items-center justify-between text-rose-800 mb-2">
-            <span className="text-xs font-bold">Belum Hadir</span>
-            <HelpCircle className="w-4 h-4 text-rose-600" />
+        <div className="bg-rose-50/70 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border border-rose-200 shadow-2xs">
+          <div className="flex items-center justify-between text-rose-800 mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold">Belum Hadir</span>
+            <HelpCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-rose-700">{belumHadir}</div>
-          <span className="text-[10px] text-rose-600 font-bold">Belum Scan QR</span>
+          <div className="text-xl sm:text-2xl font-black text-rose-700 tracking-tight">{belumHadir}</div>
+          <span className="text-[9.5px] sm:text-[10px] text-rose-600 font-bold truncate block">Belum Scan QR</span>
         </div>
 
         {/* Persentase */}
-        <div className="bg-indigo-50/70 rounded-2xl p-4 border border-indigo-200 shadow-2xs">
-          <div className="flex items-center justify-between text-indigo-800 mb-2">
-            <span className="text-xs font-bold">% Kehadiran</span>
-            <Percent className="w-4 h-4 text-indigo-600" />
+        <div className="bg-indigo-50/70 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 border border-indigo-200 shadow-2xs">
+          <div className="flex items-center justify-between text-indigo-800 mb-1 sm:mb-2">
+            <span className="text-[11px] sm:text-xs font-bold">% Hadir</span>
+            <Percent className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600 shrink-0" />
           </div>
-          <div className="text-2xl font-black text-indigo-700">{ratePersentase}%</div>
-          <span className="text-[10px] text-indigo-600 font-bold">Target Harian</span>
+          <div className="text-xl sm:text-2xl font-black text-indigo-700 tracking-tight">{ratePersentase}%</div>
+          <span className="text-[9.5px] sm:text-[10px] text-indigo-600 font-bold truncate block">Target Harian</span>
         </div>
 
       </div>
@@ -723,8 +723,160 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         )}
 
-        {/* Table Content */}
-        <div className="overflow-x-auto">
+        {/* Mobile View: Clean touch-friendly cards (no zoom needed) */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {displayedRecords.length === 0 ? (
+            <div className="py-10 px-4 text-center text-slate-400 text-xs">
+              Tidak ada catatan presensi pada filter ini.
+            </div>
+          ) : (
+            displayedRecords.map((r, idx) => {
+              const isEditing = editingRecordId === r.id;
+              const isSelected = selectedRecordIds.includes(r.id);
+
+              return (
+                <div 
+                  key={r.id} 
+                  className={`p-3 space-y-2 transition-colors ${
+                    isSelected ? 'bg-rose-50/40' : 'hover:bg-slate-50/60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {canManage && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedRecordIds((prev) => [...prev, r.id]);
+                            } else {
+                              setSelectedRecordIds((prev) => prev.filter((id) => id !== r.id));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0 mt-0.5"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] text-slate-400 font-mono">#{idx + 1}</span>
+                          <span className="font-black text-xs text-slate-900 leading-tight">
+                            {r.nama}
+                          </span>
+                          <span className="px-1.5 py-0.2 rounded-md bg-slate-100 font-bold text-[10px] text-slate-700">
+                            {r.kelas}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5 font-mono">
+                          <span>NISN: {r.nisn}</span>
+                          <span>•</span>
+                          <span className="font-bold text-slate-700">{r.waktu}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="shrink-0">
+                      {isEditing ? (
+                        <select
+                          value={tempStatus}
+                          onChange={(e) => setTempStatus(e.target.value as AttendanceStatus)}
+                          className="bg-white border border-blue-400 rounded-lg px-2 py-1 text-xs font-bold"
+                        >
+                          <option value="Hadir">Hadir</option>
+                          <option value="Terlambat">Terlambat</option>
+                          <option value="Izin">Izin</option>
+                          <option value="Sakit">Sakit</option>
+                          <option value="Alpa">Alpa</option>
+                        </select>
+                      ) : (
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          r.status === 'Hadir'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : r.status === 'Terlambat'
+                            ? 'bg-amber-100 text-amber-800'
+                            : r.status === 'Sakit'
+                            ? 'bg-sky-100 text-sky-800'
+                            : r.status === 'Izin'
+                            ? 'bg-indigo-100 text-indigo-800'
+                            : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {r.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Notes / Context */}
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={tempNote}
+                      onChange={(e) => setTempNote(e.target.value)}
+                      placeholder="Catatan..."
+                      className="w-full bg-white border border-blue-400 rounded-lg px-2 py-1 text-xs"
+                    />
+                  ) : (
+                    (r.catatan || r.kategori === 'KELAS') && (
+                      <div className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 flex items-center gap-1.5 flex-wrap">
+                        {r.kategori === 'KELAS' && (
+                          <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[9.5px] font-bold">
+                            KBM: {r.mapel || 'Mapel'} {r.pertemuanKe ? `(P-${r.pertemuanKe})` : ''}
+                          </span>
+                        )}
+                        <span>{r.catatan || '-'}</span>
+                      </div>
+                    )
+                  )}
+
+                  {/* Mobile Actions */}
+                  {canManage && (
+                    <div className="flex items-center justify-end gap-1 pt-0.5">
+                      {isEditing ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveEdit(r.id)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-[11px] font-bold cursor-pointer"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Simpan</span>
+                          </button>
+                          <button
+                            onClick={() => setEditingRecordId(null)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-200 text-slate-700 text-[11px] font-bold cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            <span>Batal</span>
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleStartEdit(r)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                            title="Ubah Status"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteRecord(r.id)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Hapus"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Table View (hidden on small mobile) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
               <tr>

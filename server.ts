@@ -1,60 +1,20 @@
-import express from 'express';
-import http from 'http';
-import { createServer as createViteServer } from 'vite';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import dotenv from 'dotenv';
-import { GoogleGenAI } from '@google/genai';
-
-dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.json({ limit: '10mb' }));
-
-// Initialize GoogleGenAI SDK with server-side environment key
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
-    },
-  },
-});
-
-// Endpoint: AI Attendance Analysis
-app.post('/api/ai/analyze-attendance', async (req, res) => {
-  try {
-    const { 
-      schoolName, 
-      date, 
-      totalStudents, 
-      stats, 
-      classSummaries, 
-      atRiskStudents 
-    } = req.body;
-
-    const prompt = `
-Anda adalah Konsultan Ahli Manajemen Sekolah dan Pembina Kesiswaan untuk ${schoolName || 'SMP PGRI 1 Cikadu'}.
-Analisis data presensi dan kedisiplinan siswa pada tanggal ${date || 'Hari Ini'}:
+var __defProp=Object.defineProperty;var __name=(target,value)=>__defProp(target,"name",{value,configurable:true});import express from"express";import http from"http";import{createServer as createViteServer}from"vite";import path from"path";import{fileURLToPath}from"url";import dotenv from"dotenv";import{GoogleGenAI}from"@google/genai";dotenv.config();const __filename=fileURLToPath(import.meta.url);const __dirname=path.dirname(__filename);const app=express();const PORT=process.env.PORT||3e3;app.use(express.json({limit:"10mb"}));const ai=new GoogleGenAI({apiKey:process.env.GEMINI_API_KEY,httpOptions:{headers:{"User-Agent":"aistudio-build"}}});app.post("/api/ai/analyze-attendance",async(req,res)=>{try{const{schoolName,date,totalStudents,stats,classSummaries,atRiskStudents}=req.body;const prompt=`
+Anda adalah Konsultan Ahli Manajemen Sekolah dan Pembina Kesiswaan untuk ${schoolName||"SMP PGRI 1 Cikadu"}.
+Analisis data presensi dan kedisiplinan siswa pada tanggal ${date||"Hari Ini"}:
 
 Data Statistik:
-- Total Siswa Terdaftar: ${totalStudents || 0}
-- Hadir Tepat Waktu: ${stats?.hadir || 0}
-- Terlambat: ${stats?.terlambat || 0}
-- Izin: ${stats?.izin || 0}
-- Sakit: ${stats?.sakit || 0}
-- Alpa (Tanpa Keterangan): ${stats?.alpa || 0}
+- Total Siswa Terdaftar: ${totalStudents||0}
+- Hadir Tepat Waktu: ${stats?.hadir||0}
+- Terlambat: ${stats?.terlambat||0}
+- Izin: ${stats?.izin||0}
+- Sakit: ${stats?.sakit||0}
+- Alpa (Tanpa Keterangan): ${stats?.alpa||0}
 
 Ringkasan Kelas:
-${JSON.stringify(classSummaries || [], null, 2)}
+${JSON.stringify(classSummaries||[],null,2)}
 
 Daftar Siswa yang Butuh Perhatian Khusus (Sering terlambat/alpa/izin):
-${JSON.stringify(atRiskStudents || [], null, 2)}
+${JSON.stringify(atRiskStudents||[],null,2)}
 
 Tolong berikan analisis komprehensif, terstruktur, empati namun tegas dalam format JSON murni:
 {
@@ -86,48 +46,12 @@ Tolong berikan analisis komprehensif, terstruktur, empati namun tegas dalam form
     }
   ]
 }
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        systemInstruction: 'Anda adalah pakar psikologi pendidikan, kesiswaan, dan tata kelola sekolah menengah pertama (SMP). Selalu respon dalam format JSON murni bahasa Indonesia tanpa markdown backticks.',
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const textOutput = response.text || '{}';
-    let parsedResult;
-    try {
-      parsedResult = JSON.parse(textOutput);
-    } catch {
-      // Fallback clean if formatted with codeblock
-      const cleaned = textOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-      parsedResult = JSON.parse(cleaned);
-    }
-
-    res.json({ success: true, data: parsedResult });
-  } catch (error: any) {
-    console.error('Error generating AI attendance analysis:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error?.message || 'Gagal memproses analisis AI presensi' 
-    });
-  }
-});
-
-// Endpoint: AI WhatsApp Message Generator
-app.post('/api/ai/generate-wa-message', async (req, res) => {
-  try {
-    const { studentName, className, status, detail, parentName, schoolName } = req.body;
-
-    const prompt = `
-Buatlah draf pesan WhatsApp resmi namun ramah dari pihak sekolah ${schoolName || 'SMP PGRI 1 Cikadu'} kepada Orang Tua/Wali Murid:
+`;const response=await ai.models.generateContent({model:"gemini-3.8-flash",contents:prompt,config:{systemInstruction:"Anda adalah pakar psikologi pendidikan, kesiswaan, dan tata kelola sekolah menengah pertama (SMP). Selalu respon dalam format JSON murni bahasa Indonesia tanpa markdown backticks.",responseMimeType:"application/json"}});const textOutput=response.text||"{}";let parsedResult;try{parsedResult=JSON.parse(textOutput)}catch{const cleaned=textOutput.replace(/```json/g,"").replace(/```/g,"").trim();parsedResult=JSON.parse(cleaned)}res.json({success:true,data:parsedResult})}catch(error){console.error("Error generating AI attendance analysis:",error);res.status(500).json({success:false,error:error?.message||"Gagal memproses analisis AI presensi"})}});app.post("/api/ai/generate-wa-message",async(req,res)=>{try{const{studentName,className,status,detail,parentName,schoolName}=req.body;const prompt=`
+Buatlah draf pesan WhatsApp resmi namun ramah dari pihak sekolah ${schoolName||"SMP PGRI 1 Cikadu"} kepada Orang Tua/Wali Murid:
 - Nama Siswa: ${studentName}
 - Kelas: ${className}
-- Status Hari Ini: ${status} (${detail || 'Kehadiran'})
-- Nama Orang Tua/Wali: ${parentName || 'Bapak/Ibu Orang Tua Siswa'}
+- Status Hari Ini: ${status} (${detail||"Kehadiran"})
+- Nama Orang Tua/Wali: ${parentName||"Bapak/Ibu Orang Tua Siswa"}
 
 Format pesan harus:
 1. Salam hangat dan pembuka resmi
@@ -135,53 +59,4 @@ Format pesan harus:
 3. Pesan pengingat / motivasi / permohonan konfirmasi
 4. Penutup dengan nama Wali Kelas / Petugas Piket SMP PGRI 1 Cikadu
 Berikan respon JSON: { "message": "isi teks whatsapp" }
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const textOutput = response.text || '{}';
-    const parsed = JSON.parse(textOutput);
-    res.json({ success: true, message: parsed.message || '' });
-  } catch (error: any) {
-    console.error('Error generating WA message:', error);
-    res.status(500).json({ 
-      success: false, 
-      error: error?.message || 'Gagal membuat draf pesan WhatsApp' 
-    });
-  }
-});
-
-// Vite middleware setup
-async function startServer() {
-  const isProd = process.env.NODE_ENV === 'production';
-  const httpServer = http.createServer(app);
-
-  if (!isProd) {
-    const isHmrDisabled = process.env.DISABLE_HMR === 'true';
-    const vite = await createViteServer({
-      server: { 
-        middlewareMode: true,
-        hmr: isHmrDisabled ? false : { server: httpServer }
-      },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
-    });
-  }
-
-  httpServer.listen(PORT, () => {
-    console.log(`Server listening on http://localhost:${PORT}`);
-  });
-}
-
-startServer();
+`;const response=await ai.models.generateContent({model:"gemini-3.8-flash",contents:prompt,config:{responseMimeType:"application/json"}});const textOutput=response.text||"{}";const parsed=JSON.parse(textOutput);res.json({success:true,message:parsed.message||""})}catch(error){console.error("Error generating WA message:",error);res.status(500).json({success:false,error:error?.message||"Gagal membuat draf pesan WhatsApp"})}});async function startServer(){const isProd=process.env.NODE_ENV==="production";const httpServer=http.createServer(app);if(!isProd){const isHmrDisabled=process.env.DISABLE_HMR==="true";const vite=await createViteServer({server:{middlewareMode:true,hmr:isHmrDisabled?false:{server:httpServer}},appType:"spa"});app.use(vite.middlewares)}else{app.use(express.static(path.resolve(__dirname,"dist")));app.get("*",(_req,res)=>{res.sendFile(path.resolve(__dirname,"dist","index.html"))})}httpServer.listen(PORT,()=>{console.log(`Server listening on http://localhost:${PORT}`)})}__name(startServer,"startServer");startServer();

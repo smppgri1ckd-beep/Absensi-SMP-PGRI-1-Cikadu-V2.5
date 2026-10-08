@@ -286,24 +286,24 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     <div className="space-y-6">
       
       {/* Header & Action Bar */}
-      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <SchoolLogo src={schoolConfig?.logoUrl} className="w-12 h-12 shrink-0 drop-shadow-xs bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs" />
+      <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3">
+          <SchoolLogo src={schoolConfig?.logoUrl} className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 drop-shadow-xs bg-white p-1 rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs" />
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <Users className="w-5 h-5 text-blue-600" />
+            <div className="flex items-center gap-2 mb-0.5 sm:mb-1 flex-wrap">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 <span>
                   {isTeacher 
                     ? `Data Siswa Binaan (${scopedStudents.length} Siswa)` 
                     : `Data Pokok Siswa (${students.length} Siswa)`}
                 </span>
               </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
+              <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
                 Dapodik Sekolah
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium">
+            <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
               {schoolConfig.namaSekolah} • Kelola data siswa, foto profil, impor massal dari file Excel Dapodik, dan unduh berkas QR Code digital.
             </p>
           </div>
@@ -506,8 +506,162 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
       )}
 
       {/* Students Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        
+        {/* Mobile View: Comfortable Card List (No zoom needed on phones) */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {filteredStudents.length === 0 ? (
+            <div className="py-10 px-4 text-center text-slate-400 text-xs">
+              Tidak ada siswa yang sesuai kriteria pencarian.
+            </div>
+          ) : (
+            filteredStudents.map((s, idx) => {
+              const isSelected = selectedNisns.includes(s.nisn);
+              return (
+                <div 
+                  key={s.nisn}
+                  className={`p-3 space-y-2.5 transition-colors ${
+                    isSelected ? 'bg-rose-50/40' : 'hover:bg-slate-50/60'
+                  }`}
+                >
+                  <div className="flex items-start gap-2.5">
+                    {canManage && (
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedNisns((prev) => [...prev, s.nisn]);
+                          } else {
+                            setSelectedNisns((prev) => prev.filter((n) => n !== s.nisn));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0 mt-2"
+                      />
+                    )}
+
+                    {/* Photo with click-to-preview */}
+                    <div 
+                      onClick={() => setPreviewStudent(s)}
+                      className="relative w-11 h-11 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 shadow-2xs group cursor-pointer hover:ring-2 hover:ring-blue-400 transition-all"
+                      title="Klik untuk memperbesar foto siswa"
+                    >
+                      {s.fotoUrl ? (
+                        <img
+                          src={s.fotoUrl}
+                          alt={s.nama}
+                          loading="lazy"
+                          decoding="async"
+                          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform z-10"
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      ) : null}
+                      <div className={`w-full h-full flex flex-col items-center justify-center font-black text-xs ${
+                        s.jk === 'P' ? 'bg-pink-100 text-pink-700' : 'bg-blue-100 text-blue-700'
+                      }`}>
+                        <span>{s.nama.substring(0, 2).toUpperCase()}</span>
+                      </div>
+                      <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity z-20">
+                        <Eye className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+
+                    {/* Student Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] text-slate-400 font-mono">#{idx + 1}</span>
+                        <h4 className="font-black text-xs sm:text-sm text-slate-900 leading-tight">
+                          {s.nama}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        <span className="px-1.5 py-0.5 rounded-md bg-slate-100 font-extrabold text-[10px] text-slate-700">
+                          Kelas {s.kelas}
+                        </span>
+                        <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold ${
+                          s.jk === 'L' ? 'bg-sky-100 text-sky-800' : 'bg-pink-100 text-pink-800'
+                        }`}>
+                          {s.jk === 'L' ? 'L' : 'P'}
+                        </span>
+                        {isTeacher && isTeacherWaliKelas(user, s.kelas) && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                            <Sparkles className="w-2.5 h-2.5 text-amber-700" />
+                            <span>Wali Kelas</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 font-mono">
+                        <span>NISN: <strong className="text-slate-800">{s.nisn}</strong></span>
+                        {s.nomorTeleponOrtu && (
+                          <>
+                            <span>•</span>
+                            <span className="truncate">Telp: {s.nomorTeleponOrtu}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions Bar for Mobile Card */}
+                  <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-slate-50">
+                    {onOpenWhatsApp && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenWhatsApp(s)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold transition-colors cursor-pointer"
+                        title="Kirim Notifikasi WhatsApp"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>WA</span>
+                      </button>
+                    )}
+                    {onOpenReportCard && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenReportCard(s)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 text-xs font-bold transition-colors cursor-pointer"
+                        title="Rapor Digital Siswa"
+                      >
+                        <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Rapor</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDownloadSingleQr(s)}
+                      className="p-1.5 rounded-lg text-amber-700 bg-amber-50 hover:bg-amber-100 transition-colors cursor-pointer"
+                      title="Unduh QR Code Siswa Ini"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </button>
+                    {canManage && (
+                      <>
+                        <button
+                          onClick={() => handleOpenEditStudent(s)}
+                          className="p-1.5 rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors cursor-pointer"
+                          title="Edit Data Siswa"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(s.nisn, s.nama)}
+                          className="p-1.5 rounded-lg text-rose-700 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
+                          title="Hapus Siswa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Table View (hidden on mobile) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
               <tr>

@@ -35,5 +35,5 @@ async function testConnection() {
 }
 testConnection();
 
-export { app, db, auth };
+export { app, db, auth, config };
 

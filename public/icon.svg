@@ -5,38 +5,41 @@
       <stop offset="100%" stop-color="#0f172a" />
     </linearGradient>
     <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#fde047" />
-      <stop offset="50%" stop-color="#f59e0b" />
-      <stop offset="100%" stop-color="#d97706" />
-    </linearGradient>
-    <linearGradient id="flameGrad" x1="0%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="#dc2626" />
-      <stop offset="50%" stop-color="#ea580c" />
-      <stop offset="100%" stop-color="#facc15" />
+      <stop offset="0%" stop-color="#fcd34d" />
+      <stop offset="100%" stop-color="#f59e0b" />
     </linearGradient>
   </defs>
   <!-- Background Rounded Shield -->
-  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" />
-  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-dasharray="8 6" opacity="0.8" />
+  <rect width="512" height="512" rx="100" fill="url(#bgGrad)" />
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#goldGrad)" stroke-width="8" stroke-dasharray="8 6" />
   
-  <!-- Outer Gold Laurel / Circle -->
-  <circle cx="256" cy="256" r="190" fill="#ffffff" fill-opacity="0.06" stroke="url(#goldGrad)" stroke-width="8" />
-
-  <!-- Torch Base / Handle -->
-  <path d="M240 370 L272 370 L266 430 L246 430 Z" fill="url(#goldGrad)" />
-  <rect x="232" y="356" width="48" height="16" rx="4" fill="url(#goldGrad)" />
+  <!-- Outer Ring Emblem -->
+  <circle cx="256" cy="256" r="195" fill="#1e293b" stroke="#3b82f6" stroke-width="4" />
   
-  <!-- Open Book Base -->
-  <path d="M160 340 Q256 310 256 345 Q256 310 352 340 L346 362 Q256 332 256 360 Q256 332 166 362 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="4" />
-  <path d="M256 345 L256 360" stroke="#0f172a" stroke-width="4" />
-
-  <!-- Flame / Obor -->
-  <path d="M256 120 C230 180 200 220 220 280 C230 305 250 325 256 330 C262 325 282 305 292 280 C312 220 282 180 256 120 Z" fill="url(#flameGrad)" />
-  <path d="M256 170 C244 205 230 230 242 270 C248 285 254 295 256 300 C258 295 264 285 270 270 C282 230 268 205 256 170 Z" fill="#fef08a" opacity="0.9" />
-
-  <!-- Center Star -->
-  <polygon points="256,70 264,95 290,95 269,111 277,135 256,120 235,135 243,111 222,95 248,95" fill="url(#goldGrad)" />
+  <!-- Torch and Flames -->
+  <path d="M256 120 C240 160 210 180 230 220 C240 200 250 195 256 180 C262 195 272 200 282 220 C302 180 272 160 256 120 Z" fill="url(#goldGrad)" />
+  <path d="M256 145 C250 165 240 175 250 195 C254 185 258 185 256 175 C258 185 262 185 266 195 C276 175 262 165 256 145 Z" fill="#ef4444" />
   
-  <!-- School Text abbreviation -->
-  <text x="256" y="475" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="34" fill="#f8fafc" letter-spacing="4">SMP PGRI 1</text>
+  <!-- Torch Handle -->
+  <path d="M245 220 L267 220 L262 265 L250 265 Z" fill="#94a3b8" stroke="#cbd5e1" stroke-width="2" />
+  
+  <!-- Open Book -->
+  <path d="M160 290 Q256 265 256 300 Q256 265 352 290 L345 350 Q256 325 256 355 Q256 325 167 350 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="3" />
+  <!-- Book Spine Center -->
+  <line x1="256" y1="298" x2="256" y2="355" stroke="#94a3b8" stroke-width="3" />
+  <!-- Book Lines -->
+  <line x1="180" y1="310" x2="240" y2="300" stroke="#cbd5e1" stroke-width="2" />
+  <line x1="180" y1="325" x2="240" y2="315" stroke="#cbd5e1" stroke-width="2" />
+  <line x1="272" y1="300" x2="332" y2="310" stroke="#cbd5e1" stroke-width="2" />
+  <line x1="272" y1="315" x2="332" y2="325" stroke="#cbd5e1" stroke-width="2" />
+
+  <!-- Laurel Leaves Wreath Left -->
+  <path d="M140 220 Q125 260 145 320 Q160 355 195 385" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" />
+  <!-- Laurel Leaves Wreath Right -->
+  <path d="M372 220 Q387 260 367 320 Q352 355 317 385" fill="none" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" />
+  
+  <!-- Bottom Ribbon / Text Banner -->
+  <path d="M140 395 Q256 420 372 395 L365 435 Q256 460 147 435 Z" fill="#2563eb" stroke="#60a5fa" stroke-width="2" />
+  <text x="256" y="423" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="3">SMP PGRI 1</text>
+  <text x="256" y="446" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="700" fill="#fcd34d" text-anchor="middle" letter-spacing="4">CIKADU</text>
 </svg>

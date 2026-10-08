@@ -8,7 +8,7 @@ import {
   writeBatch,
   onSnapshot 
 } from 'firebase/firestore';
-import { db } from '../firebase';
+import { db, config as firebaseConfig } from '../firebase';
 import { 
   Student, 
   AttendanceRecord, 
@@ -278,6 +278,9 @@ export const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' i
   : null;
 
 function getLocal<T>(key: string, defaultValue: T): T {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return defaultValue;
+  }
   try {
     const raw = localStorage.getItem(STORAGE_PREFIX + key);
     if (!raw) return defaultValue;
@@ -289,6 +292,9 @@ function getLocal<T>(key: string, defaultValue: T): T {
 }
 
 function setLocal<T>(key: string, value: T): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return;
+  }
   try {
     localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
     syncChannel?.postMessage({ type: 'SYNC_UPDATE', key, timestamp: Date.now() });
@@ -2046,7 +2052,7 @@ export class DatabaseService {
           details: {
             lastSync: nowStr,
             totalRecords: records.length,
-            databaseId: 'ai-studio-absensismppgri1c-06352d9c-5331-4e81-8118-7e572ccd7d34'
+            databaseId: firebaseConfig.firestoreDatabaseId || 'default'
           }
         };
       }

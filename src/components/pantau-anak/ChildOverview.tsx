@@ -25,7 +25,7 @@ export const ChildOverview: React.FC<ChildOverviewProps> = ({
   };
 
   return (
-    <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-5 sm:p-7 text-white shadow-xl border border-blue-800 relative overflow-hidden">
+    <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-7 text-white shadow-xl border border-blue-800 relative overflow-hidden">
       {/* Background Accent Glow */}
       <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 transform skew-x-12 pointer-events-none" />
 
