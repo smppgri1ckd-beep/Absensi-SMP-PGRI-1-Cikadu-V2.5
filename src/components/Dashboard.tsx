@@ -271,9 +271,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div>
             <div className="flex items-center gap-2 mb-1 flex-wrap">
               <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                Monitoring Presensi Apel (Pagi & Siang)
+                {user ? 'Monitoring Presensi Apel (Pagi & Siang)' : 'Papan Kehadiran Siswa Real-Time'}
               </h2>
-              {user && (
+              {user ? (
                 <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                   user.role === 'admin'
                     ? 'bg-blue-100 text-blue-900 border border-blue-200'
@@ -284,10 +284,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   {user.role === 'admin' ? <ShieldCheck className="w-3 h-3" /> : user.role === 'guru' ? <GraduationCap className="w-3 h-3" /> : <UserCheck className="w-3 h-3" />}
                   <span>{user.role === 'admin' ? 'Admin' : user.role === 'guru' ? `Guru: ${user.mapel}` : 'Petugas Piket'} • {user.nama.split(',')[0]}</span>
                 </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-200">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Pantauan Publik Orang Tua</span>
+                </span>
               )}
             </div>
             <p className="text-xs text-slate-500 font-medium">
-              {schoolConfig.namaSekolah} • Operasional presensi apel kedatangan (Pagi) & kepulangan (Siang) oleh petugas sekolah.
+              {schoolConfig.namaSekolah} • {user ? 'Operasional presensi apel kedatangan (Pagi) & kepulangan (Siang) oleh petugas sekolah.' : 'Statistik rekapitulasi kehadiran apel pagi & kepulangan siswa secara terbuka & transparan.'}
             </p>
           </div>
         </div>

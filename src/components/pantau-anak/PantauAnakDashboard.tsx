@@ -214,6 +214,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
           students={students}
           onSelectStudent={(s) => setSelectedStudent(s)}
           onOpenLoginModal={onOpenLoginModal}
+          onOpenLeaveRequest={() => onOpenLeaveRequest?.()}
         />
       )}
 

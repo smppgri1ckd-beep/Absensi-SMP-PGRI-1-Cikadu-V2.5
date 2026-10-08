@@ -81,7 +81,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'apel-attendance':
         return 'Absensi Apel Petugas (Pagi & Siang)';
       case 'dashboard':
-        return user ? 'Monitoring Presensi Apel' : 'Papan Informasi Presensi Real-Time';
+        return user ? 'Monitoring Presensi Apel' : 'Papan Kehadiran Siswa Real-Time';
       case 'students':
         return 'Data Pokok Siswa (Dapodik)';
       case 'teachers':
@@ -101,9 +101,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       case 'heb-calendar':
         return 'Kalender Hari Efektif Belajar (HEB)';
       case 'public-info':
-        return 'Jadwal & Profil Satuan Pendidikan';
+        return 'Informasi & Agenda Satuan Pendidikan';
       case 'pantau-anak':
-        return 'Pantau Anak (Portal Orang Tua / Wali)';
+        return 'Portal Aktivitas Orang Tua & Siswa';
       default:
         return 'E-Presensi Digital';
     }
@@ -135,9 +135,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className={`hidden xl:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                     user 
                       ? (user.role === 'admin' ? 'bg-blue-100 text-blue-900' : user.role === 'guru' ? 'bg-indigo-100 text-indigo-900' : 'bg-emerald-100 text-emerald-900')
-                      : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      : 'bg-amber-100 text-amber-900 border border-amber-200'
                   }`}>
-                    {user ? (user.role === 'admin' ? 'Admin' : user.role === 'guru' ? 'Guru' : 'Piket') : 'Publik'}
+                    {user ? (user.role === 'admin' ? 'Admin' : user.role === 'guru' ? 'Guru' : 'Piket') : 'Portal Orang Tua'}
                   </span>
                 </div>
                 <p className="text-[11px] font-semibold text-slate-400 hidden 2xl:block truncate">

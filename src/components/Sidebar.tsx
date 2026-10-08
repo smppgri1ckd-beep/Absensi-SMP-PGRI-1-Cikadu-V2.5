@@ -92,46 +92,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (!user) {
       return [
         {
-          groupTitle: 'Layar Publik & Monitoring',
+          groupTitle: 'Portal Aktivitas Orang Tua & Siswa',
           items: [
             {
-              id: 'kiosk',
-              label: 'Pindai Presensi Siswa',
-              desc: 'Pindai kartu QR apel pagi & siang',
-              icon: QrCode,
-              tag: 'Gerbang',
-              tagColor: 'bg-blue-100 text-blue-800 font-bold',
-            },
-            {
               id: 'pantau-anak',
-              label: 'Pantau Anak (Orang Tua)',
-              desc: 'Perkembangan, nilai & tugas anak',
+              label: 'Pantau Perkembangan Anak',
+              desc: 'Presensi harian, nilai mapel & tugas sekolah',
               icon: Sparkles,
-              tag: 'Portal',
-              tagColor: 'bg-amber-100 text-amber-900 font-bold',
+              tag: 'Portal Utama',
+              tagColor: 'bg-blue-100 text-blue-900 font-black',
             },
             {
               id: 'action-leave-request',
-              label: 'Ajukan Izin / Sakit',
-              desc: 'Kirim surat dokter mandiri',
+              label: 'Pengajuan Izin & Sakit Mandiri',
+              desc: 'Kirim surat dokter & alasan izin tanpa login',
               icon: FileText,
               isAction: true,
-              tag: 'Online',
+              tag: 'Mandiri',
               tagColor: 'bg-amber-100 text-amber-900 font-bold',
             },
             {
               id: 'dashboard',
-              label: 'Monitor Presensi Apel',
-              desc: 'Statistik apel pagi & siang hari ini',
+              label: 'Papan Kehadiran Siswa Real-Time',
+              desc: 'Rekapitulasi statistik kehadiran per kelas',
               icon: LayoutDashboard,
-              tag: 'Live',
+              tag: 'Live Rekap',
               tagColor: 'bg-emerald-100 text-emerald-800 font-bold',
             },
             {
               id: 'public-info',
-              label: 'Jadwal & Info Sekolah',
-              desc: 'Jam apel, kepulangan & profil',
+              label: 'Informasi & Agenda Satuan Pendidikan',
+              desc: 'Jadwal apel, tata tertib & profil sekolah',
               icon: Info,
+              tag: 'Informasi',
+              tagColor: 'bg-slate-100 text-slate-700 font-bold',
             },
           ],
         },
@@ -360,8 +354,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       // 3. Layanan Pendukung & Informasi Sekolah
       groups.push({
-        groupTitle: 'Layanan & Info Sekolah',
+        groupTitle: 'Layanan & Operasional Sekolah',
         items: [
+          {
+            id: 'kiosk',
+            label: 'Pindai Presensi Siswa',
+            desc: 'Layar pindai kartu QR presensi siswa di gerbang',
+            icon: QrCode,
+            tag: 'Gerbang',
+            tagColor: 'bg-blue-100 text-blue-900 font-bold',
+          },
           {
             id: 'action-agenda',
             label: 'Agenda Kegiatan Sekolah',
@@ -610,7 +612,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0">
             <div 
               className="flex items-center gap-3 cursor-pointer" 
-              onClick={() => handleSelectTab(user ? (user.role === 'guru' ? 'journal' : 'dashboard') : 'kiosk')}
+              onClick={() => handleSelectTab(user ? (user.role === 'guru' ? 'journal' : 'dashboard') : 'pantau-anak')}
             >
               <div className="w-11 h-11 shrink-0 flex items-center justify-center">
                 <SchoolLogo src={schoolConfig?.logoUrl} className="w-11 h-11 drop-shadow-sm hover:scale-105 transition-transform" />
@@ -784,20 +786,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
               </div>
             ) : (
-              <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-1.5">
-                <div className="flex items-center gap-2 text-blue-900 font-bold text-xs">
-                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span>Mode Layar Publik</span>
+              <div className="p-3.5 bg-gradient-to-br from-blue-50 via-indigo-50/60 to-blue-50/40 border border-blue-200/80 rounded-2xl space-y-2">
+                <div className="flex items-center gap-2 text-blue-950 font-black text-xs">
+                  <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span>Portal Orang Tua & Siswa</span>
                 </div>
-                <p className="text-[10px] text-blue-700 leading-tight">
-                  Menu khusus staf sekolah disembunyikan. Masuk untuk mengelola sistem.
+                <p className="text-[11px] text-blue-800 leading-snug">
+                  Layanan mandiri orang tua: pantau kehadiran harian, nilai kuis & ajukan surat izin sakit online.
                 </p>
                 <button
                   onClick={onOpenLogin}
-                  className="w-full py-1.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs cursor-pointer mt-1"
+                  className="w-full py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer mt-1"
                 >
                   <LogIn className="w-3.5 h-3.5" />
-                  <span>Login Pegawai / Guru</span>
+                  <span>Masuk Akun Guru / Staf</span>
                 </button>
               </div>
             )}

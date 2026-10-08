@@ -50,12 +50,12 @@ import { AgendaSekolahModal } from './components/AgendaSekolahModal';
 import { AiAttendanceAnalysisModal } from './components/AiAttendanceAnalysisModal';
 import { StudentReportCardModal } from './components/StudentReportCardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
-import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School } from 'lucide-react';
+import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School, QrCode } from 'lucide-react';
 
 function AppContent() {
   const { user, actingAsPiket, effectiveRole } = useAuth();
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<string>('kiosk');
+  const [activeTab, setActiveTab] = useState<string>('pantau-anak');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   
   // Data States
@@ -101,7 +101,7 @@ function AppContent() {
     const currentRole = effectiveRole;
     if (prevUserRoleRef.current !== null && prevUserRoleRef.current !== currentRole) {
       if (currentRole === 'public') {
-        setActiveTab('kiosk');
+        setActiveTab('pantau-anak');
       } else if (currentRole === 'ortu') {
         setActiveTab('pantau-anak');
       } else if (currentRole === 'guru') {
@@ -790,22 +790,54 @@ function AppContent() {
             </div>
           ) : (
             <>
-              {/* Tab: KIOSK SCANNER */}
+              {/* Tab: KIOSK SCANNER (Khusus Guru Piket, Guru Mapel & Staf Sekolah) */}
               {activeTab === 'kiosk' && (
-                <KioskScanner
-                  students={students}
-                  attendanceRecords={records}
-                  onAddRecord={handleAddRecord}
-                  schoolConfig={schoolConfig}
-                  currentSession={currentSession}
-                  onOpenLogin={() => setIsLoginOpen(true)}
-                  onOpenLeaveRequest={() => {
-                    setLeaveTargetStudent(null);
-                    setIsLeaveRequestOpen(true);
-                  }}
-                  setActiveTab={setActiveTab}
-                  jadwalPiket={jadwalPiket}
-                />
+                user ? (
+                  <KioskScanner
+                    students={students}
+                    attendanceRecords={records}
+                    onAddRecord={handleAddRecord}
+                    schoolConfig={schoolConfig}
+                    currentSession={currentSession}
+                    onOpenLogin={() => setIsLoginOpen(true)}
+                    onOpenLeaveRequest={() => {
+                      setLeaveTargetStudent(null);
+                      setIsLeaveRequestOpen(true);
+                    }}
+                    setActiveTab={setActiveTab}
+                    jadwalPiket={jadwalPiket}
+                  />
+                ) : (
+                  <div className="py-16 text-center max-w-xl mx-auto bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-5 animate-in fade-in duration-200">
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-50 text-blue-700 flex items-center justify-center shadow-inner">
+                      <QrCode className="w-8 h-8" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                        Layar Pindai Khusus Petugas Sekolah
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
+                        Pindai kartu presensi di gerbang sekolah dikhususkan untuk Guru Piket dan Staf Admin. Untuk aktivitas orang tua murid, silakan gunakan Portal Pantau Anak.
+                      </p>
+                    </div>
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+                      <button
+                        onClick={() => setActiveTab('pantau-anak')}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <span>Buka Pantau Anak (Orang Tua)</span>
+                      </button>
+                      <button
+                        onClick={() => setIsLoginOpen(true)}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors flex items-center justify-center gap-2"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Login Guru Piket / Admin</span>
+                      </button>
+                    </div>
+                  </div>
+                )
               )}
 
               {/* Tab: ABSENSI APEL PETUGAS (PAGI & SIANG) */}

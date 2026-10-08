@@ -7,11 +7,15 @@ import {
   ShieldCheck, 
   ChevronRight, 
   LogIn, 
-  Sparkles,
-  Phone,
-  AlertCircle,
-  KeyRound,
-  X
+  Sparkles, 
+  Phone, 
+  AlertCircle, 
+  KeyRound, 
+  X,
+  FileText,
+  Clock,
+  CheckCircle2,
+  CalendarCheck
 } from 'lucide-react';
 import { Student } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -20,12 +24,14 @@ interface ParentChildSearchProps {
   students: Student[];
   onSelectStudent: (student: Student) => void;
   onOpenLoginModal: () => void;
+  onOpenLeaveRequest?: () => void;
 }
 
 export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
   students,
   onSelectStudent,
   onOpenLoginModal,
+  onOpenLeaveRequest,
 }) => {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
@@ -118,24 +124,24 @@ export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-5 relative overflow-hidden">
+    <div className="bg-white rounded-3xl p-5 sm:p-8 border border-slate-200 shadow-sm space-y-6 relative overflow-hidden">
       {/* Background Accent */}
       <div className="absolute right-0 top-0 w-96 h-96 bg-gradient-to-br from-blue-50/50 via-indigo-50/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
 
       {/* Main Title & Supporting Text */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div className="space-y-1 max-w-xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-black uppercase tracking-wider">
-            <Sparkles className="w-3 h-3 text-blue-600" />
-            <span>FITUR "PANTAU ANAK"</span>
+          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-black uppercase tracking-wider">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>PORTAL RESMI AKTIVITAS ORANG TUA</span>
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            Pantau Anak
+            Pantau Aktivitas & Perkembangan Anak
           </h2>
 
-          <p className="text-sm text-slate-600 font-medium leading-relaxed">
-            Cari nama anak untuk melihat kehadiran dan perkembangan belajarnya.
+          <p className="text-xs sm:text-sm text-slate-600 font-medium leading-relaxed">
+            Layanan terpadu orang tua siswa SMP PGRI 1 Cikatomas: pantau kehadiran apel harian, perkembangan belajar siswa, dan pengajuan surat izin sakit mandiri secara online.
           </p>
         </div>
 
@@ -158,9 +164,72 @@ export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
               className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-black border border-blue-200 transition-colors cursor-pointer"
             >
               <LogIn className="w-4 h-4 text-blue-600" />
-              <span>Masuk Akun Orang Tua</span>
+              <span>Masuk Akun Guru / Staf</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* Feature Highlights for Parents (3 Focus Cards) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+        {/* Card 1: Pantau Kehadiran & Nilai */}
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50/80 to-blue-50/30 border border-blue-100 space-y-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs">
+              <Sparkles className="w-4 h-4 text-amber-300" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-900">1. Pantau Belajar Anak</h4>
+              <p className="text-[11px] text-blue-700 font-semibold">Kehadiran, Nilai & Rapor</p>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-600 leading-relaxed">
+            Ketik nama atau NISN anak pada pencarian di bawah untuk melihat rekapitulasi kehadiran apel pagi & siang dan nilai tugas.
+          </p>
+        </div>
+
+        {/* Card 2: Pengajuan Izin Mandiri */}
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/80 to-amber-50/30 border border-amber-200/80 space-y-2 flex flex-col justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-bold shadow-xs">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-black text-slate-900">2. Izin / Sakit Mandiri</h4>
+                <p className="text-[11px] text-amber-800 font-semibold">Kirim Surat Dokter</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Orang tua dapat mengirimkan surat izin atau surat keterangan sakit tanpa perlu datang ke sekolah.
+            </p>
+          </div>
+          {onOpenLeaveRequest && (
+            <button
+              type="button"
+              onClick={onOpenLeaveRequest}
+              className="mt-2 w-full py-1.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>+ Ajukan Izin Mandiri</span>
+            </button>
+          )}
+        </div>
+
+        {/* Card 3: Rekap Kehadiran Terbuka */}
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-50/80 to-emerald-50/30 border border-emerald-100 space-y-2">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-slate-900">3. Transparansi Presensi</h4>
+              <p className="text-[11px] text-emerald-800 font-semibold">Apel Pagi & Kepulangan</p>
+            </div>
+          </div>
+          <p className="text-[11px] text-slate-600 leading-relaxed">
+            Data kehadiran apel diperbarui oleh petugas piket sekolah setiap sesi dan dapat dipantau langsung secara real-time.
+          </p>
         </div>
       </div>
 

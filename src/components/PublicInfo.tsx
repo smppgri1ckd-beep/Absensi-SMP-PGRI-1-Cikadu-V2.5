@@ -30,7 +30,8 @@ import {
   Printer,
   Calendar,
   Award,
-  Share2
+  Share2,
+  FileText
 } from 'lucide-react';
 import { 
   SchoolConfig, 
@@ -52,7 +53,8 @@ interface PublicInfoProps {
   teachers?: TeacherUser[];
   currentSession?: AttendanceSession;
   onOpenLogin: () => void;
-  onOpenScanner: () => void;
+  onOpenScanner?: () => void;
+  onOpenLeaveRequest?: () => void;
   onOpenPantauAnak?: (student: Student) => void;
 }
 
@@ -65,6 +67,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
   currentSession = 'Pagi',
   onOpenLogin,
   onOpenScanner,
+  onOpenLeaveRequest,
   onOpenPantauAnak,
 }) => {
   // Parent Search & Filter State
@@ -76,6 +79,14 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
   const [isGeneratingQr, setIsGeneratingQr] = useState<boolean>(false);
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>('Semua');
+  const [liveClock, setLiveClock] = useState(() => new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveClock(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Today string YYYY-MM-DD
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -108,6 +119,23 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
     });
     return map;
   }, [teachers]);
+
+  // Today's school-wide attendance metrics for public display
+  const schoolTodayStats = useMemo(() => {
+    const todayRecs = records.filter((r) => r.tanggal === todayStr && (r.kategori === 'APEL' || !r.kategori));
+    const total = students.length;
+    const hadir = todayRecs.filter((r) => r.status === 'Hadir').length;
+    const terlambat = todayRecs.filter((r) => r.status === 'Terlambat').length;
+    const izinSakit = todayRecs.filter((r) => r.status === 'Izin' || r.status === 'Sakit').length;
+    const rate = total > 0 ? Math.round(((hadir + terlambat) / total) * 100) : 0;
+    return {
+      total,
+      hadir,
+      terlambat,
+      izinSakit,
+      rate,
+    };
+  }, [students, records, todayStr]);
 
   // Filter students based on search query AND class filter
   const searchResults = useMemo(() => {
@@ -375,7 +403,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
             <div className="space-y-2 max-w-xl">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/30 text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>Portal Monitoring Orang Tua & Informasi Sekolah</span>
+                <span>Portal Informasi Publik & Pemantauan Wali Murid</span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
@@ -383,17 +411,27 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
               </h1>
 
               <p className="text-sm text-blue-100/90 leading-relaxed font-medium">
-                Pantau kehadiran harian putra/putri Anda secara transparan. Sistem mencatat waktu tiba di gerbang, sesi kepulangan, serta kehadiran tatap muka di ruang kelas (KBM).
+                Selamat datang di portal informasi resmi sekolah. Disediakan khusus bagi orang tua dan wali murid untuk memantau kehadiran harian putra/putri, mengirim surat izin/sakit mandiri, memeriksa jam belajar, dan mengakses profil akademik.
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 pt-2">
-                <button
-                  onClick={onOpenScanner}
+              <div className="flex flex-wrap items-center gap-2.5 pt-2">
+                <a
+                  href="#portal-cek-presensi"
                   className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-600/30 transition-all cursor-pointer"
                 >
-                  <QrCode className="w-4 h-4" />
-                  <span>Buka Pemindai Kiosk</span>
-                </button>
+                  <Search className="w-4 h-4" />
+                  <span>Cek Kehadiran Anak</span>
+                </a>
+
+                {onOpenLeaveRequest && (
+                  <button
+                    onClick={onOpenLeaveRequest}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
+                  >
+                    <FileText className="w-4 h-4" />
+                    <span>Ajukan Izin / Sakit</span>
+                  </button>
+                )}
 
                 <button
                   onClick={onOpenLogin}
@@ -406,27 +444,143 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
             </div>
           </div>
 
-          {/* School Identity Card */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15 shrink-0 flex flex-col gap-2.5 text-xs text-blue-100 min-w-[240px]">
-            <div className="flex items-center gap-2 font-bold text-white text-sm pb-2 border-b border-white/10">
-              <SchoolLogo src={schoolConfig?.logoUrl} className="w-6 h-6 shrink-0 drop-shadow-xs" />
-              <span>Identitas Sekolah</span>
+          {/* School Live Status & Clock Card */}
+          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/15 shrink-0 flex flex-col gap-2.5 text-xs text-blue-100 min-w-[250px]">
+            <div className="flex items-center justify-between font-bold text-white text-sm pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-300 animate-pulse" />
+                <span className="font-mono text-base font-black text-amber-300">{liveClock} WIB</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/25 border border-emerald-400/40 text-emerald-300 text-[10px] font-bold">
+                Online
+              </span>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">NPSN Resmi</span>
-              <strong className="text-white font-mono text-sm">{schoolConfig.npsn}</strong>
+              <span className="text-blue-300 block text-[10px] uppercase font-bold">Hari & Tanggal</span>
+              <strong className="text-white font-semibold">{formattedToday}</strong>
             </div>
             <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Kepala Sekolah</span>
-              <strong className="text-white font-semibold">{schoolConfig.namaKepsek}</strong>
-              <p className="text-[10px] text-slate-400 font-mono">NUPTK. {schoolConfig.nipKepsek}</p>
-            </div>
-            <div>
-              <span className="text-slate-400 block text-[10px] uppercase font-bold">Hari Sekolah</span>
-              <strong className="text-amber-300 font-bold">
-                {schoolConfig.sistemHariSekolah === '5_HARI' ? '5 Hari Kerja (Senin - Jumat)' : '6 Hari Kerja (Senin - Sabtu)'}
+              <span className="text-blue-300 block text-[10px] uppercase font-bold">Sesi Aktif</span>
+              <strong className="text-white font-bold">
+                {currentSession === 'Pagi' ? '☀️ Sesi Pagi (Apel & KBM)' : '🌤️ Sesi Siang (Apel Kepulangan)'}
               </strong>
             </div>
+            <div>
+              <span className="text-blue-300 block text-[10px] uppercase font-bold">Kepala Sekolah</span>
+              <strong className="text-white font-semibold">{schoolConfig.namaKepsek}</strong>
+              <p className="text-[10px] text-blue-300/80 font-mono">NPSN: {schoolConfig.npsn}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4 Quick Parent Service Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Card 1: Cek Kehadiran */}
+        <a 
+          href="#portal-cek-presensi" 
+          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-blue-400 hover:shadow-xs transition-all group block"
+        >
+          <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold mb-2 group-hover:scale-105 transition-transform">
+            <Search className="w-4.5 h-4.5" />
+          </div>
+          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-blue-600 transition-colors">
+            Cek Kehadiran Anak
+          </h4>
+          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            Pantau jam apel kedatangan & kehadiran jam pelajaran KBM
+          </p>
+        </a>
+
+        {/* Card 2: Pengajuan Izin Mandiri */}
+        <button 
+          type="button"
+          onClick={onOpenLeaveRequest}
+          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-emerald-400 hover:shadow-xs transition-all group text-left cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold mb-2 group-hover:scale-105 transition-transform">
+            <FileText className="w-4.5 h-4.5" />
+          </div>
+          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-emerald-600 transition-colors">
+            Ajukan Izin / Sakit
+          </h4>
+          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            Kirim surat dokter atau permohonan izin keluarga mandiri
+          </p>
+        </button>
+
+        {/* Card 3: Pantau Nilai & Rapor */}
+        <button 
+          type="button"
+          onClick={() => onOpenPantauAnak?.(students[0] || ({} as any))}
+          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-amber-400 hover:shadow-xs transition-all group text-left cursor-pointer"
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold mb-2 group-hover:scale-105 transition-transform">
+            <Sparkles className="w-4.5 h-4.5" />
+          </div>
+          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-amber-600 transition-colors">
+            Rapor & Pantau Anak
+          </h4>
+          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            Akses rekap nilai tugas, ujian, dan catatan wali kelas
+          </p>
+        </button>
+
+        {/* Card 4: Jam Sekolah & Info */}
+        <a 
+          href="#info-operasional" 
+          className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs hover:border-indigo-400 hover:shadow-xs transition-all group block"
+        >
+          <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold mb-2 group-hover:scale-105 transition-transform">
+            <Clock className="w-4.5 h-4.5" />
+          </div>
+          <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-indigo-600 transition-colors">
+            Jam KBM & Kontak
+          </h4>
+          <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            Jadwal apel, tata tertib sekolah, dan nomor kontak resmi
+          </p>
+        </a>
+      </div>
+
+      {/* Ringkasan Kehadiran Sekolah Hari Ini (KPI Publik) */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 p-4 sm:p-5 rounded-3xl text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 border border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/15">
+            <Users className="w-5 h-5 text-amber-300" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">Kehadiran Siswa Hari Ini</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/20 font-mono font-bold">
+                {formattedToday}
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Transparansi apel kedatangan gerbang ({currentSession}) untuk seluruh peserta didik.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 sm:gap-6 self-stretch md:self-auto justify-around sm:justify-end border-t md:border-t-0 border-white/10 pt-3 md:pt-0">
+          <div className="text-center">
+            <span className="text-[10px] text-slate-400 block font-semibold">Tingkat Hadir</span>
+            <span className="text-lg sm:text-xl font-black text-emerald-400">{schoolTodayStats.rate}%</span>
+          </div>
+          <div className="h-7 w-px bg-white/15" />
+          <div className="text-center">
+            <span className="text-[10px] text-slate-400 block font-semibold">Tepat Waktu</span>
+            <span className="text-lg sm:text-xl font-black text-emerald-300">{schoolTodayStats.hadir}</span>
+          </div>
+          <div className="h-7 w-px bg-white/15" />
+          <div className="text-center">
+            <span className="text-[10px] text-slate-400 block font-semibold">Terlambat</span>
+            <span className="text-lg sm:text-xl font-black text-amber-300">{schoolTodayStats.terlambat}</span>
+          </div>
+          <div className="h-7 w-px bg-white/15" />
+          <div className="text-center">
+            <span className="text-[10px] text-slate-400 block font-semibold">Izin / Sakit</span>
+            <span className="text-lg sm:text-xl font-black text-sky-300">{schoolTodayStats.izinSakit}</span>
           </div>
         </div>
       </div>
