@@ -15,7 +15,8 @@ import {
   FileText,
   Clock,
   CheckCircle2,
-  CalendarCheck
+  CalendarCheck,
+  ArrowLeft
 } from 'lucide-react';
 import { Student } from '../../types';
 import { useAuth } from '../../context/AuthContext';
@@ -25,6 +26,7 @@ interface ParentChildSearchProps {
   onSelectStudent: (student: Student) => void;
   onOpenLoginModal: () => void;
   onOpenLeaveRequest?: () => void;
+  onBackToPublic?: () => void;
 }
 
 export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
@@ -32,6 +34,7 @@ export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
   onSelectStudent,
   onOpenLoginModal,
   onOpenLeaveRequest,
+  onBackToPublic,
 }) => {
   const { user } = useAuth();
   const [query, setQuery] = useState('');
@@ -131,9 +134,22 @@ export const ParentChildSearch: React.FC<ParentChildSearchProps> = ({
       {/* Main Title & Supporting Text */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div className="space-y-1 max-w-xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-black uppercase tracking-wider">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>PORTAL RESMI AKTIVITAS ORANG TUA</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-100 text-blue-900 text-[11px] font-black uppercase tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>PORTAL RESMI AKTIVITAS ORANG TUA</span>
+            </div>
+
+            {onBackToPublic && (
+              <button
+                type="button"
+                onClick={onBackToPublic}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition-colors cursor-pointer border border-slate-200"
+              >
+                <ArrowLeft className="w-3 h-3 text-slate-500" />
+                <span>Kembali ke Beranda</span>
+              </button>
+            )}
           </div>
 
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">

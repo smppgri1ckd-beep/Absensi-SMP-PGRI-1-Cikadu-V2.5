@@ -17,7 +17,7 @@ import {
 import { DatabaseService } from '../../services/db';
 import { useAuth } from '../../context/AuthContext';
 import { StudentReportCardModal } from '../StudentReportCardModal';
-import { FileText, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { FileText, Clock, CheckCircle, XCircle, ArrowLeft, GraduationCap } from 'lucide-react';
 
 // Import Modular Sub-Components
 import { ParentChildSearch } from './ParentChildSearch';
@@ -44,6 +44,7 @@ interface PantauAnakDashboardProps {
   initialStudent?: Student | null;
   onOpenLoginModal: () => void;
   onBackToSearch?: () => void;
+  onBackToPublic?: () => void;
   leaveRequests?: LeaveRequest[];
   onOpenLeaveRequest?: (student?: Student) => void;
   onOpenGradeManagement?: () => void;
@@ -57,6 +58,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
   initialStudent = null,
   onOpenLoginModal,
   onBackToSearch,
+  onBackToPublic,
   leaveRequests = [],
   onOpenLeaveRequest,
   onOpenGradeManagement,
@@ -208,6 +210,29 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       
+      {/* Top Navigation Bar: Tombol Kembali ke Tampilan Publik */}
+      {onBackToPublic && (
+        <div className="flex items-center justify-between bg-white/90 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
+          <button
+            type="button"
+            onClick={onBackToPublic}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-800 hover:text-blue-700 font-black text-xs transition-all cursor-pointer border border-slate-200 hover:border-blue-200 shadow-2xs group"
+            title="Kembali ke Beranda Utama Tampilan Publik"
+          >
+            <ArrowLeft className="w-4 h-4 text-slate-500 group-hover:text-blue-600 transition-transform group-hover:-translate-x-0.5" />
+            <span>Kembali ke Beranda Publik</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="hidden sm:inline text-xs font-semibold text-slate-500">Menu Aktif:</span>
+            <span className="px-3 py-1.5 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-black flex items-center gap-1.5 shadow-2xs">
+              <GraduationCap className="w-4 h-4 text-amber-600" />
+              <span>Pantau Aktivitas Anak</span>
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* 1. Area Pencarian "Pantau Anak" jika anak belum dipilih atau ingin mencari siswa lain */}
       {!selectedStudent && (
         <ParentChildSearch
@@ -215,6 +240,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
           onSelectStudent={(s) => setSelectedStudent(s)}
           onOpenLoginModal={onOpenLoginModal}
           onOpenLeaveRequest={() => onOpenLeaveRequest?.()}
+          onBackToPublic={onBackToPublic}
         />
       )}
 
@@ -258,6 +284,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
               setSelectedStudent(null);
               onBackToSearch?.();
             }}
+            onBackToPublic={onBackToPublic}
           />
 
           {/* Switcher "Anak Saya" if parent has multiple children */}

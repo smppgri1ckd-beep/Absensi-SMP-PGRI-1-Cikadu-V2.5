@@ -57,7 +57,7 @@ interface PublicInfoProps {
   onOpenScanner?: () => void;
   onOpenLeaveRequest?: () => void;
   onOpenAgenda?: () => void;
-  onOpenPantauAnak?: (student: Student) => void;
+  onOpenPantauAnak?: (student?: Student) => void;
 }
 
 export const PublicInfo: React.FC<PublicInfoProps> = ({
@@ -534,6 +534,18 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
               </p>
 
               <div className="flex flex-wrap items-center gap-2.5 pt-1.5">
+                {/* Tombol Utama: Pantau Anak (Khusus Orang Tua / Wali Siswa) */}
+                {onOpenPantauAnak && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenPantauAnak()}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs sm:text-sm bg-gradient-to-r from-amber-400 via-orange-400 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 shadow-md shadow-amber-500/25 transition-all cursor-pointer hover:scale-[1.02] ring-2 ring-amber-300/60"
+                  >
+                    <GraduationCap className="w-4 h-4 text-slate-950" />
+                    <span>Pantau Anak</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handleToggleSection('presensi')}
@@ -560,14 +572,14 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
                   <span>{activeSection === 'agenda' ? 'Tutup Agenda' : 'Agenda Kegiatan'}</span>
                 </button>
 
-                {onOpenLeaveRequest && (
+                {onOpenPantauAnak && (
                   <button
                     type="button"
-                    onClick={onOpenLeaveRequest}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/30 transition-all cursor-pointer"
+                    onClick={() => onOpenPantauAnak()}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md shadow-amber-950/20 transition-all cursor-pointer"
                   >
-                    <FileText className="w-4 h-4" />
-                    <span>Ajukan Izin / Sakit</span>
+                    <GraduationCap className="w-4 h-4 text-slate-950" />
+                    <span>Pantau Anak</span>
                   </button>
                 )}
               </div>
@@ -604,9 +616,33 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
         </div>
       </div>
 
-      {/* 4 Quick Parent Service Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Card 1: Cek Kehadiran */}
+      {/* 5 Quick Parent Service Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        {/* Card 1: Pantau Anak (Portal Monitoring Lengkap) */}
+        {onOpenPantauAnak && (
+          <button 
+            type="button"
+            onClick={() => onOpenPantauAnak()}
+            className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-b from-amber-50/90 to-orange-50/80 border border-amber-300 hover:border-amber-400 shadow-2xs hover:shadow-xs transition-all group text-left cursor-pointer hover:scale-[1.01]"
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold group-hover:scale-105 transition-transform shadow-xs">
+                <GraduationCap className="w-4.5 h-4.5 text-slate-950" />
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase">
+                Portal Ortu
+              </span>
+            </div>
+            <h4 className="font-extrabold text-xs sm:text-sm text-slate-900 group-hover:text-amber-700 transition-colors">
+              Pantau Anak
+            </h4>
+            <p className="text-[11px] text-slate-600 mt-0.5 leading-snug">
+              Perkembangan belajar, rekap presensi & nilai siswa
+            </p>
+          </button>
+        )}
+
+        {/* Card 2: Cek Kehadiran */}
         <button 
           type="button"
           onClick={() => handleToggleSection('presensi')}

@@ -913,6 +913,7 @@ function AppContent() {
                   initialStudent={selectedPantauStudent}
                   onOpenLoginModal={() => setIsLoginOpen(true)}
                   onBackToSearch={() => setSelectedPantauStudent(null)}
+                  onBackToPublic={() => setActiveTab('public-info')}
                   leaveRequests={leaveRequests}
                   onOpenLeaveRequest={(student) => {
                     setLeaveTargetStudent(student || null);
@@ -940,7 +941,7 @@ function AppContent() {
                   }}
                   onOpenAgenda={() => setIsAgendaOpen(true)}
                   onOpenPantauAnak={(student) => {
-                    setSelectedPantauStudent(student);
+                    setSelectedPantauStudent(student || null);
                     setActiveTab('pantau-anak');
                   }}
                 />

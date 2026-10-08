@@ -196,35 +196,46 @@ export const Navbar: React.FC<NavbarProps> = ({
               <CloudCheck className="w-4 h-4" />
             </div>
 
-            {/* Quick Button: Izin / Sakit Mandiri */}
-            <button
-              onClick={() => {
-                if (user && (user.role === 'admin' || user.role === 'piket' || user.role === 'guru')) {
-                  onOpenLeaveApproval?.();
-                } else {
-                  onOpenLeaveRequest?.();
-                }
-              }}
-              title={user && (user.role === 'admin' || user.role === 'piket') ? 'Verifikasi Permohonan Izin / Sakit' : 'Ajukan Surat Izin / Sakit Mandiri Siswa'}
-              className={`relative px-3 py-2 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 shadow-xs ${
-                !user
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs ring-2 ring-amber-300/60'
-                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-              }`}
-            >
-              <FileText className={`w-4 h-4 ${!user ? 'text-white' : 'text-amber-600'}`} />
-              <span className="hidden sm:inline text-xs font-black whitespace-nowrap">
-                {user && (user.role === 'admin' || user.role === 'piket') ? 'Verifikasi Izin' : 'Ajukan Izin/Sakit'}
-              </span>
-              <span className="sm:hidden text-xs font-black">
-                Izin
-              </span>
-              {pendingLeaveCount > 0 && (
-                <span className="w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center animate-pulse">
-                  {pendingLeaveCount}
+            {/* Quick Button: Pantau Anak (Khusus Orang Tua / Pengunjung) */}
+            {!user && setActiveTab && (
+              <button
+                onClick={() => setActiveTab('pantau-anak')}
+                title="Buka Portal Pantau Anak (Perkembangan, Rekap Presensi & Nilai Siswa)"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer ring-2 ring-indigo-300/50 shrink-0"
+              >
+                <GraduationCap className="w-4 h-4 text-amber-300" />
+                <span className="hidden sm:inline whitespace-nowrap">Pantau Anak</span>
+                <span className="sm:hidden">Pantau</span>
+              </button>
+            )}
+
+            {/* Quick Button: Izin / Sakit Mandiri (Hanya untuk Admin/Piket/Guru untuk Verifikasi; Mode Publik cukup 1 tombol utama di beranda) */}
+            {user && (
+              <button
+                onClick={() => {
+                  if (user.role === 'admin' || user.role === 'piket' || user.role === 'guru') {
+                    onOpenLeaveApproval?.();
+                  } else {
+                    onOpenLeaveRequest?.();
+                  }
+                }}
+                title={user.role === 'admin' || user.role === 'piket' ? 'Verifikasi Permohonan Izin / Sakit' : 'Ajukan Surat Izin / Sakit Mandiri Siswa'}
+                className="relative px-3 py-2 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 shadow-xs bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200"
+              >
+                <FileText className="w-4 h-4 text-amber-600" />
+                <span className="hidden sm:inline text-xs font-black whitespace-nowrap">
+                  {user.role === 'admin' || user.role === 'piket' ? 'Verifikasi Izin' : 'Ajukan Izin/Sakit'}
                 </span>
-              )}
-            </button>
+                <span className="sm:hidden text-xs font-black">
+                  Izin
+                </span>
+                {pendingLeaveCount > 0 && (
+                  <span className="w-4 h-4 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center animate-pulse">
+                    {pendingLeaveCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Quick Button: Input Nilai (Guru & Admin) */}
             {user && (user.role === 'guru' || user.role === 'admin') && !actingAsPiket && (

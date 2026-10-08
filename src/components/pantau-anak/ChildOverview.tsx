@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, GraduationCap, ShieldCheck, Calendar, User, Printer } from 'lucide-react';
+import { ArrowLeft, GraduationCap, ShieldCheck, Calendar, User, Printer, Home } from 'lucide-react';
 import { Student, AttendanceRecord, SchoolConfig } from '../../types';
 import { generateStudentReportCardPdf } from '../../utils/exportPdf';
 import { DEFAULT_SCHOOL_CONFIG } from '../../services/db';
@@ -9,6 +9,7 @@ interface ChildOverviewProps {
   student: Student;
   waliKelasNama?: string;
   onBack: () => void;
+  onBackToPublic?: () => void;
   records?: AttendanceRecord[];
   schoolConfig?: SchoolConfig;
 }
@@ -17,6 +18,7 @@ export const ChildOverview: React.FC<ChildOverviewProps> = ({
   student,
   waliKelasNama = 'Budi Santoso, S.Pd.',
   onBack,
+  onBackToPublic,
   records = [],
   schoolConfig = DEFAULT_SCHOOL_CONFIG,
 }) => {
@@ -32,14 +34,28 @@ export const ChildOverview: React.FC<ChildOverviewProps> = ({
       <div className="relative z-10 flex flex-col gap-4">
         {/* Navigation Top Bar */}
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black border border-white/20 transition-all cursor-pointer backdrop-blur-xs shadow-xs"
-          >
-            <ArrowLeft className="w-4 h-4 text-amber-300" />
-            <span>← Kembali ke Pencarian</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-black border border-white/20 transition-all cursor-pointer backdrop-blur-xs shadow-xs"
+            >
+              <ArrowLeft className="w-4 h-4 text-amber-300" />
+              <span>← Cari Siswa Lain</span>
+            </button>
+
+            {onBackToPublic && (
+              <button
+                type="button"
+                onClick={onBackToPublic}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/20 transition-all cursor-pointer backdrop-blur-xs shadow-xs"
+                title="Kembali ke Beranda Tampilan Publik"
+              >
+                <Home className="w-3.5 h-3.5 text-blue-200" />
+                <span>Beranda Publik</span>
+              </button>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <button
