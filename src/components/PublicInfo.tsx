@@ -93,6 +93,60 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
     return () => clearInterval(timer);
   }, []);
 
+  // Time-based personal greeting for welcoming parents & visitors warmly
+  const timeGreeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour >= 4 && hour < 11) {
+      return {
+        greeting: 'Selamat Pagi',
+        icon: '🌅',
+        welcome: 'Selamat datang! Awali hari dengan memantau kedatangan putra-putri Anda di sekolah.',
+        badgeColor: 'bg-amber-400/20 text-amber-300 border-amber-300/35',
+      };
+    } else if (hour >= 11 && hour < 15) {
+      return {
+        greeting: 'Selamat Siang',
+        icon: '☀️',
+        welcome: 'Selamat siang! Pantau status KBM tatap muka kelas dan persiapan kepulangan siswa.',
+        badgeColor: 'bg-amber-400/20 text-amber-300 border-amber-300/35',
+      };
+    } else if (hour >= 15 && hour < 18) {
+      return {
+        greeting: 'Selamat Sore',
+        icon: '🌤️',
+        welcome: 'Selamat sore! Periksa rekap kepulangan gerbang dan catatan kedisiplinan siswa hari ini.',
+        badgeColor: 'bg-orange-400/20 text-orange-200 border-orange-300/35',
+      };
+    } else {
+      return {
+        greeting: 'Selamat Malam',
+        icon: '🌙',
+        welcome: 'Selamat malam! Portal layanan presensi & agenda sekolah tetap siap diakses 24 jam.',
+        badgeColor: 'bg-indigo-400/25 text-indigo-200 border-indigo-300/35',
+      };
+    }
+  }, []);
+
+  // Smooth toggle & scroll handler for sections
+  const handleToggleSection = (section: 'presensi' | 'agenda' | 'jadwal') => {
+    if (activeSection === section) {
+      setActiveSection(null);
+    } else {
+      setActiveSection(section);
+      setTimeout(() => {
+        const idMap = {
+          presensi: 'portal-cek-presensi',
+          agenda: 'agenda-sekolah',
+          jadwal: 'jadwal-sekolah',
+        };
+        const el = document.getElementById(idMap[section]);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 70);
+    }
+  };
+
   // Today string YYYY-MM-DD
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
   
@@ -458,10 +512,17 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start sm:items-center gap-4">
             <SchoolLogo src={schoolConfig?.logoUrl} className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 bg-white p-2 rounded-3xl shadow-xl border border-white/20 drop-shadow-md" />
-            <div className="space-y-2 max-w-xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/25 text-blue-200 border border-blue-400/30 text-xs font-bold uppercase tracking-wider">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                <span>Portal Informasi Resmi & Presensi Real-Time</span>
+            <div className="space-y-2.5 max-w-xl">
+              {/* Sapaan Ramah Berdasarkan Waktu & Badge Identitas */}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-bold shadow-xs transition-all ${timeGreeting.badgeColor}`}>
+                  <span className="text-sm">{timeGreeting.icon}</span>
+                  <span>{timeGreeting.greeting}, Bapak/Ibu & Sahabat Sekolah!</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/20 text-blue-200 border border-blue-400/25 text-[11px] font-semibold">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Portal Terpadu Real-Time</span>
+                </div>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
@@ -469,13 +530,13 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
               </h1>
 
               <p className="text-xs sm:text-sm text-blue-100/90 leading-relaxed font-medium">
-                Layanan terpadu orang tua & publik: pantau kehadiran siswa real-time, cek agenda kegiatan sekolah, jadwal KBM, dan kirim permohonan izin/sakit mandiri.
+                {timeGreeting.welcome} Pantau kehadiran siswa secara live, periksa agenda akademik, jadwal apel kedatangan, serta kirim permohonan izin/sakit mandiri dengan mudah.
               </p>
 
-              <div className="flex flex-wrap items-center gap-2.5 pt-2">
+              <div className="flex flex-wrap items-center gap-2.5 pt-1.5">
                 <button
                   type="button"
-                  onClick={() => setActiveSection(activeSection === 'presensi' ? null : 'presensi')}
+                  onClick={() => handleToggleSection('presensi')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm shadow-md transition-all cursor-pointer ${
                     activeSection === 'presensi'
                       ? 'bg-white text-blue-900 ring-2 ring-white shadow-white/20'
@@ -488,7 +549,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => setActiveSection(activeSection === 'agenda' ? null : 'agenda')}
+                  onClick={() => handleToggleSection('agenda')}
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
                     activeSection === 'agenda'
                       ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-300'
@@ -548,7 +609,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
         {/* Card 1: Cek Kehadiran */}
         <button 
           type="button"
-          onClick={() => setActiveSection(activeSection === 'presensi' ? null : 'presensi')}
+          onClick={() => handleToggleSection('presensi')}
           className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all cursor-pointer group ${
             activeSection === 'presensi'
               ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-300 shadow-sm'
@@ -576,7 +637,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
         {/* Card 2: Agenda Kegiatan */}
         <button 
           type="button"
-          onClick={() => setActiveSection(activeSection === 'agenda' ? null : 'agenda')}
+          onClick={() => handleToggleSection('agenda')}
           className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all cursor-pointer group ${
             activeSection === 'agenda'
               ? 'bg-amber-50/80 border-amber-500 ring-2 ring-amber-300 shadow-sm'
@@ -621,7 +682,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
         {/* Card 4: Jadwal & Panduan */}
         <button 
           type="button"
-          onClick={() => setActiveSection(activeSection === 'jadwal' ? null : 'jadwal')}
+          onClick={() => handleToggleSection('jadwal')}
           className={`p-3.5 sm:p-4 rounded-2xl border text-left transition-all cursor-pointer group ${
             activeSection === 'jadwal'
               ? 'bg-indigo-50/80 border-indigo-500 ring-2 ring-indigo-300 shadow-sm'
@@ -1649,7 +1710,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
       {/* 4. JADWAL SEKOLAH & PANDUAN SISWA                        */}
       {/* ======================================================== */}
       {activeSection === 'jadwal' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
+        <div id="jadwal-sekolah" className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-sm space-y-6 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
