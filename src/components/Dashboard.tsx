@@ -41,6 +41,9 @@ import {
   getTeacherAccessibleClasses, 
   isClassMatch 
 } from '../utils/teacherFilter';
+import { PeriodFilterBar } from './PeriodFilterBar';
+import { TimePeriodFilter, isDateInPeriod, getPeriodDateRange } from '../utils/datePeriodUtils';
+import { getActiveDate } from '../utils/dailyAutoUpdate';
 
 interface DashboardProps {
   students: Student[];
@@ -82,7 +85,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const { user, actingAsPiket } = useAuth();
   const isTeacher = user?.role === 'guru' && !actingAsPiket;
 
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(getActiveDate());
+  const [periodFilter, setPeriodFilter] = useState<TimePeriodFilter>('hari');
   const [selectedSession, setSelectedSession] = useState<AttendanceSession>(currentSession);
   const [selectedClass, setSelectedClass] = useState<string>('Semua');
   const [statusFilter, setStatusFilter] = useState<string>('Semua');
@@ -135,10 +139,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return filterRecordsForTeacher(records, user, actingAsPiket);
   }, [records, user, actingAsPiket]);
 
-  // Filter records for selected date & session (Operasional Presensi Apel Pagi & Siang)
-  const dateSessionRecords = scopedRecords.filter(
-    (r) => r.tanggal === selectedDate && r.sesi === selectedSession && (r.kategori === 'APEL' || !r.kategori)
-  );
+  // Filter records for selected date & session & period (Operasional Presensi Apel)
+  const dateSessionRecords = React.useMemo(() => {
+    return scopedRecords.filter((r) => {
+      const matchPeriod = isDateInPeriod(r.tanggal, periodFilter, selectedDate);
+      if (!matchPeriod) return false;
+      if (periodFilter === 'hari' && r.sesi !== selectedSession) return false;
+      return r.kategori === 'APEL' || !r.kategori;
+    });
+  }, [scopedRecords, periodFilter, selectedDate, selectedSession]);
 
   // Distinct classes based on scoped students
   const classesList = React.useMemo(() => {
@@ -439,6 +448,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
           )}
         </div>
       )}
+
+      {/* Filter Periode Presensi (Hari Ini, Minggu Ini, Bulan Ini, Semester, Tahun) */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-2xs">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-blue-600" />
+            <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+              Filter Periode Analisis Presensi
+            </h4>
+          </div>
+          <span className="text-[11px] text-slate-500 font-semibold">
+            {getPeriodDateRange(periodFilter, selectedDate).description}
+          </span>
+        </div>
+        <PeriodFilterBar
+          period={periodFilter}
+          onChangePeriod={setPeriodFilter}
+          customDate={selectedDate}
+          onChangeCustomDate={setSelectedDate}
+        />
+      </div>
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3.5">

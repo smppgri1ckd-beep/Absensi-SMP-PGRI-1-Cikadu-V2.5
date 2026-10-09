@@ -24,6 +24,7 @@ import {
 } from './types';
 import { DatabaseService, DEFAULT_SCHOOL_CONFIG } from './services/db';
 import { soundService } from './utils/audio';
+import { DailyAutoUpdateService } from './utils/dailyAutoUpdate';
 
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -50,6 +51,7 @@ import { AgendaSekolahModal } from './components/AgendaSekolahModal';
 import { AiAttendanceAnalysisModal } from './components/AiAttendanceAnalysisModal';
 import { StudentReportCardModal } from './components/StudentReportCardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { AutoUpdateStatusBar } from './components/AutoUpdateStatusBar';
 import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School, QrCode } from 'lucide-react';
 
 function AppContent() {
@@ -183,6 +185,12 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    // Start automatic daily update daemon
+    DailyAutoUpdateService.startDaemon();
+    const unsubAutoUpdate = DailyAutoUpdateService.subscribe(() => {
+      loadAllData();
+    });
+
     loadAllData();
 
     // Real-time synchronization across all devices and open tabs
@@ -198,6 +206,7 @@ function AppContent() {
     const unsubEvents = DatabaseService.subscribeSchoolEvents((data) => setSchoolEvents(data));
 
     return () => {
+      unsubAutoUpdate();
       unsubStudents();
       unsubAttendance();
       unsubGrades();
@@ -792,6 +801,9 @@ function AppContent() {
             </div>
           ) : (
             <>
+              {/* Daily Auto Update Status & Date Control Bar */}
+              <AutoUpdateStatusBar onRefreshAllData={loadAllData} className="mb-5" />
+
               {/* Tab: KIOSK SCANNER (Khusus Guru Piket, Guru Mapel & Staf Sekolah) */}
               {activeTab === 'kiosk' && (
                 user ? (
@@ -1229,6 +1241,7 @@ function AppContent() {
         <LoginModal
           isOpen={isLoginOpen}
           onClose={() => setIsLoginOpen(false)}
+          schoolConfig={schoolConfig}
         />
 
         {/* Modal Pengajuan Izin / Sakit Mandiri */}

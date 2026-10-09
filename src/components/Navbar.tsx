@@ -196,19 +196,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <CloudCheck className="w-4 h-4" />
             </div>
 
-            {/* Quick Button: Pantau Anak (Khusus Orang Tua / Pengunjung) */}
-            {!user && setActiveTab && (
-              <button
-                onClick={() => setActiveTab('pantau-anak')}
-                title="Buka Portal Pantau Anak (Perkembangan, Rekap Presensi & Nilai Siswa)"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black text-xs shadow-xs transition-all cursor-pointer ring-2 ring-indigo-300/50 shrink-0"
-              >
-                <GraduationCap className="w-4 h-4 text-amber-300" />
-                <span className="hidden sm:inline whitespace-nowrap">Pantau Anak</span>
-                <span className="sm:hidden">Pantau</span>
-              </button>
-            )}
-
             {/* Quick Button: Izin / Sakit Mandiri (Hanya untuk Admin/Piket/Guru untuk Verifikasi; Mode Publik cukup 1 tombol utama di beranda) */}
             {user && (
               <button

@@ -18,6 +18,8 @@ import { DatabaseService } from '../../services/db';
 import { useAuth } from '../../context/AuthContext';
 import { StudentReportCardModal } from '../StudentReportCardModal';
 import { FileText, Clock, CheckCircle, XCircle, ArrowLeft, GraduationCap } from 'lucide-react';
+import { PeriodFilterBar } from '../PeriodFilterBar';
+import { TimePeriodFilter, isDateInPeriod } from '../../utils/datePeriodUtils';
 
 // Import Modular Sub-Components
 import { ParentChildSearch } from './ParentChildSearch';
@@ -207,6 +209,17 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
     };
   }, [assignments, submissions, grades, records, selectedStudent]);
 
+  // State: Filter periode izin siswa
+  const [leavePeriodFilter, setLeavePeriodFilter] = useState<TimePeriodFilter>('semua');
+
+  // Filtered leave requests for this student
+  const filteredStudentLeaves = useMemo(() => {
+    if (!selectedStudent) return [];
+    return leaveRequests
+      .filter((r) => r.nisn === selectedStudent.nisn)
+      .filter((r) => isDateInPeriod(r.tanggalMulai, leavePeriodFilter));
+  }, [leaveRequests, selectedStudent, leavePeriodFilter]);
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       
@@ -330,17 +343,24 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
               )}
             </div>
 
-            {leaveRequests.filter((r) => r.nisn === selectedStudent.nisn).length === 0 ? (
+            {/* Filter Periode Waktu Izin */}
+            <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+              <PeriodFilterBar
+                period={leavePeriodFilter}
+                onChangePeriod={setLeavePeriodFilter}
+                compact
+              />
+            </div>
+
+            {filteredStudentLeaves.length === 0 ? (
               <div className="p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center">
                 <p className="text-xs text-slate-500">
-                  Belum ada permohonan izin atau sakit yang diajukan untuk ananda {selectedStudent.nama}.
+                  Tidak ada permohonan izin atau sakit untuk ananda {selectedStudent.nama} pada periode filter ini.
                 </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {leaveRequests
-                  .filter((r) => r.nisn === selectedStudent.nisn)
-                  .map((req) => (
+                {filteredStudentLeaves.map((req) => (
                     <div
                       key={req.id}
                       className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-2"

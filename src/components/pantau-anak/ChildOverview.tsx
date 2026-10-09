@@ -133,7 +133,10 @@ export const ChildOverview: React.FC<ChildOverviewProps> = ({
           </div>
 
           <div className="shrink-0 flex items-center gap-2.5 p-3 bg-white/10 rounded-2xl border border-white/15 backdrop-blur-xs">
-            <SchoolLogo className="w-9 h-9 shrink-0 drop-shadow-xs" />
+            <SchoolLogo 
+              src={schoolConfig?.logoUrl} 
+              className="w-9 h-9 shrink-0 drop-shadow-xs" 
+            />
             <div className="text-left text-xs">
               <span className="font-extrabold block text-white">{schoolConfig.namaSekolah}</span>
               <span className="text-[10px] text-blue-200">Dapodik & Presensi Real-Time</span>

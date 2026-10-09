@@ -22,6 +22,9 @@ import { LeaveRequest, LeaveRequestStatus } from '../types';
 import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { filterLeaveRequestsForTeacher, isTeacherWaliKelas } from '../utils/teacherFilter';
+import { PeriodFilterBar } from './PeriodFilterBar';
+import { TimePeriodFilter, isDateInPeriod } from '../utils/datePeriodUtils';
+import { getActiveDate } from '../utils/dailyAutoUpdate';
 
 interface LeaveApprovalModalProps {
   isOpen: boolean;
@@ -46,17 +49,32 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
   const isTeacher = user?.role === 'guru' && !actingAsPiket;
 
   const [activeFilter, setActiveFilter] = useState<'Semua' | LeaveRequestStatus>('Menunggu');
+  const [periodFilter, setPeriodFilter] = useState<TimePeriodFilter>('semua');
+  const [customDate, setCustomDate] = useState<string>(getActiveDate());
   const [searchTerm, setSearchTerm] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [actionNotes, setActionNotes] = useState<Record<string, string>>({});
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isApprovingAll, setIsApprovingAll] = useState(false);
 
   // Scoped requests for teacher
   const scopedRequests = useMemo(() => {
     return filterLeaveRequestsForTeacher(requests, user, actingAsPiket);
   }, [requests, user, actingAsPiket]);
+
+  // Counts by period for badge numbers
+  const periodCounts = useMemo(() => {
+    return {
+      hari: scopedRequests.filter((r) => isDateInPeriod(r.tanggalMulai, 'hari', customDate)).length,
+      minggu: scopedRequests.filter((r) => isDateInPeriod(r.tanggalMulai, 'minggu', customDate)).length,
+      bulan: scopedRequests.filter((r) => isDateInPeriod(r.tanggalMulai, 'bulan', customDate)).length,
+      semester: scopedRequests.filter((r) => isDateInPeriod(r.tanggalMulai, 'semester', customDate)).length,
+      tahun: scopedRequests.filter((r) => isDateInPeriod(r.tanggalMulai, 'tahun', customDate)).length,
+      semua: scopedRequests.length,
+    };
+  }, [scopedRequests, customDate]);
 
   const handleBulkDelete = async () => {
     if (selectedRequestIds.length === 0) return;
@@ -83,13 +101,14 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
   if (!isOpen) return null;
 
   const filteredRequests = scopedRequests.filter((r) => {
+    const matchesPeriod = isDateInPeriod(r.tanggalMulai, periodFilter, customDate);
     const matchesFilter = activeFilter === 'Semua' || r.statusPengajuan === activeFilter;
     const matchesSearch = 
       r.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.nisn.includes(searchTerm) ||
       r.kelas.toLowerCase().includes(searchTerm.toLowerCase()) ||
       r.alasan.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
+    return matchesPeriod && matchesFilter && matchesSearch;
   });
 
   const pendingCount = scopedRequests.filter((r) => r.statusPengajuan === 'Menunggu').length;
@@ -111,6 +130,24 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
       await onUpdateStatus(req.id, 'Ditolak', note);
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  const handleApproveAllPending = async () => {
+    const pendingList = scopedRequests.filter((r) => r.statusPengajuan === 'Menunggu');
+    if (pendingList.length === 0) return;
+    if (!confirm(`Verifikasi & Setujui ${pendingList.length} Permohonan Mandiri?\n\nSistem akan menyetujui seluruh surat izin/sakit mandiri dan otomatis merekap kehadiran siswa menjadi Sakit/Izin di database presensi.`)) {
+      return;
+    }
+    setIsApprovingAll(true);
+    try {
+      for (const req of pendingList) {
+        await onUpdateStatus(req.id, 'Disetujui', 'Disetujui via Verifikasi & Rekap Otomatis Harian.');
+      }
+    } catch (err) {
+      console.error('Failed to approve all pending leave requests', err);
+    } finally {
+      setIsApprovingAll(false);
     }
   };
 
@@ -145,13 +182,39 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white cursor-pointer transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2 sm:gap-3">
+            {pendingCount > 0 && (
+              <button
+                type="button"
+                disabled={isApprovingAll}
+                onClick={handleApproveAllPending}
+                className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Setujui dan rekap otomatis seluruh permohonan mandiri ke presensi"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse" />
+                <span className="hidden sm:inline">{isApprovingAll ? 'Proses Rekap...' : `Auto-Verifikasi All (${pendingCount})`}</span>
+                <span className="sm:hidden">{isApprovingAll ? 'Proses...' : `Verifikasi (${pendingCount})`}</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-xl bg-white/20 hover:bg-white/30 text-white cursor-pointer transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Periode Filter Bar (Hari Ini, Minggu Ini, Bulan Ini, Semester, Tahun Ini) */}
+        <div className="px-4 py-2.5 bg-slate-100/70 border-b border-slate-200">
+          <PeriodFilterBar
+            period={periodFilter}
+            onChangePeriod={setPeriodFilter}
+            customDate={customDate}
+            onChangeCustomDate={setCustomDate}
+            counts={periodCounts}
+          />
         </div>
 
         {/* Filter and Search Bar */}

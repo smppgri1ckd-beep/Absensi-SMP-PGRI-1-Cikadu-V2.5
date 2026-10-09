@@ -43,6 +43,9 @@ import {
 } from '../types';
 import { exportTeachingJournalsExcel } from '../utils/exportExcel';
 import { generateTeachingJournalsPdf, generateLearningRecapPdf } from '../utils/exportPdf';
+import { PeriodFilterBar } from './PeriodFilterBar';
+import { TimePeriodFilter, isDateInPeriod } from '../utils/datePeriodUtils';
+import { getActiveDate } from '../utils/dailyAutoUpdate';
 import { useAuth } from '../context/AuthContext';
 import { soundService } from '../utils/audio';
 import { SchoolLogo } from '../assets/schoolLogo';
@@ -99,7 +102,9 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   const [mainTab, setMainTab] = useState<'jurnal' | 'ringkasan' | 'jadwal' | 'kelola-jadwal'>('jurnal');
   const now = new Date();
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Semua');
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'Semua'>(now.getMonth());
+  const [journalPeriodFilter, setJournalPeriodFilter] = useState<TimePeriodFilter>('semua');
+  const [journalCustomDate, setJournalCustomDate] = useState<string>(getActiveDate());
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<number | 'Semua'>('Semua');
   const [selectedYearFilter, setSelectedYearFilter] = useState<number>(now.getFullYear());
   const [onlyMyJournals, setOnlyMyJournals] = useState<boolean>(user?.role === 'guru');
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
@@ -842,13 +847,16 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
       if (selectedClassFilter !== 'Semua' && !isClassMatch(j.kelas, selectedClassFilter)) {
         return false;
       }
+      if (!isDateInPeriod(j.tanggal, journalPeriodFilter, journalCustomDate)) {
+        return false;
+      }
       if (selectedMonthFilter !== 'Semua') {
         const monthPrefix = `${selectedYearFilter}-${String(selectedMonthFilter + 1).padStart(2, '0')}`;
         if (!j.tanggal.startsWith(monthPrefix)) return false;
       }
       return true;
     });
-  }, [teacherScopedJournals, onlyMyJournals, user, selectedClassFilter, selectedMonthFilter, selectedYearFilter]);
+  }, [teacherScopedJournals, onlyMyJournals, user, selectedClassFilter, journalPeriodFilter, journalCustomDate, selectedMonthFilter, selectedYearFilter]);
 
   const handleBulkDelete = async () => {
     if (selectedJournalIds.length === 0) return;
@@ -1188,6 +1196,15 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
               </button>
             </div>
           </div>
+
+      {/* Period Filter Bar (Hari Ini, Minggu Ini, Bulan Ini, Semester, Tahun Ini, Semua) */}
+      <PeriodFilterBar
+        period={journalPeriodFilter}
+        onChangePeriod={setJournalPeriodFilter}
+        customDate={journalCustomDate}
+        onChangeCustomDate={setJournalCustomDate}
+        className="bg-slate-50 border-slate-200"
+      />
 
       {/* Filter Toolbar: Bulan, Tahun, dan Kelas */}
       <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-3">

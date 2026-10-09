@@ -352,7 +352,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
           <div className="flex items-center gap-3">
-            <SchoolLogo className="w-11 h-11 shrink-0 drop-shadow-xs bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs" />
+            <SchoolLogo 
+              src={formData.logoUrl || config.logoUrl} 
+              className="w-11 h-11 shrink-0 drop-shadow-xs bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs" 
+            />
             <div>
               <h3 className="text-lg font-extrabold text-slate-900">
                 Pengaturan Sekolah & Jam Presensi

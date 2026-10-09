@@ -25,11 +25,34 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({
 }) => {
   const [imageError, setImageError] = React.useState(false);
 
-  // If user provided a custom uploaded logo URL, render it
-  if (src && !imageError) {
+  // Automatically resolve the active logo:
+  // 1. Explicitly passed src
+  // 2. Cached school_config logoUrl from localStorage
+  const resolvedSrc = React.useMemo(() => {
+    if (src && src.trim().length > 0) return src;
+    try {
+      const raw = localStorage.getItem('school_config');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.logoUrl && typeof parsed.logoUrl === 'string' && parsed.logoUrl.trim().length > 0) {
+          return parsed.logoUrl;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, [src]);
+
+  React.useEffect(() => {
+    setImageError(false);
+  }, [resolvedSrc]);
+
+  // If user provided or system has a custom uploaded logo URL, render it
+  if (resolvedSrc && !imageError) {
     return (
       <img
-        src={src}
+        src={resolvedSrc}
         alt={alt}
         className={`${className} object-contain`}
         onClick={onClick}

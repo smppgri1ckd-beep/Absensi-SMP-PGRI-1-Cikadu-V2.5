@@ -43,6 +43,9 @@ import {
   SchoolEventItem 
 } from '../types';
 import { generateQrDataUrl } from '../utils/qr';
+import { PeriodFilterBar } from './PeriodFilterBar';
+import { TimePeriodFilter, isDateInPeriod } from '../utils/datePeriodUtils';
+import { getActiveDate } from '../utils/dailyAutoUpdate';
 import { SchoolLogo } from '../assets/schoolLogo';
 
 interface PublicInfoProps {
@@ -147,8 +150,8 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
     }
   };
 
-  // Today string YYYY-MM-DD
-  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+  // Today string YYYY-MM-DD (mengikuti tanggal aktif auto-update)
+  const todayStr = useMemo(() => getActiveDate(), []);
   
   const formattedToday = useMemo(() => {
     return new Date().toLocaleDateString('id-ID', {
@@ -158,6 +161,9 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
       year: 'numeric',
     });
   }, []);
+
+  // Filter Periode Riwayat Siswa (Hari Ini, Minggu, Bulan, Semester, Tahun)
+  const [historyPeriodFilter, setHistoryPeriodFilter] = useState<TimePeriodFilter>('semua');
 
   // Distinct list of classes for filter chips
   const classList = useMemo(() => {
@@ -410,13 +416,12 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
     });
   }, [selectedStudent, records, todayStr]);
 
-  // Filtered daily history based on historyStatusFilter
+  // Filtered daily history based on historyPeriodFilter and historyStatusFilter
   const filteredDailyHistory = useMemo(() => {
-    if (historyStatusFilter === 'Semua') {
-      return dailyAttendanceHistory;
-    }
-    return dailyAttendanceHistory.filter((item) => item.status === historyStatusFilter);
-  }, [dailyAttendanceHistory, historyStatusFilter]);
+    return dailyAttendanceHistory
+      .filter((item) => isDateInPeriod(item.dateIso, historyPeriodFilter))
+      .filter((item) => historyStatusFilter === 'Semua' || item.status === historyStatusFilter);
+  }, [dailyAttendanceHistory, historyPeriodFilter, historyStatusFilter]);
 
   // Calculate attendance statistics for selected student
   const attendanceStats = useMemo(() => {
@@ -571,17 +576,6 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
                   <Calendar className="w-4 h-4 text-amber-300" />
                   <span>{activeSection === 'agenda' ? 'Tutup Agenda' : 'Agenda Kegiatan'}</span>
                 </button>
-
-                {onOpenPantauAnak && (
-                  <button
-                    type="button"
-                    onClick={() => onOpenPantauAnak()}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md shadow-amber-950/20 transition-all cursor-pointer"
-                  >
-                    <GraduationCap className="w-4 h-4 text-slate-950" />
-                    <span>Pantau Anak</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
@@ -1582,6 +1576,15 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Filter Periode Waktu Riwayat Siswa */}
+              <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+                <PeriodFilterBar
+                  period={historyPeriodFilter}
+                  onChangePeriod={setHistoryPeriodFilter}
+                  compact
+                />
               </div>
 
               {/* Table Container */}

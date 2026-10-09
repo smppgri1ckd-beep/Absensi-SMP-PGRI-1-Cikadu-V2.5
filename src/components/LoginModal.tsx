@@ -15,13 +15,15 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SchoolLogo } from '../assets/schoolLogo';
+import { SchoolConfig } from '../types';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
+  schoolConfig?: SchoolConfig;
 }
 
-export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
+export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, schoolConfig }) => {
   const { user, login, logout } = useAuth();
   
   // Credentials Form State
@@ -69,7 +71,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <SchoolLogo className="w-11 h-11 shrink-0 drop-shadow-xs bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs" />
+              <SchoolLogo 
+                src={schoolConfig?.logoUrl} 
+                className="w-11 h-11 shrink-0 drop-shadow-xs bg-white p-1 rounded-2xl border border-slate-200 shadow-2xs" 
+              />
               <div>
                 <h3 className="text-lg font-black text-slate-900 tracking-tight">
                   Login Sistem
