@@ -1002,6 +1002,7 @@ function AppContent() {
                   records={records}
                   journals={journals}
                   teachers={teachers}
+                  jadwalPiket={jadwalPiket}
                   currentSession={currentSession}
                   schoolEvents={schoolEvents}
                   onOpenLogin={() => setIsLoginOpen(true)}

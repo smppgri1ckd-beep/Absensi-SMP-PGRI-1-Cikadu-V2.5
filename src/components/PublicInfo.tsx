@@ -30,7 +30,8 @@ import {
   Calendar,
   Award,
   Share2,
-  FileText
+  FileText,
+  UserCheck
 } from 'lucide-react';
 import { 
   SchoolConfig, 
@@ -40,7 +41,9 @@ import {
   TeacherUser,
   AttendanceSession,
   AttendanceStatus,
-  SchoolEventItem 
+  SchoolEventItem,
+  JadwalPiketHarian,
+  DayOfWeek
 } from '../types';
 import { generateQrDataUrl } from '../utils/qr';
 import { PeriodFilterBar } from './PeriodFilterBar';
@@ -54,6 +57,7 @@ interface PublicInfoProps {
   records?: AttendanceRecord[];
   journals?: TeachingJournal[];
   teachers?: TeacherUser[];
+  jadwalPiket?: JadwalPiketHarian[];
   currentSession?: AttendanceSession;
   schoolEvents?: SchoolEventItem[];
   onOpenLogin?: () => void;
@@ -69,6 +73,7 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
   records = [],
   journals = [],
   teachers = [],
+  jadwalPiket = [],
   currentSession = 'Pagi',
   schoolEvents = [],
   onOpenLogin,
@@ -161,6 +166,79 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
       year: 'numeric',
     });
   }, []);
+
+  // Day name for today in Indonesian
+  const todayDayName = useMemo<string>(() => {
+    const dayMap: Record<number, string> = {
+      0: 'Minggu',
+      1: 'Senin',
+      2: 'Selasa',
+      3: 'Rabu',
+      4: 'Kamis',
+      5: 'Jumat',
+      6: 'Sabtu',
+    };
+    return dayMap[new Date().getDay()] || 'Senin';
+  }, []);
+
+  // Today's Duty Officers (Petugas Piket Hari Ini)
+  const todayPiketOfficers = useMemo(() => {
+    if (!jadwalPiket || jadwalPiket.length === 0) {
+      // Fallback if no schedule dataset, find teachers marked as piket
+      const fallbackTeachers = teachers.filter((t) => t.isGuruPiket || t.role === 'piket');
+      if (fallbackTeachers.length > 0) {
+        return fallbackTeachers.map((t) => ({
+          id: t.id,
+          nama: t.nama,
+          nip: t.nip && t.nip !== '-' ? t.nip : t.username || t.id,
+          nomorHp: t.nomorHp || schoolConfig.kontak || '',
+          peran: t.piketRole || 'Petugas Piket Harian',
+          jamMulai: '06:30',
+          jamSelesai: '14:30',
+          fotoUrl: t.fotoUrl,
+        }));
+      }
+      if (schoolConfig.namaPetugasPiket) {
+        return [{
+          id: 'config_default',
+          nama: schoolConfig.namaPetugasPiket,
+          nip: schoolConfig.nipPetugasPiket || '-',
+          nomorHp: schoolConfig.kontak || '',
+          peran: 'Petugas Piket Sekolah',
+          jamMulai: '06:30',
+          jamSelesai: '14:30',
+          fotoUrl: undefined,
+        }];
+      }
+      return [];
+    }
+
+    const dayData = jadwalPiket.find((j) => j.hari === todayDayName);
+    if (!dayData || !dayData.petugas || dayData.petugas.length === 0) {
+      return [];
+    }
+
+    return dayData.petugas.map((p) => {
+      // Cross-reference with teacher object for phone & photo if needed
+      const teacherObj = teachers.find(
+        (t) => (p.teacherId && t.id === p.teacherId) || t.nama.toLowerCase().trim() === p.nama.toLowerCase().trim()
+      );
+      const phone = p.nomorHp || teacherObj?.nomorHp || schoolConfig.kontak || '';
+      const foto = teacherObj?.fotoUrl;
+      const nipVal = p.nip || teacherObj?.nip || teacherObj?.username || teacherObj?.id || '-';
+
+      return {
+        id: p.id || `piket_${p.nama}`,
+        nama: p.nama,
+        nip: nipVal,
+        nomorHp: phone,
+        peran: p.peran || 'Petugas Piket Harian',
+        jamMulai: p.jamMulai || '06:30',
+        jamSelesai: p.jamSelesai || '14:30',
+        fotoUrl: foto,
+      };
+    });
+  }, [jadwalPiket, todayDayName, teachers, schoolConfig]);
 
   // Filter Periode Riwayat Siswa (Hari Ini, Minggu, Bulan, Semester, Tahun)
   const [historyPeriodFilter, setHistoryPeriodFilter] = useState<TimePeriodFilter>('semua');
@@ -789,6 +867,142 @@ export const PublicInfo: React.FC<PublicInfoProps> = ({
             </span>
           </div>
         </div>
+      </div>
+
+      {/* ======================================================== */}
+      {/* PETUGAS PIKET HARI INI (LIVE ON DUTY OFFICERS DISPLAY)  */}
+      {/* ======================================================== */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-slate-100 gap-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold shrink-0 border border-indigo-100 shadow-2xs">
+              <ShieldCheck className="w-5 h-5 text-indigo-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="font-extrabold text-base text-slate-900">
+                  Petugas Piket Hari Ini ({todayDayName})
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Aktif Bertugas</span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Daftar guru / petugas piket yang bertugas hari ini dan siap melayani informasi & verifikasi izin siswa
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+            <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+              Total: <strong>{todayPiketOfficers.length} Petugas</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Dynamic Grid: 1 Officer => 1 Col (Centered), 2 Officers => 2 Cols, 3+ Officers => 3 Cols */}
+        {todayPiketOfficers.length === 0 ? (
+          <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
+            <UserCheck className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="text-xs font-bold text-slate-700">
+              Hari ini ({todayDayName}) tidak ada jadwal penugasan guru piket harian.
+            </p>
+            <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+              Layanan informasi dan konfirmasi presensi dapat menghubungi kontak utama sekolah di <strong>{schoolConfig.kontak || '-'}</strong>.
+            </p>
+          </div>
+        ) : (
+          <div className={`grid gap-4 ${
+            todayPiketOfficers.length === 1 
+              ? 'grid-cols-1 max-w-xl mx-auto' 
+              : todayPiketOfficers.length === 2 
+              ? 'grid-cols-1 sm:grid-cols-2' 
+              : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+          }`}>
+            {todayPiketOfficers.map((officer, idx) => {
+              const cleanPhoneNum = officer.nomorHp ? officer.nomorHp.replace(/[^0-9]/g, '') : '';
+              const waFormatted = cleanPhoneNum.startsWith('0') ? '62' + cleanPhoneNum.slice(1) : cleanPhoneNum;
+              const hasPhone = Boolean(cleanPhoneNum && cleanPhoneNum.length >= 7);
+
+              return (
+                <div 
+                  key={officer.id || idx}
+                  className="p-4 rounded-2xl bg-gradient-to-b from-white to-slate-50/80 border border-slate-200 hover:border-indigo-300 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between space-y-3.5 relative overflow-hidden group"
+                >
+                  {/* Accent Top Border */}
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500" />
+
+                  {/* Header: Photo, Name, Role, NUPTK */}
+                  <div className="flex items-start gap-3 pt-1">
+                    {/* Photo / Avatar */}
+                    {officer.fotoUrl && officer.fotoUrl !== '-' && !officer.fotoUrl.includes('placehold.co') ? (
+                      <img 
+                        src={officer.fotoUrl} 
+                        alt={officer.nama} 
+                        className="w-13 h-13 rounded-2xl object-cover border-2 border-indigo-200 shadow-2xs shrink-0"
+                      />
+                    ) : (
+                      <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-indigo-600 to-blue-700 text-white flex items-center justify-center font-black text-lg shrink-0 shadow-2xs border border-indigo-300">
+                        {officer.nama.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div className="space-y-0.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase border border-indigo-100">
+                          {officer.peran || 'Petugas Piket'}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500 font-semibold">
+                          ⏰ {officer.jamMulai} - {officer.jamSelesai} WIB
+                        </span>
+                      </div>
+
+                      <h4 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-indigo-700 transition-colors leading-snug">
+                        {officer.nama}
+                      </h4>
+
+                      <p className="text-[11px] text-slate-500 font-mono font-medium truncate">
+                        NUPTK/ID: <span className="text-slate-800 font-semibold">{officer.nip}</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Phone & WhatsApp Quick Contact Action Bar */}
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center gap-2">
+                    {hasPhone ? (
+                      <>
+                        <a
+                          href={`https://wa.me/${waFormatted}?text=${encodeURIComponent(`Halo Yth. Bapak/Ibu ${officer.nama} (Petugas Piket Hari Ini ${schoolConfig.namaSekolah}), saya Orang Tua/Wali Siswa ingin berkomunikasi mengenai presensi/informasi anak.`)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs hover:shadow-xs cursor-pointer"
+                          title={`Kirim pesan WhatsApp ke ${officer.nama}`}
+                        >
+                          <MessageSquare className="w-3.5 h-3.5 text-white shrink-0" />
+                          <span className="truncate">WhatsApp ({officer.nomorHp})</span>
+                        </a>
+
+                        <a
+                          href={`tel:${cleanPhoneNum}`}
+                          className="p-2 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 transition-colors cursor-pointer shrink-0"
+                          title={`Telepon langsung ${officer.nama}`}
+                        >
+                          <Phone className="w-4 h-4 text-slate-600 group-hover:text-blue-600" />
+                        </a>
+                      </>
+                    ) : (
+                      <div className="w-full py-2 px-3 rounded-xl bg-slate-100 text-slate-500 text-[11px] font-semibold text-center">
+                        Kontak WhatsApp: <strong>{schoolConfig.kontak || 'Hubungi Kantor Sekolah'}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ======================================================== */}
