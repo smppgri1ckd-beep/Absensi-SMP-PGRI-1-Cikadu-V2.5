@@ -7,10 +7,11 @@ interface AcademicCalendarProps {
 }
 
 export const AcademicCalendar: React.FC<AcademicCalendarProps> = ({ events }) => {
-  // Calendar month state: October 2026
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonth, setCurrentMonth] = useState(9); // 0-indexed: 9 = October
-  const [selectedDate, setSelectedDate] = useState<string>('2026-10-05');
+  // Calendar month state: initialized to real-time current date
+  const now = new Date();
+  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth()); // 0-indexed
+  const [selectedDate, setSelectedDate] = useState<string>(now.toISOString().split('T')[0]);
 
   // Month names
   const monthNames = [

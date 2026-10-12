@@ -187,33 +187,34 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
     });
   };
 
-  // Single PDF Export (1:1 Precision Scale)
+  // Single PDF Export (1:1 Precision Scale on A4)
   const handleDownloadSinglePdf = async () => {
     if (!singleCardPdfRef.current || isGeneratingPdf) return;
     try {
       setIsGeneratingPdf(true);
-      setPdfProgressText('Menyiapkan render kartu PDF presisi 1:1...');
+      setPdfProgressText('Menyiapkan render kartu PDF presisi 1:1 pada halaman A4...');
       await new Promise((r) => setTimeout(r, 200));
 
       const canvas = await html2canvas(singleCardPdfRef.current, {
-        scale: 3.0,
+        scale: 2.5,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
         logging: false,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      const imgData = canvas.toDataURL('image/jpeg', 0.96);
       const doc = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
-        format: [142, 106],
+        format: 'a4',
+        compress: true,
       });
 
-      doc.addImage(imgData, 'JPEG', 0, 0, 142, 106, undefined, 'FAST');
+      doc.addImage(imgData, 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
       const filename = `Kartu-Guru-${formData.nama.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      toast.success('PDF Kartu Siap', 'File PDF kartu identitas Anda berhasil disimpan (skala presisi 1:1).');
+      toast.success('PDF Kartu Siap', 'File PDF kartu identitas Anda berhasil disimpan (skala presisi 1:1 halaman A4).');
     } catch (err) {
       console.error('PDF error:', err);
       toast.error('Gagal Membuat PDF', 'Silakan gunakan tombol Cetak Printer.');
@@ -787,35 +788,56 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
         <div
           ref={singleCardPdfRef}
           style={{
-            width: '142mm',
-            height: '106mm',
+            width: '210mm',
+            height: '297mm',
             backgroundColor: '#ffffff',
-            padding: '4mm',
+            padding: '12mm 10mm',
             boxSizing: 'border-box',
             display: 'flex',
-            flexDirection: 'row',
+            flexDirection: 'column',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: '4mm',
+            justifyContent: 'flex-start',
+            fontFamily: 'sans-serif',
           }}
         >
-          <div style={{ width: '65mm', height: '98mm', flexShrink: 0, overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
-            <IdCardFront
-              teacher={formData}
-              category="GURU"
-              config={schoolConfig}
-              qrDataUrl={qrCodeDataUrl}
-              paperSize="F4"
-              theme="pgri-blue"
-            />
+          {/* Header Note */}
+          <div style={{ textAlign: 'center', marginBottom: '8mm' }}>
+            <h2 style={{ fontSize: '13px', fontWeight: 'bold', color: '#0f172a', margin: '0 0 3px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {schoolConfig.namaSekolah || 'SMP PGRI 1 CIKADU'}
+            </h2>
+            <p style={{ fontSize: '11px', fontWeight: 'bold', color: '#0284c7', margin: '0 0 4px 0' }}>
+              DOKUMEN KARTU IDENTITAS GURU & TENAGA KEPENDIDIKAN (SKALA PRESISI 1:1)
+            </p>
+            <p style={{ fontSize: '9px', color: '#64748b', margin: 0 }}>
+              Petunjuk Cetak: Gunakan kertas A4/F4, atur skala printer "Actual Size / 100%" agar ukuran fisik kartu presisi 65 × 98 mm.
+            </p>
           </div>
-          <div style={{ width: '65mm', height: '98mm', flexShrink: 0, overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
-            <IdCardBack
-              config={schoolConfig}
-              paperSize="F4"
-              category="GURU"
-              theme="pgri-blue"
-            />
+
+          {/* Cards Pair Container */}
+          <div style={{ display: 'flex', flexDirection: 'row', gap: '6mm', alignItems: 'center', justifyContent: 'center', marginTop: '4mm' }}>
+            <div style={{ width: '65mm', height: '98mm', flexShrink: 0, overflow: 'hidden', border: '1px dashed #94a3b8', borderRadius: '4px' }}>
+              <IdCardFront
+                teacher={formData}
+                category="GURU"
+                config={schoolConfig}
+                qrDataUrl={qrCodeDataUrl}
+                paperSize="F4"
+                theme="pgri-blue"
+              />
+            </div>
+            <div style={{ width: '65mm', height: '98mm', flexShrink: 0, overflow: 'hidden', border: '1px dashed #94a3b8', borderRadius: '4px' }}>
+              <IdCardBack
+                config={schoolConfig}
+                paperSize="F4"
+                category="GURU"
+                theme="pgri-blue"
+              />
+            </div>
+          </div>
+
+          {/* Footer Guide */}
+          <div style={{ marginTop: '10mm', fontSize: '8.5px', color: '#94a3b8', textAlign: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '4mm', width: '180mm' }}>
+            Garis putus-putus abu-abu merupakan panduan pemotongan presisi. | Diterbitkan otomatis oleh SIAP SMP PGRI 1 CIKADU
           </div>
         </div>
       </div>

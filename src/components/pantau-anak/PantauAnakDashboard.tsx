@@ -179,7 +179,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
     );
   }, [records, selectedStudent, todayStr]);
 
-  // Metrics for LearningSummary
+  // Metrics for LearningSummary from REAL DATA
   const learningMetrics = useMemo(() => {
     const uncompleted = assignments.filter((a) => {
       const sub = submissions.find((s) => s.assignmentId === a.id);
@@ -193,21 +193,110 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
     const late = submissions.filter((s) => s.status === 'Terlambat').length;
 
     const totalGradeSum = grades.reduce((acc, curr) => acc + curr.nilai, 0);
-    const avgGrade = grades.length > 0 ? totalGradeSum / grades.length : 87.5;
+    const avgGrade = grades.length > 0 ? totalGradeSum / grades.length : 0;
 
     // Attendance rate
     const studentRecs = records.filter((r) => r.nisn === selectedStudent?.nisn);
     const hadir = studentRecs.filter((r) => r.status === 'Hadir' || r.status === 'Terlambat').length;
-    const rate = studentRecs.length > 0 ? Math.round((hadir / studentRecs.length) * 100) : 95;
+    const rate = studentRecs.length > 0 ? Math.round((hadir / studentRecs.length) * 100) : 100;
+
+    const quizzes = grades.filter((g) => g.jenisPenilaian === 'Ulangan Harian' || g.jenisPenilaian === 'Praktikum');
+    const exams = grades.filter((g) => g.jenisPenilaian === 'UTS' || g.jenisPenilaian === 'UAS');
+    const tasks = grades.filter((g) => g.jenisPenilaian === 'Tugas');
+
+    const examAvg = exams.length > 0 ? Number((exams.reduce((a, b) => a + b.nilai, 0) / exams.length).toFixed(1)) : 0;
+    const taskAvg = tasks.length > 0 ? Number((tasks.reduce((a, b) => a + b.nilai, 0) / tasks.length).toFixed(1)) : 0;
 
     return {
       averageGrade: avgGrade,
       uncompletedTasks: uncompleted,
-      submittedTasks: submitted > 0 ? submitted : 24,
-      lateTasks: late > 0 ? late : 1,
+      submittedTasks: submitted,
+      lateTasks: late,
       attendancePercentage: Math.min(100, Math.max(0, rate)),
+      quizCount: quizzes.length,
+      examCount: exams.length,
+      examAverage: examAvg,
+      taskAverage: taskAvg,
+      completedTopicsCount: assignments.length,
     };
   }, [assignments, submissions, grades, records, selectedStudent]);
+
+  // Synthesize real-time activity logs if DB activityLogs is empty
+  const realTimeActivityLogs = useMemo(() => {
+    if (activityLogs.length > 0) return activityLogs;
+    if (!selectedStudent) return [];
+
+    const generated: StudentActivityLogItem[] = [];
+    const firstName = selectedStudent.nama.split(' ')[0];
+
+    // Morning attendance
+    if (morningRecord) {
+      const isLate = morningRecord.status === 'Terlambat';
+      generated.push({
+        id: `morn_${morningRecord.id}`,
+        nisn: selectedStudent.nisn,
+        tanggal: todayStr,
+        waktu: morningRecord.waktu || '07:00',
+        kategori: 'MASUK',
+        keterangan: isLate
+          ? `⚠️ ${firstName} presensi pagi dengan status TERLAMBAT (${morningRecord.waktu || '07:15'} WIB)`
+          : `🟢 ${firstName} presensi pagi tepat waktu (${morningRecord.waktu || '07:00'} WIB)`,
+      });
+    }
+
+    // Schedules today
+    schedules.forEach((sch, i) => {
+      generated.push({
+        id: `sch_${i}`,
+        nisn: selectedStudent.nisn,
+        tanggal: todayStr,
+        waktu: sch.jamMulai,
+        kategori: 'KBM',
+        keterangan: `📚 Mengikuti KBM ${sch.mapel} bersama Guru ${sch.guruNama}`,
+      });
+    });
+
+    // Submissions today
+    submissions.forEach((sub, i) => {
+      generated.push({
+        id: `sub_${i}`,
+        nisn: selectedStudent.nisn,
+        tanggal: todayStr,
+        waktu: sub.dikumpulkanPada?.substring(11, 16) || '12:00',
+        kategori: 'TUGAS',
+        keterangan: `📝 Mengumpulkan tugas di Portal Selesai`,
+      });
+    });
+
+    // Recent grades today
+    grades.forEach((g, i) => {
+      if (g.tanggal === todayStr) {
+        generated.push({
+          id: `grd_${i}`,
+          nisn: selectedStudent.nisn,
+          tanggal: todayStr,
+          waktu: '13:00',
+          kategori: 'NILAI',
+          keterangan: `📊 Nilai ${g.mapel} (${g.jenisPenilaian}) terbit: ${g.nilai}`,
+        });
+      }
+    });
+
+    // Afternoon attendance
+    if (afternoonRecord) {
+      generated.push({
+        id: `aft_${afternoonRecord.id}`,
+        nisn: selectedStudent.nisn,
+        tanggal: todayStr,
+        waktu: afternoonRecord.waktu || '15:00',
+        kategori: 'PULANG',
+        keterangan: `🏫 ${firstName} presensi pulang dari sekolah (${afternoonRecord.waktu || '15:00'} WIB)`,
+      });
+    }
+
+    // Sort by time
+    return generated.sort((a, b) => a.waktu.localeCompare(b.waktu));
+  }, [activityLogs, selectedStudent, morningRecord, afternoonRecord, schedules, submissions, grades, todayStr]);
 
   // State: Filter periode izin siswa
   const [leavePeriodFilter, setLeavePeriodFilter] = useState<TimePeriodFilter>('semua');
@@ -435,7 +524,7 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
 
             <div id="section-activity">
               <ActivityTimeline 
-                logs={activityLogs} 
+                logs={realTimeActivityLogs} 
                 studentNama={selectedStudent.nama}
               />
             </div>
@@ -450,6 +539,11 @@ export const PantauAnakDashboard: React.FC<PantauAnakDashboardProps> = ({
               submittedTasks={learningMetrics.submittedTasks}
               lateTasks={learningMetrics.lateTasks}
               attendancePercentage={learningMetrics.attendancePercentage}
+              quizCount={learningMetrics.quizCount}
+              examCount={learningMetrics.examCount}
+              examAverage={learningMetrics.examAverage}
+              taskAverage={learningMetrics.taskAverage}
+              completedTopicsCount={learningMetrics.completedTopicsCount}
             />
           </div>
 

@@ -44,13 +44,20 @@ export const RecentGrades: React.FC<RecentGradesProps> = ({
     return 'bg-rose-100 text-rose-800 border-rose-200';
   };
 
-  // Monthly trend data for the chart (Jul, Agu, Sep, Okt)
-  const monthlyProgression = [
-    { bulan: 'Jul', nilai: 82, label: 'Ulangan Pengantar' },
-    { bulan: 'Agu', nilai: 86, label: 'Kuis Aljabar' },
-    { bulan: 'Sep', nilai: 88, label: 'Ulangan Harian 1' },
-    { bulan: 'Okt', nilai: 92, label: 'Tugas Terapan' },
-  ];
+  // Monthly trend data computed dynamically from real student grades
+  const monthlyProgression = React.useMemo(() => {
+    if (grades.length === 0) return [];
+    const sorted = [...grades].sort((a, b) => new Date(a.tanggal || '').getTime() - new Date(b.tanggal || '').getTime());
+    return sorted.slice(-5).map((g) => {
+      const d = g.tanggal ? new Date(g.tanggal) : new Date();
+      const monthLabel = d.toLocaleDateString('id-ID', { month: 'short' });
+      return {
+        bulan: monthLabel,
+        nilai: g.nilai,
+        label: `${g.mapel} (${g.jenisPenilaian})`,
+      };
+    });
+  }, [grades]);
 
   return (
     <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
