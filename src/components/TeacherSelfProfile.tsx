@@ -49,10 +49,29 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
 
   // Find or create current teacher object
   const currentTeacher: TeacherUser = useMemo(() => {
-    const matched = teachers.find(
-      (t) => t.id === currentUser.id || t.username === currentUser.username || (currentUser.nip && t.nip === currentUser.nip)
-    );
+    let matched = teachers.find((t) => t.id === currentUser.id);
+
+    if (!matched && currentUser.username) {
+      matched = teachers.find(
+        (t) => t.username && t.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim()
+      );
+    }
+
+    const userNip = currentUser.nip?.trim();
+    if (!matched && userNip && userNip !== '-') {
+      matched = teachers.find(
+        (t) => t.nip && t.nip.trim() !== '-' && t.nip.trim() === userNip
+      );
+    }
+
+    if (!matched && currentUser.nama) {
+      matched = teachers.find(
+        (t) => t.nama && t.nama.toLowerCase().trim() === currentUser.nama.toLowerCase().trim()
+      );
+    }
+
     if (matched) return matched;
+
     return {
       id: currentUser.id || 'teacher-self',
       nama: currentUser.nama || 'Guru Sekolah',

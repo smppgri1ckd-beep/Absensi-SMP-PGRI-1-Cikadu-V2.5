@@ -154,7 +154,55 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
   // Check if current user logged in is a teacher
   const currentTeacherObj = useMemo(() => {
     if (!currentUser) return null;
-    return teachers.find((t) => t.id === currentUser.id || t.username === currentUser.username || t.nip === currentUser.nip) || null;
+
+    // 1. Match by exact ID
+    let found = teachers.find((t) => t.id === currentUser.id);
+
+    // 2. Match by username (case-insensitive)
+    if (!found && currentUser.username) {
+      found = teachers.find(
+        (t) => t.username && t.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim()
+      );
+    }
+
+    // 3. Match by valid NIP/NUPTK (ignoring '-' and empty values)
+    const userNip = currentUser.nip?.trim();
+    if (!found && userNip && userNip !== '-') {
+      found = teachers.find(
+        (t) => t.nip && t.nip.trim() !== '-' && t.nip.trim() === userNip
+      );
+    }
+
+    // 4. Match by exact full name (case-insensitive)
+    if (!found && currentUser.nama) {
+      found = teachers.find(
+        (t) => t.nama && t.nama.toLowerCase().trim() === currentUser.nama.toLowerCase().trim()
+      );
+    }
+
+    if (found) return found;
+
+    // Fallback: If user has teacher/admin/piket role, construct teacher object directly from currentUser
+    if (currentUser.role === 'guru' || currentUser.role === 'piket' || currentUser.role === 'admin') {
+      return {
+        id: currentUser.id || 'teacher-self',
+        nip: currentUser.nip || '-',
+        nama: currentUser.nama || 'Guru Sekolah',
+        username: currentUser.username || 'guru',
+        password: '',
+        role: currentUser.role,
+        mapel: currentUser.mapel || 'Guru Mapel',
+        waliKelas: currentUser.waliKelas || '',
+        nomorHp: currentUser.nomorHp || '',
+        status: currentUser.status || 'Aktif',
+        penugasanMapel: currentUser.penugasanMapel || [],
+        isGuruMapel: currentUser.isGuruMapel ?? true,
+        isWaliKelas: currentUser.isWaliKelas ?? false,
+        isGuruPiket: currentUser.isGuruPiket ?? false,
+      };
+    }
+
+    return null;
   }, [currentUser, teachers]);
 
   // Current teacher's status today

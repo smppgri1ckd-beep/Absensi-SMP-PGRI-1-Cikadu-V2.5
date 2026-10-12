@@ -668,9 +668,9 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
 
           // Check if teacher with same NUPTK or username already exists
           const existingTeacher = teachers.find((t) => 
-            (nuptk && t.nip && t.nip === nuptk) || 
-            (t.username && t.username === username) ||
-            (t.nama && t.nama.toLowerCase().trim() === nama.toLowerCase().trim())
+            (nuptk && nuptk !== '-' && t.nip && t.nip !== '-' && t.nip === nuptk) || 
+            (username && t.username && t.username.toLowerCase().trim() === username.toLowerCase().trim()) ||
+            (nama && t.nama && t.nama.toLowerCase().trim() === nama.toLowerCase().trim())
           );
 
           const teacherId = existingTeacher ? existingTeacher.id : `T_${Date.now()}_${idx + 1}`;

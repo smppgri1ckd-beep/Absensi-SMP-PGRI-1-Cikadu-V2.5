@@ -116,7 +116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return dayData.petugas.find((p) => {
       if (p.teacherId && p.teacherId === user.id) return true;
       if (p.nama && user.nama && p.nama.toLowerCase().trim() === user.nama.toLowerCase().trim()) return true;
-      if (p.nip && user.nip && p.nip.trim() === user.nip.trim()) return true;
+      if (p.nip && user.nip && p.nip.trim() !== '-' && p.nip.trim() !== '' && p.nip.trim() === user.nip.trim()) return true;
       return false;
     }) || null;
   }, [user, currentDayOfWeek, jadwalPiket]);
@@ -129,7 +129,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const match = j.petugas.some((p) => {
         if (p.teacherId && p.teacherId === user.id) return true;
         if (p.nama && user.nama && p.nama.toLowerCase().trim() === user.nama.toLowerCase().trim()) return true;
-        if (p.nip && user.nip && p.nip.trim() === user.nip.trim()) return true;
+        if (p.nip && user.nip && p.nip.trim() !== '-' && p.nip.trim() !== '' && p.nip.trim() === user.nip.trim()) return true;
         return false;
       });
       if (match) days.push(j.hari);
@@ -167,20 +167,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (list && list.length > 0) {
         setTeachers(list);
         setUser((currentUser) => {
-          if (!currentUser || currentUser.role !== 'guru') return currentUser;
-          const found = list.find(
-            (t) => t.id === currentUser.id || t.username.toLowerCase() === currentUser.username.toLowerCase()
-          );
+          if (!currentUser || (currentUser.role !== 'guru' && currentUser.role !== 'piket')) return currentUser;
+          const found = list.find((t) => {
+            if (t.id === currentUser.id) return true;
+            if (t.username && currentUser.username && t.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) return true;
+            if (t.nip && currentUser.nip && currentUser.nip.trim() !== '-' && currentUser.nip.trim() !== '' && t.nip.trim() === currentUser.nip.trim()) return true;
+            if (t.nama && currentUser.nama && t.nama.toLowerCase().trim() === currentUser.nama.toLowerCase().trim()) return true;
+            return false;
+          });
           if (found) {
             const isGuruMapel = found.isGuruMapel ?? (found.role === 'guru' || !!found.mapel || (found.penugasanMapel && found.penugasanMapel.length > 0));
             const isWaliKelas = found.isWaliKelas ?? (!!found.waliKelas && found.waliKelas !== '-' && found.waliKelas !== '');
             const isGuruPiket = found.isGuruPiket ?? (found.role === 'piket' || (found.piketDays && found.piketDays.length > 0));
             return {
               ...currentUser,
+              id: found.id,
+              username: found.username,
+              nama: found.nama,
+              nip: found.nip,
               mapel: found.mapel,
               penugasanMapel: found.penugasanMapel || [],
               waliKelas: found.waliKelas,
-              nama: found.nama,
+              nomorHp: found.nomorHp,
+              status: found.status || 'Aktif',
               isGuruMapel,
               isWaliKelas,
               isGuruPiket,
