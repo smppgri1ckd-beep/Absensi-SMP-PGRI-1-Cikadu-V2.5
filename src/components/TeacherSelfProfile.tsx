@@ -82,6 +82,7 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
   const [pdfProgressText, setPdfProgressText] = useState('');
 
   const cardContainerRef = useRef<HTMLDivElement>(null);
+  const singleCardPdfRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync form data when currentTeacher changes
@@ -186,32 +187,33 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
     });
   };
 
-  // Single PDF Export
+  // Single PDF Export (1:1 Precision Scale)
   const handleDownloadSinglePdf = async () => {
-    if (!cardContainerRef.current || isGeneratingPdf) return;
+    if (!singleCardPdfRef.current || isGeneratingPdf) return;
     try {
       setIsGeneratingPdf(true);
-      setPdfProgressText('Menyiapkan render kartu PDF...');
-      await new Promise((r) => setTimeout(r, 150));
+      setPdfProgressText('Menyiapkan render kartu PDF presisi 1:1...');
+      await new Promise((r) => setTimeout(r, 200));
 
-      const canvas = await html2canvas(cardContainerRef.current, {
-        scale: 2.5,
+      const canvas = await html2canvas(singleCardPdfRef.current, {
+        scale: 3.0,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
+        logging: false,
       });
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
       const doc = new jsPDF({
-        orientation: 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
-        format: [215, 330],
+        format: [142, 106],
       });
 
-      doc.addImage(imgData, 'JPEG', 10, 10, 195, 120, undefined, 'FAST');
+      doc.addImage(imgData, 'JPEG', 0, 0, 142, 106, undefined, 'FAST');
       const filename = `Kartu-Guru-${formData.nama.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
-      toast.success('PDF Kartu Siap', 'File PDF kartu identitas Anda berhasil disimpan.');
+      toast.success('PDF Kartu Siap', 'File PDF kartu identitas Anda berhasil disimpan (skala presisi 1:1).');
     } catch (err) {
       console.error('PDF error:', err);
       toast.error('Gagal Membuat PDF', 'Silakan gunakan tombol Cetak Printer.');
@@ -770,6 +772,53 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
         category="GURU"
         schoolConfig={schoolConfig}
       />
+
+      {/* Off-screen Staging for 1:1 Scale Single Card PDF Export */}
+      <div
+        style={{
+          position: 'fixed',
+          left: '-9999px',
+          top: '-9999px',
+          zIndex: -9999,
+          pointerEvents: 'none',
+        }}
+        aria-hidden="true"
+      >
+        <div
+          ref={singleCardPdfRef}
+          style={{
+            width: '142mm',
+            height: '106mm',
+            backgroundColor: '#ffffff',
+            padding: '4mm',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '4mm',
+          }}
+        >
+          <div style={{ width: '65mm', height: '98mm', flexShrink: 0, overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+            <IdCardFront
+              teacher={formData}
+              category="GURU"
+              config={schoolConfig}
+              qrDataUrl={qrCodeDataUrl}
+              paperSize="F4"
+              theme="pgri-blue"
+            />
+          </div>
+          <div style={{ width: '65mm', height: '98mm', flexShrink: 0, overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
+            <IdCardBack
+              config={schoolConfig}
+              paperSize="F4"
+              category="GURU"
+              theme="pgri-blue"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

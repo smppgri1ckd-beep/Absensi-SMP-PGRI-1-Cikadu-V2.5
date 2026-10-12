@@ -42,6 +42,7 @@ interface StagingPage {
   students: Student[];
   pageNumber: number;
   totalPageCount: number;
+  isSingleCard?: boolean;
 }
 
 export const CardPrinter: React.FC<CardPrinterProps> = ({
@@ -251,8 +252,27 @@ interface PrintableItem {
       setQrMap(newQrMap);
 
       const isF4 = paperSize === 'F4';
-      const pageWidth = isF4 ? 215 : 210;
-      const pageHeight = isF4 ? 330 : 297;
+      const isSingleCard = listToExport.length === 1;
+
+      let pageWidth = isF4 ? 215 : 210;
+      let pageHeight = isF4 ? 330 : 297;
+      let docOrientation: 'portrait' | 'landscape' = 'portrait';
+      let docFormat: [number, number] = isF4 ? [215, 330] : [210, 297];
+
+      if (isSingleCard) {
+        if (modeToUse === 'MOCKUP') {
+          pageWidth = 142;
+          pageHeight = 106;
+          docOrientation = 'landscape';
+          docFormat = [142, 106];
+        } else {
+          pageWidth = 73;
+          pageHeight = 106;
+          docOrientation = 'portrait';
+          docFormat = [73, 106];
+        }
+      }
+
       const cardsPerPage = 9;
       const totalBatches = Math.ceil(listToExport.length / cardsPerPage);
 
@@ -267,6 +287,7 @@ interface PrintableItem {
             students: batch,
             pageNumber: b + 1,
             totalPageCount: totalBatches,
+            isSingleCard,
           });
         }
       } else if (modeToUse === 'BACK') {
@@ -277,6 +298,7 @@ interface PrintableItem {
             students: batch,
             pageNumber: b + 1,
             totalPageCount: totalBatches,
+            isSingleCard,
           });
         }
       } else if (modeToUse === 'BOTH') {
@@ -289,17 +311,19 @@ interface PrintableItem {
             students: batch,
             pageNumber: b * 2 + 1,
             totalPageCount: totalPages,
+            isSingleCard,
           });
           pageQueue.push({
             type: 'BACK',
             students: batch,
             pageNumber: b * 2 + 2,
             totalPageCount: totalPages,
+            isSingleCard,
           });
         }
       } else if (modeToUse === 'MOCKUP') {
         // Mockup mode: 3 pairs per page on F4, 2-3 on A4
-        const pairsPerPage = isF4 ? 3 : 2;
+        const pairsPerPage = isSingleCard ? 1 : (isF4 ? 3 : 2);
         const totalMockupPages = Math.ceil(listToExport.length / pairsPerPage);
         for (let b = 0; b < totalMockupPages; b++) {
           const batch = listToExport.slice(b * pairsPerPage, (b + 1) * pairsPerPage);
@@ -308,6 +332,7 @@ interface PrintableItem {
             students: batch,
             pageNumber: b + 1,
             totalPageCount: totalMockupPages,
+            isSingleCard,
           });
         }
       }
@@ -319,9 +344,9 @@ interface PrintableItem {
 
       // 3. Initialize jsPDF
       const doc = new jsPDF({
-        orientation: 'portrait',
+        orientation: docOrientation,
         unit: 'mm',
-        format: isF4 ? [215, 330] : [210, 297],
+        format: docFormat,
         compress: true,
       });
 
@@ -357,7 +382,7 @@ interface PrintableItem {
           const imgData = canvas.toDataURL('image/jpeg', 0.94);
 
           if (i > 0) {
-            doc.addPage(isF4 ? [215, 330] : [210, 297], 'portrait');
+            doc.addPage(docFormat, docOrientation);
           }
 
           doc.addImage(
@@ -1082,10 +1107,13 @@ interface PrintableItem {
         <div
           style={{
             position: 'fixed',
-            left: 0,
-            top: 0,
-            width: paperSize === 'F4' ? '215mm' : '210mm',
-            minHeight: paperSize === 'F4' ? '330mm' : '297mm',
+            left: '-9999px',
+            top: '-9999px',
+            width: currentStagingPage.isSingleCard
+              ? (currentStagingPage.type === 'MOCKUP_PAIR' ? '142mm' : '73mm')
+              : (paperSize === 'F4' ? '215mm' : '210mm'),
+            minHeight: currentStagingPage.isSingleCard ? '106mm' : (paperSize === 'F4' ? '330mm' : '297mm'),
+            height: currentStagingPage.isSingleCard ? '106mm' : (paperSize === 'F4' ? '330mm' : '297mm'),
             zIndex: -9999,
             pointerEvents: 'none',
             overflow: 'hidden',
@@ -1095,7 +1123,9 @@ interface PrintableItem {
           <div
             ref={pdfPageRef}
             className={
-              paperSize === 'F4'
+              currentStagingPage.isSingleCard
+                ? 'bg-white text-slate-900 flex items-center justify-center p-1.5 gap-2.5'
+                : paperSize === 'F4'
                 ? 'id-card-page-f4 bg-white text-slate-900'
                 : 'id-card-page-a4 bg-white text-slate-900'
             }
@@ -1103,36 +1133,15 @@ interface PrintableItem {
               boxSizing: 'border-box',
               margin: 0,
               backgroundColor: '#ffffff',
+              width: currentStagingPage.isSingleCard
+                ? (currentStagingPage.type === 'MOCKUP_PAIR' ? '142mm' : '73mm')
+                : (paperSize === 'F4' ? '215mm' : '210mm'),
+              height: currentStagingPage.isSingleCard ? '106mm' : (paperSize === 'F4' ? '330mm' : '297mm'),
             }}
           >
             {currentStagingPage.type === 'FRONT' &&
               currentStagingPage.students.map((siswa: any) => (
-                <IdCardFront
-                  key={`stage-front-${siswa.nisn}`}
-                  student={siswa.rawStudent}
-                  teacher={siswa.rawTeacher}
-                  category={targetCategory}
-                  config={config}
-                  qrDataUrl={qrMap[siswa.nisn]}
-                  paperSize={paperSize}
-                  theme={cardTheme}
-                />
-              ))}
-
-            {currentStagingPage.type === 'BACK' &&
-              currentStagingPage.students.map((siswa: any) => (
-                <IdCardBack
-                  key={`stage-back-${siswa.nisn}`}
-                  config={config}
-                  paperSize={paperSize}
-                  theme={cardTheme}
-                  category={targetCategory}
-                />
-              ))}
-
-            {currentStagingPage.type === 'MOCKUP_PAIR' &&
-              currentStagingPage.students.map((siswa: any) => (
-                <React.Fragment key={`stage-pair-${siswa.nisn}`}>
+                <div key={`stage-front-${siswa.nisn}`} style={currentStagingPage.isSingleCard ? { width: '65mm', height: '98mm', overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' } : undefined}>
                   <IdCardFront
                     student={siswa.rawStudent}
                     teacher={siswa.rawTeacher}
@@ -1142,12 +1151,43 @@ interface PrintableItem {
                     paperSize={paperSize}
                     theme={cardTheme}
                   />
+                </div>
+              ))}
+
+            {currentStagingPage.type === 'BACK' &&
+              currentStagingPage.students.map((siswa: any) => (
+                <div key={`stage-back-${siswa.nisn}`} style={currentStagingPage.isSingleCard ? { width: '65mm', height: '98mm', overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' } : undefined}>
                   <IdCardBack
                     config={config}
                     paperSize={paperSize}
                     theme={cardTheme}
                     category={targetCategory}
                   />
+                </div>
+              ))}
+
+            {currentStagingPage.type === 'MOCKUP_PAIR' &&
+              currentStagingPage.students.map((siswa: any) => (
+                <React.Fragment key={`stage-pair-${siswa.nisn}`}>
+                  <div style={currentStagingPage.isSingleCard ? { width: '65mm', height: '98mm', overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' } : undefined}>
+                    <IdCardFront
+                      student={siswa.rawStudent}
+                      teacher={siswa.rawTeacher}
+                      category={targetCategory}
+                      config={config}
+                      qrDataUrl={qrMap[siswa.nisn]}
+                      paperSize={paperSize}
+                      theme={cardTheme}
+                    />
+                  </div>
+                  <div style={currentStagingPage.isSingleCard ? { width: '65mm', height: '98mm', overflow: 'hidden', border: '1px dashed #cbd5e1', borderRadius: '4px' } : undefined}>
+                    <IdCardBack
+                      config={config}
+                      paperSize={paperSize}
+                      theme={cardTheme}
+                      category={targetCategory}
+                    />
+                  </div>
                 </React.Fragment>
               ))}
           </div>
