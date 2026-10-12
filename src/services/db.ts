@@ -35,7 +35,9 @@ import {
   WhatsAppTemplate,
   IdCardTheme,
   AppTheme,
-  AdminAccountConfig
+  AdminAccountConfig,
+  TeacherAttendanceRecord,
+  TeacherLeaveRequest
 } from '../types';
 import { SCHOOL_LOGO_PNG_DATA_URL } from '../assets/schoolLogo';
 
@@ -1804,6 +1806,223 @@ export class DatabaseService {
       }
     } catch (e) {
       console.warn('Firestore bulkDeleteLeaveRequests offline cache used', e);
+    }
+  }
+
+  // --- ABSENSI GURU & TENDIK ---
+  static async getTeacherAttendanceRecords(): Promise<TeacherAttendanceRecord[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const defaultRecords: TeacherAttendanceRecord[] = [
+      {
+        id: `PRESENSI_GURU_T_SURYADI_${today}_Masuk`,
+        tanggal: today,
+        waktu: '06:45:10',
+        teacherId: 'T_SURYADI',
+        nip: '-',
+        nama: 'SURYADI',
+        mapel: 'Pendidikan Pancasila & PKN',
+        sesi: 'Masuk',
+        status: 'Hadir',
+        kategori: 'Kiosk QR',
+        catatan: 'Tiba di gerbang sekolah tepat waktu',
+      },
+      {
+        id: `PRESENSI_GURU_T1_${today}_Masuk`,
+        tanggal: today,
+        waktu: '06:40:22',
+        teacherId: 'T1',
+        nip: '19750918 200501 2 006',
+        nama: 'Hj. Siti Maryam, S.Pd.',
+        mapel: 'Ilmu Pengetahuan Alam (IPA)',
+        sesi: 'Masuk',
+        status: 'Hadir',
+        kategori: 'Kiosk QR',
+        catatan: 'Petugas Piket Gerbang Pagi',
+      },
+      {
+        id: `PRESENSI_GURU_T2_${today}_Masuk`,
+        tanggal: today,
+        waktu: '06:55:00',
+        teacherId: 'T2',
+        nip: '19810314 200801 1 009',
+        nama: 'Asep Saepudin, S.Pd.',
+        mapel: 'Matematika',
+        sesi: 'Masuk',
+        status: 'Hadir',
+        kategori: 'Absen Mandiri',
+      },
+      {
+        id: `PRESENSI_GURU_T3_${today}_Masuk`,
+        tanggal: today,
+        waktu: '07:20:15',
+        teacherId: 'T3',
+        nip: '19861102 201001 2 015',
+        nama: 'Rina Kusmayanti, M.Pd.',
+        mapel: 'Bahasa Indonesia',
+        sesi: 'Masuk',
+        status: 'Terlambat',
+        kategori: 'Kiosk QR',
+        catatan: 'Terlambat 5 menit',
+      },
+    ];
+
+    const local = getLocal<TeacherAttendanceRecord[]>('teacher_attendance', defaultRecords);
+    if (!db) return local;
+
+    try {
+      const colRef = collection(db, 'presensi_guru');
+      const snap = await getDocs(colRef);
+      if (!snap.empty) {
+        const list: TeacherAttendanceRecord[] = [];
+        snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
+        setLocal('teacher_attendance', list);
+        return list;
+      } else {
+        const batch = writeBatch(db);
+        local.forEach((r) => {
+          batch.set(doc(db!, 'presensi_guru', r.id), cleanData(r));
+        });
+        await batch.commit().catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Firestore getTeacherAttendanceRecords fallback to local', e);
+    }
+    return local;
+  }
+
+  static async saveTeacherAttendanceRecord(rec: TeacherAttendanceRecord): Promise<void> {
+    const list = await this.getTeacherAttendanceRecords();
+    const idx = list.findIndex((r) => r.id === rec.id);
+    if (idx >= 0) {
+      list[idx] = rec;
+    } else {
+      list.unshift(rec);
+    }
+    setLocal('teacher_attendance', list);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'presensi_guru', rec.id);
+      await setDoc(docRef, cleanData(rec));
+    } catch (e) {
+      console.warn('Firestore saveTeacherAttendanceRecord offline cache used', e);
+    }
+  }
+
+  static async bulkSaveTeacherAttendance(newRecords: TeacherAttendanceRecord[]): Promise<void> {
+    if (!newRecords || newRecords.length === 0) return;
+    const list = await this.getTeacherAttendanceRecords();
+    const map = new Map<string, TeacherAttendanceRecord>();
+    list.forEach((r) => map.set(r.id, r));
+    newRecords.forEach((r) => map.set(r.id, r));
+
+    const combined = Array.from(map.values());
+    setLocal('teacher_attendance', combined);
+
+    if (!db) return;
+    try {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < newRecords.length; i += CHUNK_SIZE) {
+        const chunk = newRecords.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach((r) => {
+          const docRef = doc(db!, 'presensi_guru', r.id);
+          batch.set(docRef, cleanData(r));
+        });
+        await batch.commit();
+      }
+    } catch (e) {
+      console.warn('Firestore bulkSaveTeacherAttendance offline cache used', e);
+    }
+  }
+
+  static async deleteTeacherAttendanceRecord(id: string): Promise<void> {
+    const list = await this.getTeacherAttendanceRecords();
+    const filtered = list.filter((r) => r.id !== id);
+    setLocal('teacher_attendance', filtered);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'presensi_guru', id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.warn('Firestore deleteTeacherAttendanceRecord offline cache used', e);
+    }
+  }
+
+  // --- PERMOHONAN IZIN & SAKIT GURU ---
+  static async getTeacherLeaveRequests(): Promise<TeacherLeaveRequest[]> {
+    const today = new Date().toISOString().split('T')[0];
+    const defaultLeaves: TeacherLeaveRequest[] = [
+      {
+        id: `TL_${today}_01`,
+        teacherId: 'T4',
+        nip: '19850212 200902 1 003',
+        nama: 'Dedi Kurniawan, S.Pd.',
+        jenis: 'Dinas Luar',
+        tanggalMulai: today,
+        tanggalSelesai: today,
+        alasan: 'Pendampingan Bimbingan Teknis Kurikulum Merdeka di Dinas Pendidikan Kabupaten.',
+        statusPengajuan: 'Disetujui',
+        tanggalPengajuan: `${today} 06:30`,
+        disetujuiOleh: 'CUNCUN MUHLISOH, S.Pd. (Kepala Sekolah)',
+      },
+    ];
+
+    const local = getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', defaultLeaves);
+    if (!db) return local;
+
+    try {
+      const colRef = collection(db, 'permohonan_izin_guru');
+      const snap = await getDocs(colRef);
+      if (!snap.empty) {
+        const list: TeacherLeaveRequest[] = [];
+        snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
+        setLocal('teacher_leave_requests', list);
+        return list;
+      } else {
+        const batch = writeBatch(db);
+        local.forEach((r) => {
+          batch.set(doc(db!, 'permohonan_izin_guru', r.id), cleanData(r));
+        });
+        await batch.commit().catch(() => {});
+      }
+    } catch (e) {
+      console.warn('Firestore getTeacherLeaveRequests fallback to local', e);
+    }
+    return local;
+  }
+
+  static async saveTeacherLeaveRequest(req: TeacherLeaveRequest): Promise<void> {
+    const list = await this.getTeacherLeaveRequests();
+    const idx = list.findIndex((r) => r.id === req.id);
+    if (idx >= 0) {
+      list[idx] = req;
+    } else {
+      list.unshift(req);
+    }
+    setLocal('teacher_leave_requests', list);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'permohonan_izin_guru', req.id);
+      await setDoc(docRef, cleanData(req));
+    } catch (e) {
+      console.warn('Firestore saveTeacherLeaveRequest offline cache used', e);
+    }
+  }
+
+  static async deleteTeacherLeaveRequest(id: string): Promise<void> {
+    const list = await this.getTeacherLeaveRequests();
+    const filtered = list.filter((r) => r.id !== id);
+    setLocal('teacher_leave_requests', filtered);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'permohonan_izin_guru', id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.warn('Firestore deleteTeacherLeaveRequest offline cache used', e);
     }
   }
 

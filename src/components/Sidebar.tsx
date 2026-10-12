@@ -346,6 +346,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         groupTitle: 'Layanan & Operasional Sekolah',
         items: [
           {
+            id: 'teacher-attendance',
+            label: 'Absensi Saya & Pendidik',
+            desc: 'Absen mandiri, rekap & izin dinas guru',
+            icon: UserCheck,
+            tag: 'Guru',
+            tagColor: 'bg-teal-100 text-teal-900 font-bold',
+          },
+          {
             id: 'kiosk',
             label: 'Pindai Presensi Siswa',
             desc: 'Layar pindai kartu QR presensi siswa di gerbang',
@@ -439,6 +447,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             label: 'Data & Akun Guru',
             desc: 'Akun login, NIP & penugasan mapel',
             icon: GraduationCap,
+          },
+          {
+            id: 'teacher-attendance',
+            label: 'Absensi Guru & Tendik',
+            desc: 'Pencatatan, absen mandiri & izin dinas guru',
+            icon: UserCheck,
+            tag: 'Guru',
+            tagColor: 'bg-teal-100 text-teal-900 font-bold',
           },
           {
             id: 'guru-piket',

@@ -20,7 +20,9 @@ import {
   LeaveRequestStatus,
   JadwalPiketHarian,
   SchoolEventItem,
-  ClassScheduleItem
+  ClassScheduleItem,
+  TeacherAttendanceRecord,
+  TeacherLeaveRequest
 } from './types';
 import { DatabaseService, DEFAULT_SCHOOL_CONFIG } from './services/db';
 import { soundService } from './utils/audio';
@@ -33,6 +35,7 @@ import { Dashboard } from './components/Dashboard';
 import { CardPrinter } from './components/CardPrinter';
 import { StudentManagement } from './components/StudentManagement';
 import { TeacherManagement } from './components/TeacherManagement';
+import { TeacherAttendanceManagement } from './components/TeacherAttendanceManagement';
 import { GuruPiketManagement } from './components/GuruPiketManagement';
 import { TeachingJournalComponent } from './components/TeachingJournal';
 import { Reports } from './components/Reports';
@@ -72,6 +75,8 @@ function AppContent() {
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>([]);
   const [schoolEvents, setSchoolEvents] = useState<SchoolEventItem[]>([]);
+  const [teacherRecords, setTeacherRecords] = useState<TeacherAttendanceRecord[]>([]);
+  const [teacherLeaves, setTeacherLeaves] = useState<TeacherLeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadingProgress, setLoadingProgress] = useState<number>(15);
   const [loadingStepText, setLoadingStepText] = useState<string>('Menghubungkan ke pangkalan data sekolah...');
@@ -124,7 +129,7 @@ function AppContent() {
       setLoadingStepText('Menghubungkan ke pangkalan data sekolah...');
 
       let completedCount = 0;
-      const totalSteps = 11;
+      const totalSteps = 13;
       const trackStep = async <T,>(promise: Promise<T>, stepName: string): Promise<T> => {
         const result = await promise;
         completedCount += 1;
@@ -145,7 +150,9 @@ function AppContent() {
         scheduleList,
         leaveList,
         piketList,
-        eventList
+        eventList,
+        teacherRecList,
+        teacherLeaveList
       ] = await Promise.all([
         trackStep(DatabaseService.getSchoolConfig(), 'Memuat konfigurasi & jadwal sekolah...'),
         trackStep(DatabaseService.getStudents(), 'Sinkronisasi profil & data siswa...'),
@@ -158,6 +165,8 @@ function AppContent() {
         trackStep(DatabaseService.getLeaveRequests(), 'Sinkronisasi surat izin & permohonan...'),
         trackStep(DatabaseService.getJadwalPiket(), 'Memeriksa penugasan piket hari ini...'),
         trackStep(DatabaseService.getSchoolEvents(), 'Memuat agenda kegiatan sekolah...'),
+        trackStep(DatabaseService.getTeacherAttendanceRecords(), 'Memuat presensi guru & tendik...'),
+        trackStep(DatabaseService.getTeacherLeaveRequests(), 'Memuat permohonan izin guru...'),
       ]);
 
       setSchoolConfig(cfg);
@@ -171,6 +180,8 @@ function AppContent() {
       setLeaveRequests(leaveList);
       setJadwalPiket(piketList);
       setSchoolEvents(eventList);
+      setTeacherRecords(teacherRecList);
+      setTeacherLeaves(teacherLeaveList);
 
       setLoadingProgress(100);
       setLoadingStepText('Data berhasil disinkronkan, menyiapkan antarmuka...');
@@ -636,6 +647,45 @@ function AppContent() {
     toast.success('Jadwal Piket Disimpan', 'Jadwal penugasan guru piket mingguan berhasil diperbarui.');
   };
 
+  // Teacher Attendance Handlers
+  const handleSaveTeacherAttendance = async (rec: TeacherAttendanceRecord) => {
+    setTeacherRecords((prev) => {
+      const idx = prev.findIndex((r) => r.id === rec.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = rec;
+        return copy;
+      }
+      return [rec, ...prev];
+    });
+    await DatabaseService.saveTeacherAttendanceRecord(rec);
+  };
+
+  const handleSaveTeacherLeave = async (leave: TeacherLeaveRequest) => {
+    setTeacherLeaves((prev) => {
+      const idx = prev.findIndex((l) => l.id === leave.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = leave;
+        return copy;
+      }
+      return [leave, ...prev];
+    });
+    await DatabaseService.saveTeacherLeaveRequest(leave);
+  };
+
+  const handleDeleteTeacherAttendance = async (id: string) => {
+    setTeacherRecords((prev) => prev.filter((r) => r.id !== id));
+    await DatabaseService.deleteTeacherAttendanceRecord(id);
+    toast.delete('Presensi Dihapus', 'Data presensi guru berhasil dihapus.');
+  };
+
+  const handleDeleteTeacherLeave = async (id: string) => {
+    setTeacherLeaves((prev) => prev.filter((l) => l.id !== id));
+    await DatabaseService.deleteTeacherLeaveRequest(id);
+    toast.delete('Permohonan Dihapus', 'Surat permohonan izin guru berhasil dihapus.');
+  };
+
   const pendingLeaveCount = leaveRequests.filter((r) => r.statusPengajuan === 'Menunggu').length;
 
   return (
@@ -813,6 +863,8 @@ function AppContent() {
                     onAddRecord={handleAddRecord}
                     schoolConfig={schoolConfig}
                     currentSession={currentSession}
+                    teachers={teachers}
+                    onAddTeacherRecord={handleSaveTeacherAttendance}
                     onOpenLogin={() => setIsLoginOpen(true)}
                     onOpenLeaveRequest={() => {
                       setLeaveTargetStudent(null);
@@ -1100,6 +1152,43 @@ function AppContent() {
                       >
                         <LogIn className="w-4 h-4" />
                         <span>Login Administrator</span>
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Tab: ABSENSI GURU & TENDIK */}
+              {activeTab === 'teacher-attendance' && (
+                user ? (
+                  <TeacherAttendanceManagement
+                    teachers={teachers}
+                    records={teacherRecords}
+                    leaveRequests={teacherLeaves}
+                    schoolConfig={schoolConfig}
+                    currentUser={user}
+                    onSaveRecord={handleSaveTeacherAttendance}
+                    onSaveLeave={handleSaveTeacherLeave}
+                    onDeleteRecord={handleDeleteTeacherAttendance}
+                    onDeleteLeave={handleDeleteTeacherLeave}
+                    onOpenCardPrinter={() => setActiveTab('cards')}
+                  />
+                ) : (
+                  <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-teal-50 text-teal-700 flex items-center justify-center shadow-inner">
+                      <ShieldCheck className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Akses Khusus Pegawai & Dewan Guru</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Portal Absensi Guru & Tendik dapat diakses setelah melakukan login akun pendidik atau administrator.
+                    </p>
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                      <button
+                        onClick={() => setIsLoginOpen(true)}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-2"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Login Guru / Pegawai</span>
                       </button>
                     </div>
                   </div>

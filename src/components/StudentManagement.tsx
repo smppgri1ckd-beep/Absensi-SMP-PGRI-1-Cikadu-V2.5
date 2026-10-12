@@ -86,6 +86,13 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
 
+  // Kenaikan & Mutasi Kelas State
+  const [isPromoteModalOpen, setIsPromoteModalOpen] = useState(false);
+  const [promoteSourceClass, setPromoteSourceClass] = useState<string>('ALL');
+  const [promoteTargetClass, setPromoteTargetClass] = useState<string>('8A');
+  const [promoteMode, setPromoteMode] = useState<'AUTO' | 'SPECIFIC'>('AUTO');
+  const [isPromoting, setIsPromoting] = useState(false);
+
   // Scoped students based on user role and teacher assignments
   const scopedStudents = useMemo(() => {
     return filterStudentsForTeacher(students, user, actingAsPiket);
@@ -280,6 +287,54 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     toast.success('ZIP QR Code Selesai', 'Berkas arsip QR Code siswa berhasil diunduh.');
   };
 
+  const handleExecuteClassPromotion = async () => {
+    let targetStudents = students;
+    if (promoteSourceClass !== 'ALL') {
+      targetStudents = students.filter((s) => s.kelas === promoteSourceClass);
+    }
+    if (selectedNisns.length > 0 && promoteSourceClass === 'SELECTED') {
+      targetStudents = students.filter((s) => selectedNisns.includes(s.nisn));
+    }
+
+    if (targetStudents.length === 0) {
+      toast.warning('Siswa Tidak Ditemukan', 'Tidak ada siswa yang terpilih untuk diproses kenaikan kelas.');
+      return;
+    }
+
+    if (!confirm(`Proses kenaikan/mutasi kelas untuk ${targetStudents.length} siswa?\nData akan langsung terbarui di seluruh sistem.`)) {
+      return;
+    }
+
+    setIsPromoting(true);
+    try {
+      const updatedStudents: Student[] = targetStudents.map((s) => {
+        if (promoteMode === 'SPECIFIC') {
+          return { ...s, kelas: promoteTargetClass.trim().toUpperCase() };
+        }
+        // AUTO Increment
+        const currentClass = s.kelas.trim().toUpperCase();
+        if (currentClass.startsWith('7')) {
+          return { ...s, kelas: currentClass.replace(/^7/, '8') };
+        } else if (currentClass.startsWith('8')) {
+          return { ...s, kelas: currentClass.replace(/^8/, '9') };
+        } else if (currentClass.startsWith('9')) {
+          return { ...s, kelas: 'LULUS' };
+        }
+        return s;
+      });
+
+      await onBulkSaveStudents(updatedStudents);
+      toast.success('Kenaikan Kelas Berhasil', `Data ${updatedStudents.length} siswa berhasil diperbarui.`);
+      setIsPromoteModalOpen(false);
+      setSelectedNisns([]);
+    } catch (err) {
+      console.error('Failed to promote class', err);
+      toast.error('Gagal Proses Kenaikan Kelas', 'Terjadi kesalahan saat menyimpan data kenaikan kelas.');
+    } finally {
+      setIsPromoting(false);
+    }
+  };
+
   const canManage = user?.role === 'admin';
 
   return (
@@ -336,16 +391,27 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           </button>
 
           {canManage && (
-            <label className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer">
-              <Upload className="w-3.5 h-3.5" />
-              <span>Impor Excel</span>
-              <input
-                type="file"
-                accept=".xlsx, .xls"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </label>
+            <>
+              <button
+                onClick={() => setIsPromoteModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition-colors cursor-pointer"
+                title="Proses Kenaikan atau Mutasi Kelas Massal Siswa"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Naik Kelas</span>
+              </button>
+
+              <label className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer">
+                <Upload className="w-3.5 h-3.5" />
+                <span>Impor Excel</span>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </>
           )}
 
           <button
@@ -1078,6 +1144,142 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             >
               Tutup Preview
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Kenaikan & Mutasi Kelas Massal Modal */}
+      {isPromoteModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 relative space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl">
+                  <GraduationCap className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Kenaikan & Mutasi Kelas Massal
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Pindahkan tingkat kelas siswa secara otomatis atau ke kelas tertentu
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPromoteModalOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Sumber Siswa */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  1. Pilih Kelompok / Sumber Siswa:
+                </label>
+                <select
+                  value={promoteSourceClass}
+                  onChange={(e) => setPromoteSourceClass(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="ALL">Semua Siswa Aktif Sekolah ({students.length} Siswa)</option>
+                  {selectedNisns.length > 0 && (
+                    <option value="SELECTED">Siswa Terpilih Saja ({selectedNisns.length} Siswa)</option>
+                  )}
+                  {classesList.map((cls) => (
+                    <option key={cls} value={cls}>
+                      Siswa Kelas {cls} ({students.filter((s) => s.kelas === cls).length} Siswa)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Mode Kenaikan */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  2. Pilih Metode Pembaruan:
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPromoteMode('AUTO')}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      promoteMode === 'AUTO'
+                        ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20 text-indigo-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-extrabold text-xs mb-0.5">Naik 1 Tingkat Otomatis</div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Kelas 7 → Kelas 8<br />
+                      Kelas 8 → Kelas 9<br />
+                      Kelas 9 → LULUS / Alumni
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPromoteMode('SPECIFIC')}
+                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                      promoteMode === 'SPECIFIC'
+                        ? 'bg-indigo-50 border-indigo-300 ring-2 ring-indigo-500/20 text-indigo-900'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    <div className="font-extrabold text-xs mb-0.5">Pindah ke Kelas Spesifik</div>
+                    <p className="text-[10px] text-slate-500 leading-tight">
+                      Ubah kelas semua siswa terpilih langsung ke satu kode kelas yang Anda tentukan.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Targets jika specific */}
+              {promoteMode === 'SPECIFIC' && (
+                <div className="p-3 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                  <label className="block font-bold text-indigo-900 mb-1">
+                    Kode Kelas Tujuan:
+                  </label>
+                  <input
+                    type="text"
+                    value={promoteTargetClass}
+                    onChange={(e) => setPromoteTargetClass(e.target.value)}
+                    placeholder="Contoh: 8A atau 9B"
+                    className="w-full bg-white border border-indigo-200 rounded-xl px-3 py-2 font-mono font-bold text-indigo-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 uppercase"
+                  />
+                </div>
+              )}
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2 text-amber-900 text-[11px]">
+                <ShieldCheck className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <p>
+                  Perubahan akan disimpan secara permanen di database Firestore dan local cache. Seluruh rekap dan laporan presensi akan otomatis disesuaikan dengan kelas baru siswa.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPromoteModalOpen(false)}
+                disabled={isPromoting}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteClassPromotion}
+                disabled={isPromoting}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-2"
+              >
+                <GraduationCap className="w-4 h-4" />
+                <span>{isPromoting ? 'Memproses...' : 'Proses Kenaikan Kelas'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

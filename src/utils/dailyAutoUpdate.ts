@@ -12,7 +12,10 @@ import {
   TeachingJournal, 
   StudentActivityLogItem, 
   Student, 
-  SchoolConfig 
+  SchoolConfig,
+  TeacherUser,
+  TeacherAttendanceRecord,
+  TeacherLeaveRequest
 } from '../types';
 import { DatabaseService } from '../services/db';
 
@@ -560,6 +563,61 @@ export function generateAutoTeachingJournals(
 }
 
 /**
+ * Generate fresh teacher attendance records for today
+ */
+export function generateAutoTeacherAttendance(
+  todayStr: string,
+  teachers: TeacherUser[],
+  existingRecords: TeacherAttendanceRecord[]
+): TeacherAttendanceRecord[] {
+  const existingMap = new Map<string, TeacherAttendanceRecord>();
+  existingRecords.forEach((r) => existingMap.set(`${r.teacherId}_${r.tanggal}_${r.sesi}`, r));
+
+  const hasToday = existingRecords.some((r) => r.tanggal === todayStr);
+  const newRecords: TeacherAttendanceRecord[] = [];
+
+  if (!hasToday && teachers.length > 0) {
+    teachers.forEach((t, idx) => {
+      const key = `${t.id}_${todayStr}_Masuk`;
+      if (!existingMap.has(key)) {
+        let status: 'Hadir' | 'Terlambat' | 'Izin' | 'Sakit' | 'Alpa' = 'Hadir';
+        let waktu = '06:45:00';
+        let catatan = 'Hadir tepat waktu';
+
+        if (idx % 7 === 3) {
+          status = 'Terlambat';
+          waktu = '07:18:22';
+          catatan = 'Terlambat 3 menit';
+        } else if (idx % 11 === 5) {
+          status = 'Izin';
+          waktu = '06:30:00';
+          catatan = 'Dinas luar pendampingan MGMP';
+        } else {
+          const min = 35 + ((idx * 5) % 30);
+          waktu = `06:${String(min).padStart(2, '0')}:15`;
+        }
+
+        newRecords.push({
+          id: `PRESENSI_GURU_${t.id}_${todayStr}_Masuk`,
+          tanggal: todayStr,
+          waktu,
+          teacherId: t.id,
+          nip: t.nip || '-',
+          nama: t.nama,
+          mapel: t.mapel,
+          sesi: 'Masuk',
+          status,
+          kategori: status === 'Izin' ? 'Dinas Luar' : 'Kiosk QR',
+          catatan,
+        });
+      }
+    });
+  }
+
+  return [...newRecords, ...existingRecords];
+}
+
+/**
  * Main Auto Update Controller
  */
 export class DailyAutoUpdateService {
@@ -611,12 +669,14 @@ export class DailyAutoUpdateService {
       console.log(`[DailyAutoUpdate] Menjalankan auto-update data harian untuk tanggal: ${activeDate}`);
 
       // 1. Load existing data
-      const [students, currentLeaves, currentRecords, currentLogs, currentJournals] = await Promise.all([
+      const [students, teachers, currentLeaves, currentRecords, currentLogs, currentJournals, currentTeacherAttendance] = await Promise.all([
         DatabaseService.getStudents(),
+        DatabaseService.getTeachers(),
         DatabaseService.getLeaveRequests(),
         DatabaseService.getAttendanceRecords(),
         DatabaseService.getStudentActivityLogs(),
         DatabaseService.getTeachingJournals(),
+        DatabaseService.getTeacherAttendanceRecords(),
       ]);
 
       // 2. Generate updated datasets
@@ -624,12 +684,14 @@ export class DailyAutoUpdateService {
       const updatedRecords = generateAutoAttendanceRecords(activeDate, students, currentRecords, updatedLeaves);
       const updatedLogs = generateAutoActivityLogs(activeDate, currentLogs);
       const updatedJournals = generateAutoTeachingJournals(activeDate, currentJournals);
+      const updatedTeacherAttendance = generateAutoTeacherAttendance(activeDate, teachers, currentTeacherAttendance);
 
       // 3. Persist back to storage
       localStorage.setItem('leave_requests', JSON.stringify(updatedLeaves));
       localStorage.setItem('attendance', JSON.stringify(updatedRecords));
       localStorage.setItem('activity_logs', JSON.stringify(updatedLogs));
       localStorage.setItem('teaching_journals', JSON.stringify(updatedJournals));
+      localStorage.setItem('teacher_attendance', JSON.stringify(updatedTeacherAttendance));
       localStorage.setItem(STORAGE_KEY_LAST_DATE, activeDate);
 
       // 4. Notify listeners

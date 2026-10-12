@@ -31,7 +31,9 @@ import {
   AttendanceSession, 
   AttendanceStatus,
   JadwalPiketHarian,
-  DayOfWeek
+  DayOfWeek,
+  TeacherUser,
+  TeacherAttendanceRecord
 } from '../types';
 import { soundService } from '../utils/audio';
 import { useAuth } from '../context/AuthContext';
@@ -43,6 +45,8 @@ interface KioskScannerProps {
   onAddRecord: (record: AttendanceRecord) => Promise<void>;
   schoolConfig: SchoolConfig;
   currentSession: AttendanceSession;
+  teachers?: TeacherUser[];
+  onAddTeacherRecord?: (record: TeacherAttendanceRecord) => Promise<void>;
   onOpenLogin?: () => void;
   onOpenLeaveRequest?: () => void;
   setActiveTab?: (tab: string) => void;
@@ -62,6 +66,8 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
   onAddRecord,
   schoolConfig,
   currentSession,
+  teachers = [],
+  onAddTeacherRecord,
   onOpenLogin,
   onOpenLeaveRequest,
   setActiveTab,
@@ -494,10 +500,50 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
       );
 
       if (!student) {
+        // Check if code belongs to a Teacher / Staff
+        const teacher = teachers.find(
+          (t) =>
+            t.id === nisnClean ||
+            t.nip === nisnClean ||
+            t.username === nisnClean ||
+            (t.nip && t.nip.replace(/\s+/g, '') === nisnClean.replace(/\s+/g, '')) ||
+            nisnClean.toUpperCase().includes('GURU') ||
+            nisnClean.toUpperCase().includes('TEACHER')
+        );
+
+        if (teacher && onAddTeacherRecord) {
+          const today = new Date().toISOString().split('T')[0];
+          const timeStr = new Date().toTimeString().split(' ')[0];
+          const teacherRecordId = `PRESENSI_GURU_${teacher.id}_${today}_Masuk`;
+
+          const teacherRecord: TeacherAttendanceRecord = {
+            id: teacherRecordId,
+            tanggal: today,
+            waktu: timeStr,
+            teacherId: teacher.id,
+            nip: teacher.nip || '-',
+            nama: teacher.nama,
+            mapel: teacher.mapel,
+            sesi: 'Masuk',
+            status: 'Hadir',
+            kategori: 'Kiosk QR',
+            catatan: 'Pemindaian QR Kiosk Gerbang',
+          };
+
+          await onAddTeacherRecord(teacherRecord);
+          soundService.playSuccess();
+          setBannerAlert({
+            type: 'success',
+            message: `Presensi GURU / TENDIK: ${teacher.nama} (${teacher.mapel}) Berhasil! Selamat Bertugas!`,
+          });
+          setTimeout(() => setBannerAlert(null), 4000);
+          return;
+        }
+
         soundService.playError();
         setBannerAlert({
           type: 'error',
-          message: `QR / NISN "${nisnClean}" tidak terdaftar dalam basis data siswa!`,
+          message: `QR / Kode "${nisnClean}" tidak terdaftar dalam basis data siswa atau guru!`,
         });
         setTimeout(() => setBannerAlert(null), 3500);
         return;

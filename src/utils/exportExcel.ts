@@ -725,3 +725,42 @@ export function exportStudentGradesExcel(
   const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
   XLSX.writeFile(workbook, `Rekap_Nilai_${cleanSchool}_${kelasFilter}_${mapelFilter.replace(/\s+/g, '_')}.xlsx`);
 }
+
+export function exportTeacherAttendanceExcel(
+  records: any[],
+  schoolConfig: SchoolConfig,
+  periodLabel = 'Hari Ini'
+): void {
+  const rows = records.map((r, idx) => ({
+    'No': idx + 1,
+    'Tanggal': r.tanggal,
+    'Waktu': r.waktu,
+    'NIP': r.nip || '-',
+    'Nama Guru / Tendik': r.nama,
+    'Mata Pelajaran / Tugas': r.mapel || '-',
+    'Sesi': r.sesi || 'Masuk',
+    'Status Kehadiran': r.status,
+    'Kategori / Metode': r.kategori || 'Kiosk QR',
+    'Catatan': r.catatan || '-',
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  worksheet['!cols'] = [
+    { wch: 6 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 22 },
+    { wch: 30 },
+    { wch: 30 },
+    { wch: 10 },
+    { wch: 16 },
+    { wch: 18 },
+    { wch: 30 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Presensi Guru & Tendik');
+  const cleanSchool = schoolConfig.namaSekolah.replace(/\s+/g, '_');
+  const cleanPeriod = periodLabel.replace(/\s+/g, '_');
+  XLSX.writeFile(workbook, `Presensi_Guru_${cleanSchool}_${cleanPeriod}.xlsx`);
+}

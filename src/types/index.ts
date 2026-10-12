@@ -317,3 +317,36 @@ export interface StudentActivityLogItem {
   kategori: 'MASUK' | 'KBM' | 'TUGAS' | 'NILAI' | 'PULANG';
   keterangan: string;
 }
+
+// Model Absensi Guru & Tendik
+export interface TeacherAttendanceRecord {
+  id: string; // PRESENSI_GURU_{teacherId}_{tanggal}_{sesi}
+  tanggal: string; // YYYY-MM-DD
+  waktu: string; // HH:mm:ss
+  teacherId: string;
+  nip?: string;
+  nama: string;
+  mapel?: string;
+  sesi: 'Masuk' | 'Pulang';
+  status: AttendanceStatus;
+  kategori?: 'Kiosk QR' | 'Absen Mandiri' | 'Petugas Piket' | 'Dinas Luar' | string;
+  catatan?: string;
+  lokasi?: string;
+}
+
+export interface TeacherLeaveRequest {
+  id: string;
+  teacherId: string;
+  nip?: string;
+  nama: string;
+  jenis: 'Sakit' | 'Izin' | 'Dinas Luar' | 'Cuti';
+  tanggalMulai: string; // YYYY-MM-DD
+  tanggalSelesai: string; // YYYY-MM-DD
+  alasan: string;
+  statusPengajuan: LeaveRequestStatus;
+  tanggalPengajuan: string;
+  lampiranUrl?: string;
+  disetujuiOleh?: string;
+  catatan?: string;
+}
+
