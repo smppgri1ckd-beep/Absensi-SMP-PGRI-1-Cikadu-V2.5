@@ -76,6 +76,14 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
         : 'Pengisian Jurnal KBM harian dan pemantauan absensi peserta didik.',
       accent: 'text-sky-300',
     },
+    kepsek: {
+      bg: 'bg-gradient-to-r from-amber-950 via-yellow-950 to-slate-900 text-white border-amber-800',
+      badgeBg: 'bg-amber-500/20 text-amber-200 border-amber-400/40',
+      icon: ShieldCheck,
+      title: 'Kepala Sekolah (Supervisi Eksekutif)',
+      desc: 'Supervisi dan persetujuan eksekutif KBM, presensi siswa/guru, permohonan izin/dinas luar, dan capaian laporan kinerja sekolah.',
+      accent: 'text-amber-300',
+    },
     ortu: {
       bg: 'bg-gradient-to-r from-amber-950 via-orange-950 to-slate-900 text-white border-amber-800',
       badgeBg: 'bg-amber-500/20 text-amber-200 border-amber-400/40',

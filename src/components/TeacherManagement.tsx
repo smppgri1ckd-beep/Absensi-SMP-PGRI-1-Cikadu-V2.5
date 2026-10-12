@@ -380,6 +380,8 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
 
     const resolvedRole: UserRole = teacherRole === 'admin' 
       ? 'admin' 
+      : teacherRole === 'kepsek'
+      ? 'kepsek'
       : (!isGuruMapel && !isWaliKelas && isGuruPiket) 
         ? 'piket' 
         : 'guru';
@@ -1364,7 +1366,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       Username Login <span className="text-rose-500">*</span>
@@ -1391,6 +1393,21 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
                       onChange={(e) => setTeacherPassword(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Peran Hak Akses Utama
+                    </label>
+                    <select
+                      value={teacherRole}
+                      onChange={(e) => setTeacherRole(e.target.value as UserRole)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="guru">Guru Pengajar / Piket</option>
+                      <option value="kepsek">Kepala Sekolah (Supervisi)</option>
+                      <option value="admin">Administrator Sistem</option>
+                    </select>
                   </div>
 
                   <div>

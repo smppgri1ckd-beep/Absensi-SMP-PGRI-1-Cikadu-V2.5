@@ -271,6 +271,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: false, message: 'Kata sandi untuk Petugas Piket salah.' };
     }
 
+    // 3. Akun Kepala Sekolah Eksekutif
+    if (username === 'kepsek' || username === 'kepalasekolah' || username === 'kepala.sekolah') {
+      if (pass === 'edudigital' || pass === 'kepsek123' || pass === 'kepsek') {
+        const kepsekUser: AuthUser = {
+          id: 'KEPSEK1',
+          username: 'kepsek',
+          nama: 'CUNCUN MUHLISOH, S.Pd.',
+          nip: '-',
+          role: 'kepsek',
+          loginAt: nowTime,
+          avatarColor: 'bg-amber-600',
+        };
+        setUser(kepsekUser);
+        return { success: true };
+      }
+      return { success: false, message: 'Kata sandi untuk Kepala Sekolah salah.' };
+    }
+
     // 3. Akun Guru Mata Pelajaran dari Database
     const teacherList = teachers.length > 0 ? teachers : await DatabaseService.getTeachers();
     const found = teacherList.find(

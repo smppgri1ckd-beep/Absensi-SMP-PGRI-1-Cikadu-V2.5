@@ -46,6 +46,7 @@ import { PublicInfo } from './components/PublicInfo';
 import { SettingsModal } from './components/SettingsModal';
 import { LoginModal } from './components/LoginModal';
 import { RoleSessionBanner } from './components/RoleSessionBanner';
+import { DashboardKepalaSekolah } from './components/DashboardKepalaSekolah';
 import { PantauAnakDashboard } from './components/pantau-anak/PantauAnakDashboard';
 import { LeaveRequestModal } from './components/LeaveRequestModal';
 import { LeaveApprovalModal } from './components/LeaveApprovalModal';
@@ -118,6 +119,8 @@ function AppContent() {
         setActiveTab('apel-attendance');
       } else if (currentRole === 'admin') {
         setActiveTab('dashboard');
+      } else if (currentRole === 'kepsek') {
+        setActiveTab('kepsek');
       }
     }
     prevUserRoleRef.current = currentRole;
@@ -972,6 +975,39 @@ function AppContent() {
                   onOpenAgenda={() => setIsAgendaOpen(true)}
                   schoolEvents={schoolEvents}
                 />
+              )}
+
+              {/* Tab: SUPERVISI KEPALA SEKOLAH */}
+              {activeTab === 'kepsek' && (
+                user ? (
+                  <DashboardKepalaSekolah
+                    schoolConfig={schoolConfig}
+                    students={students}
+                    attendanceRecords={records}
+                    teachers={teachers}
+                    teacherRecords={teacherRecords}
+                    teacherLeaves={teacherLeaves}
+                    teachingJournals={journals}
+                    grades={grades}
+                    currentUser={user}
+                    onSaveTeacherLeave={handleSaveTeacherLeave}
+                    onOpenTab={setActiveTab}
+                  />
+                ) : (
+                  <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4">
+                    <ShieldCheck className="w-12 h-12 text-amber-600 mx-auto" />
+                    <h3 className="text-xl font-black text-slate-900">Portal Supervisi Kepala Sekolah</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Silakan login menggunakan akun Kepala Sekolah untuk mengakses portal supervisi eksekutif KBM, persetujuan izin, dan rekapitulasi sekolah.
+                    </p>
+                    <button
+                      onClick={() => setIsLoginOpen(true)}
+                      className="px-6 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition-colors cursor-pointer"
+                    >
+                      Login Kepala Sekolah
+                    </button>
+                  </div>
+                )
               )}
 
               {/* Tab: PANTAU ANAK (Khusus Orang Tua / Wali Siswa) */}

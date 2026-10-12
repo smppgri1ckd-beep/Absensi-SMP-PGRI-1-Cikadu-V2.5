@@ -169,7 +169,7 @@ export interface KalenderHeb {
   kalenderData: Record<string, boolean>;
 }
 
-export type UserRole = 'admin' | 'piket' | 'guru' | 'ortu';
+export type UserRole = 'admin' | 'piket' | 'guru' | 'ortu' | 'kepsek';
 
 export interface ParentUser {
   id: string;

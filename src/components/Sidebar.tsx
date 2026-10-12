@@ -161,7 +161,88 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ];
     }
 
-    // 3 & 4. GURU & PETUGAS PIKET (Modular Per 3 Peran: Guru Mapel, Wali Kelas, Guru Piket)
+    // 3. KEPALA SEKOLAH (Supervisi Eksekutif & Persetujuan Disposisi)
+    if (user.role === 'kepsek') {
+      return [
+        {
+          groupTitle: 'Supervisi Eksekutif Kepala Sekolah',
+          items: [
+            {
+              id: 'kepsek',
+              label: 'Dashboard Kepala Sekolah',
+              desc: 'Supervisi KBM, persetujuan izin & rekap eksekutif',
+              icon: ShieldCheck,
+              tag: 'Supervisi',
+              tagColor: 'bg-amber-100 text-amber-900 font-extrabold',
+            },
+            {
+              id: 'journal',
+              label: 'Supervisi Jurnal KBM',
+              desc: 'Pantau KBM harian di seluruh kelas',
+              icon: BookOpen,
+              tag: 'KBM',
+              tagColor: 'bg-indigo-100 text-indigo-900 font-bold',
+            },
+            {
+              id: 'teacher-attendance',
+              label: 'Absensi Guru & Tendik',
+              desc: 'Monitoring kehadiran & permohonan izin guru',
+              icon: UserCheck,
+              tag: 'Guru',
+              tagColor: 'bg-teal-100 text-teal-900 font-bold',
+            },
+            {
+              id: 'dashboard',
+              label: 'Monitoring Presensi Siswa',
+              desc: 'Statistik kehadiran harian siswa per rombel',
+              icon: LayoutDashboard,
+              tag: 'Siswa',
+              tagColor: 'bg-blue-100 text-blue-900 font-bold',
+            },
+            {
+              id: 'action-grades',
+              label: 'Supervisi Nilai & Rapor',
+              desc: 'Rekapitulasi pencapaian KKM & leger rapor',
+              icon: Award,
+              isAction: true,
+              tag: 'Rapor',
+              tagColor: 'bg-purple-100 text-purple-900 font-bold',
+            },
+            {
+              id: 'reports',
+              label: 'Laporan Rekapitulasi Sekolah',
+              desc: 'Cetak laporan resmi supervisi (PDF & Excel)',
+              icon: FileText,
+            },
+          ],
+        },
+        {
+          groupTitle: 'Informasi & Profil Sekolah',
+          items: [
+            {
+              id: 'my-profile',
+              label: 'Profil & Kartu Saya',
+              desc: 'Biodata & kartu identitas eksekutif',
+              icon: GraduationCap,
+            },
+            {
+              id: 'teachers',
+              label: 'Data Pokok Guru & Tendik',
+              desc: 'Daftar pendidik, NUPTK & penugasan',
+              icon: Users,
+            },
+            {
+              id: 'public-info',
+              label: 'Jadwal & Info Sekolah',
+              desc: 'Jam operasional & profil sekolah',
+              icon: Info,
+            },
+          ],
+        },
+      ];
+    }
+
+    // 4 & 5. GURU & PETUGAS PIKET (Modular Per 3 Peran: Guru Mapel, Wali Kelas, Guru Piket)
     if (user.role === 'guru' || user.role === 'piket') {
       const isMapelAssigned = user.isGuruMapel !== false && (Boolean(user.mapel) || (user.penugasanMapel && user.penugasanMapel.length > 0));
       const isWaliAssigned = Boolean(user.isWaliKelas) && Boolean(user.waliKelas && user.waliKelas !== '-' && user.waliKelas !== '');
@@ -400,6 +481,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             icon: LayoutDashboard,
             tag: 'Admin',
             tagColor: 'bg-blue-100 text-blue-800 font-bold',
+          },
+          {
+            id: 'kepsek',
+            label: 'Portal Kepala Sekolah',
+            desc: 'Supervisi KBM & persetujuan izin guru',
+            icon: ShieldCheck,
+            tag: 'Kepsek',
+            tagColor: 'bg-amber-100 text-amber-900 font-bold',
           },
           {
             id: 'apel-attendance',

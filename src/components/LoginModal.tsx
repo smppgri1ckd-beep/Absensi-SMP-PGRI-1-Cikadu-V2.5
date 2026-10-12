@@ -101,12 +101,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, schoolC
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-base shadow-inner ring-2 ring-white/20 ${
                     user.role === 'admin'
                       ? 'bg-blue-600 text-white'
+                      : user.role === 'kepsek'
+                      ? 'bg-amber-500 text-white'
                       : user.role === 'guru'
                       ? 'bg-indigo-600 text-white'
                       : 'bg-emerald-600 text-white'
                   }`}>
                     {user.role === 'admin' ? (
                       <ShieldCheck className="w-5 h-5" />
+                    ) : user.role === 'kepsek' ? (
+                      <ShieldCheck className="w-5 h-5 text-amber-100" />
                     ) : user.role === 'guru' ? (
                       <GraduationCap className="w-5 h-5" />
                     ) : (
@@ -118,11 +122,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, schoolC
                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                         user.role === 'admin'
                           ? 'bg-blue-400 text-blue-950'
+                          : user.role === 'kepsek'
+                          ? 'bg-amber-300 text-amber-950'
                           : user.role === 'guru'
                           ? 'bg-indigo-300 text-indigo-950'
                           : 'bg-emerald-300 text-emerald-950'
                       }`}>
-                        {user.role === 'admin' ? 'Administrator' : user.role === 'guru' ? 'Guru Mapel' : 'Petugas Piket'}
+                        {user.role === 'admin' ? 'Administrator' : user.role === 'kepsek' ? 'Kepala Sekolah' : user.role === 'guru' ? 'Guru Mapel' : 'Petugas Piket'}
                       </span>
                       <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
