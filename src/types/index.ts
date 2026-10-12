@@ -69,6 +69,8 @@ export interface TeacherUser {
   penugasanMapel?: TeachingAssignment[]; // hingga 10 penugasan mapel dengan kelas berbeda!
   waliKelas?: string; // misal "7A"
   nomorHp?: string; // no WhatsApp / telepon
+  fotoUrl?: string;
+  jk?: 'L' | 'P' | string;
   status?: 'Aktif' | 'Non-Aktif' | string;
   totalJamMengajar?: number;
   // 3 Peran Terfokus

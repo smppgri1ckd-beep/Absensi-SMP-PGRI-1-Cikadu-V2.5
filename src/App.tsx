@@ -36,6 +36,7 @@ import { CardPrinter } from './components/CardPrinter';
 import { StudentManagement } from './components/StudentManagement';
 import { TeacherManagement } from './components/TeacherManagement';
 import { TeacherAttendanceManagement } from './components/TeacherAttendanceManagement';
+import { TeacherSelfProfile } from './components/TeacherSelfProfile';
 import { GuruPiketManagement } from './components/GuruPiketManagement';
 import { TeachingJournalComponent } from './components/TeachingJournal';
 import { Reports } from './components/Reports';
@@ -212,6 +213,8 @@ function AppContent() {
     const unsubJournals = DatabaseService.subscribeTeachingJournals((data) => setJournals(data));
     const unsubSchedules = DatabaseService.subscribeClassSchedules((data) => setSchedules(data));
     const unsubTeachers = DatabaseService.subscribeTeachers((data) => setTeachers(data));
+    const unsubTeacherRecs = DatabaseService.subscribeTeacherAttendanceRecords((data) => setTeacherRecords(data));
+    const unsubTeacherLeaves = DatabaseService.subscribeTeacherLeaveRequests((data) => setTeacherLeaves(data));
     const unsubConfig = DatabaseService.subscribeSchoolConfig((data) => setSchoolConfig(data));
     const unsubPiket = DatabaseService.subscribeJadwalPiket((data) => setJadwalPiket(data));
     const unsubEvents = DatabaseService.subscribeSchoolEvents((data) => setSchoolEvents(data));
@@ -225,6 +228,8 @@ function AppContent() {
       unsubJournals();
       unsubSchedules();
       unsubTeachers();
+      unsubTeacherRecs();
+      unsubTeacherLeaves();
       unsubConfig();
       unsubPiket();
       unsubEvents();
@@ -432,10 +437,11 @@ function AppContent() {
       }
       return [...prev, teacher];
     });
+
     await debouncedDbWrite(`teacher_${teacher.id}`, async () => {
       await DatabaseService.saveTeacher(teacher);
     }, 400);
-    toast.success('Akun Guru Disimpan', `Data akun ${teacher.nama} (${teacher.role === 'admin' ? 'Administrator' : teacher.mapel || 'Guru'}) berhasil disimpan.`);
+    toast.success('Akun Guru Disimpan', `Data akun ${teacher.nama} berhasil disimpan.`);
   };
 
   const handleDeleteTeacher = async (id: string) => {
@@ -864,6 +870,7 @@ function AppContent() {
                     schoolConfig={schoolConfig}
                     currentSession={currentSession}
                     teachers={teachers}
+                    teacherAttendanceRecords={teacherRecords}
                     onAddTeacherRecord={handleSaveTeacherAttendance}
                     onOpenLogin={() => setIsLoginOpen(true)}
                     onOpenLeaveRequest={() => {
@@ -1012,11 +1019,13 @@ function AppContent() {
               )}
 
               {/* Tab: CETAK KARTU (Hanya untuk pengguna login) */}
-              {activeTab === 'cards' && (
+              {(activeTab === 'cards' || activeTab === 'cards-guru') && (
                 user ? (
                   <CardPrinter
                     students={students}
+                    teachers={teachers}
                     schoolConfig={schoolConfig}
+                    defaultCategory={activeTab === 'cards-guru' ? 'GURU' : 'SISWA'}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
@@ -1025,7 +1034,7 @@ function AppContent() {
                     </div>
                     <h3 className="text-xl font-black text-slate-900 tracking-tight">Akses Terbatas: Cetak Kartu Digital</h3>
                     <p className="text-xs text-slate-500 leading-relaxed">
-                      Pencetakan kartu QR siswa dapat diakses oleh Administrator Sistem dan Petugas Piket Sekolah.
+                      Pencetakan kartu QR siswa &amp; guru dapat diakses oleh Administrator Sistem dan Pendidik Sekolah.
                     </p>
                     <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
                       <button
@@ -1158,6 +1167,37 @@ function AppContent() {
                 )
               )}
 
+              {/* Tab: PROFIL & KARTU SAYA (Mandiri Guru) */}
+              {activeTab === 'my-profile' && (
+                user ? (
+                  <TeacherSelfProfile
+                    currentUser={user}
+                    teachers={teachers}
+                    onSaveTeacher={handleSaveTeacher}
+                    schoolConfig={schoolConfig}
+                  />
+                ) : (
+                  <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-teal-50 text-teal-700 flex items-center justify-center shadow-inner">
+                      <ShieldCheck className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Akses Khusus Pegawai &amp; Dewan Guru</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Silakan login ke akun pribadi guru Anda untuk mengelola foto, penugasan, dan mencetak kartu identitas individu.
+                    </p>
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                      <button
+                        onClick={() => setIsLoginOpen(true)}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-2"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Login Guru / Pegawai</span>
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+
               {/* Tab: ABSENSI GURU & TENDIK */}
               {activeTab === 'teacher-attendance' && (
                 user ? (
@@ -1171,7 +1211,7 @@ function AppContent() {
                     onSaveLeave={handleSaveTeacherLeave}
                     onDeleteRecord={handleDeleteTeacherAttendance}
                     onDeleteLeave={handleDeleteTeacherLeave}
-                    onOpenCardPrinter={() => setActiveTab('cards')}
+                    onOpenCardPrinter={() => setActiveTab('cards-guru')}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">

@@ -22,8 +22,12 @@ import {
   RefreshCw,
   HelpCircle,
   Info,
-  FileText
+  FileText,
+  Sun,
+  Moon,
+  QrCode
 } from 'lucide-react';
+import { EnlargedQrCodeModal } from './EnlargedQrCodeModal';
 import { 
   Student, 
   AttendanceRecord, 
@@ -46,6 +50,7 @@ interface KioskScannerProps {
   schoolConfig: SchoolConfig;
   currentSession: AttendanceSession;
   teachers?: TeacherUser[];
+  teacherAttendanceRecords?: TeacherAttendanceRecord[];
   onAddTeacherRecord?: (record: TeacherAttendanceRecord) => Promise<void>;
   onOpenLogin?: () => void;
   onOpenLeaveRequest?: () => void;
@@ -67,6 +72,7 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
   schoolConfig,
   currentSession,
   teachers = [],
+  teacherAttendanceRecords = [],
   onAddTeacherRecord,
   onOpenLogin,
   onOpenLeaveRequest,
@@ -74,6 +80,19 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
   jadwalPiket = [],
 }) => {
   const { user } = useAuth();
+
+  // Active session mode: 'Pagi' or 'Siang'
+  const [activeSession, setActiveSession] = useState<AttendanceSession>(currentSession);
+  const [selectedPersonForQr, setSelectedPersonForQr] = useState<{
+    person: { id: string; nama: string; nipOrNisn: string; roleOrKelas: string; fotoUrl?: string; mapel?: string } | null;
+    category: 'GURU' | 'SISWA';
+  }>({ person: null, category: 'SISWA' });
+  const [isQrModalOpen, setIsQrModalOpen] = useState<boolean>(false);
+
+  // Sync activeSession if currentSession prop changes
+  useEffect(() => {
+    setActiveSession(currentSession);
+  }, [currentSession]);
 
   // Dynamic duty officer based on logged in user or today's scheduled guru piket
   const dutyOfficerDisplay = React.useMemo(() => {
@@ -514,7 +533,53 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
         if (teacher && onAddTeacherRecord) {
           const today = new Date().toISOString().split('T')[0];
           const timeStr = new Date().toTimeString().split(' ')[0];
-          const teacherRecordId = `PRESENSI_GURU_${teacher.id}_${today}_Masuk`;
+          const teacherSesi: 'Masuk' | 'Pulang' = activeSession === 'Pagi' ? 'Masuk' : 'Pulang';
+          const teacherRecordId = `PRESENSI_GURU_${teacher.id}_${today}_${teacherSesi}`;
+
+          // Check if teacher already scanned today for this session
+          const existingTeacherRecord = teacherAttendanceRecords.find(
+            (r) => r.id === teacherRecordId || (r.teacherId === teacher.id && r.tanggal === today && r.sesi === teacherSesi)
+          );
+
+          if (existingTeacherRecord) {
+            soundService.playAlreadyChecked();
+            setBannerAlert({
+              type: 'warning',
+              message: `Bpk/Ibu ${teacher.nama} (${teacher.mapel || 'Guru'}) sudah presensi ${teacherSesi.toUpperCase()} hari ini pada ${existingTeacherRecord.waktu}!`,
+            });
+            setTimeout(() => setBannerAlert(null), 4000);
+            return;
+          }
+
+          // Calculate status & punctuality for Teacher
+          const now = new Date();
+          const currentHhMm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+          let status: AttendanceStatus = 'Hadir';
+          let catatan = `Pemindaian QR Kiosk Gerbang (${teacherSesi})`;
+
+          if (teacherSesi === 'Masuk') {
+            const thresholdTime = schoolConfig?.jadwal?.pagiBatasTepatWaktu || '07:15';
+            const toleransiMenit = Number(schoolConfig?.jadwal?.toleransiMenit) || 0;
+            const [thH, thM] = thresholdTime.split(':').map(Number);
+            const thresholdMins = thH * 60 + thM;
+            const [curH, curM] = currentHhMm.split(':').map(Number);
+            const currentMins = curH * 60 + curM;
+
+            if (currentMins > (thresholdMins + toleransiMenit)) {
+              status = 'Terlambat';
+              const menitTelat = currentMins - thresholdMins;
+              catatan = `Terlambat ${menitTelat} mnt (Presensi Masuk: ${currentHhMm}, Batas: ${thresholdTime})`;
+              soundService.playLate();
+            } else {
+              status = 'Hadir';
+              soundService.playSuccess();
+            }
+          } else {
+            // Pulang (Siang)
+            status = 'Hadir';
+            catatan = `Presensi Pulang pukul ${currentHhMm}`;
+            soundService.playSuccess();
+          }
 
           const teacherRecord: TeacherAttendanceRecord = {
             id: teacherRecordId,
@@ -523,20 +588,19 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
             teacherId: teacher.id,
             nip: teacher.nip || '-',
             nama: teacher.nama,
-            mapel: teacher.mapel,
-            sesi: 'Masuk',
-            status: 'Hadir',
+            mapel: teacher.mapel || 'Guru Mapel',
+            sesi: teacherSesi,
+            status,
             kategori: 'Kiosk QR',
-            catatan: 'Pemindaian QR Kiosk Gerbang',
+            catatan,
           };
 
           await onAddTeacherRecord(teacherRecord);
-          soundService.playSuccess();
           setBannerAlert({
             type: 'success',
-            message: `Presensi GURU / TENDIK: ${teacher.nama} (${teacher.mapel}) Berhasil! Selamat Bertugas!`,
+            message: `✅ PRESENSI GURU / TENDIK (${teacherSesi.toUpperCase()}): ${teacher.nama} - Status: ${status.toUpperCase()} (${timeStr})`,
           });
-          setTimeout(() => setBannerAlert(null), 4000);
+          setTimeout(() => setBannerAlert(null), 4500);
           return;
         }
 
@@ -729,18 +793,41 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
                   <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300" />
                   PEMINDAI KARTU
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
-                  currentSession === 'Pagi' ? 'bg-amber-400 text-amber-950' : 'bg-sky-300 text-sky-950'
-                }`}>
-                  SESI {currentSession.toUpperCase()}
-                </span>
+
+                {/* Interactive Session Switcher: Pagi (Masuk) vs Siang (Pulang) */}
+                <div className="flex items-center p-0.5 bg-black/30 backdrop-blur-md rounded-full border border-white/20">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSession('Pagi')}
+                    className={`px-3 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer ${
+                      activeSession === 'Pagi'
+                        ? 'bg-amber-400 text-amber-950 shadow-md'
+                        : 'text-blue-100 hover:text-white'
+                    }`}
+                  >
+                    <Sun className="w-3 h-3" />
+                    PAGI (MASUK)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSession('Siang')}
+                    className={`px-3 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer ${
+                      activeSession === 'Siang'
+                        ? 'bg-sky-400 text-sky-950 shadow-md'
+                        : 'text-blue-100 hover:text-white'
+                    }`}
+                  >
+                    <Moon className="w-3 h-3" />
+                    SIANG (PULANG)
+                  </button>
+                </div>
               </div>
-              
+
               <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">
-                Pindai Kartu Presensi Siswa
+                Pindai Kartu Presensi Guru & Siswa
               </h1>
               <p className="text-blue-100 text-xs sm:text-sm mt-0.5 max-w-xl">
-                {schoolConfig.namaSekolah} • Arahkan QR Code kartu siswa ke kamera atau masukkan NISN.
+                {schoolConfig.namaSekolah} • Pemindaian otomatis untuk Sesi {activeSession === 'Pagi' ? 'Pagi (Masuk)' : 'Siang (Pulang)'}.
               </p>
 
             {/* Duty Officer Status Strip */}
@@ -756,6 +843,26 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
                   className="px-2 py-0.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-amber-950 font-black text-[10px] sm:text-[11px] transition-colors cursor-pointer shadow-xs"
                 >
                   Ganti Petugas
+                </button>
+              )}
+              {user && (
+                <button
+                  onClick={() => {
+                    setSelectedPersonForQr({
+                      person: {
+                        id: user.id || user.username || user.nip || 'USER_ID',
+                        nama: user.nama,
+                        nipOrNisn: user.nip || user.username || user.id || '-',
+                        roleOrKelas: user.role === 'guru' ? 'Guru Mapel / Tendik' : 'Petugas Sekolah',
+                      },
+                      category: user.role === 'guru' ? 'GURU' : 'GURU',
+                    });
+                    setIsQrModalOpen(true);
+                  }}
+                  className="px-2.5 py-0.5 rounded-lg bg-white/20 hover:bg-white/30 text-white font-bold text-[10px] sm:text-[11px] transition-colors cursor-pointer border border-white/25 flex items-center gap-1"
+                >
+                  <QrCode className="w-3 h-3 text-amber-300" />
+                  Perbesar QR Saya
                 </button>
               )}
             </div>
@@ -1337,6 +1444,17 @@ export const KioskScanner: React.FC<KioskScannerProps> = ({
         </div>
 
       </div>
+
+      {/* Enlarged QR Code Modal */}
+      <EnlargedQrCodeModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+        person={selectedPersonForQr.person}
+        category={selectedPersonForQr.category}
+        schoolConfig={schoolConfig}
+        attendanceRecords={attendanceRecords}
+        teacherAttendanceRecords={teacherAttendanceRecords}
+      />
 
     </div>
   );

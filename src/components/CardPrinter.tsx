@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Printer,
   FileDown,
@@ -14,9 +14,10 @@ import {
   Check,
   Eye,
   FileArchive,
+  GraduationCap,
 } from 'lucide-react';
-import { Student, SchoolConfig, IdCardTheme } from '../types';
-import { generateQrDataUrl, downloadQrZipForStudents } from '../utils/qr';
+import { Student, TeacherUser, SchoolConfig, IdCardTheme } from '../types';
+import { generateQrDataUrl, downloadQrZipForStudents, downloadQrZipForTeachers } from '../utils/qr';
 import { triggerDirectPrint } from '../utils/print';
 import { DatabaseService } from '../services/db';
 import { jsPDF } from 'jspdf';
@@ -28,8 +29,10 @@ import { useToast } from '../context/ToastContext';
 
 interface CardPrinterProps {
   students: Student[];
+  teachers?: TeacherUser[];
   schoolConfig?: SchoolConfig;
   config?: SchoolConfig;
+  defaultCategory?: 'SISWA' | 'GURU';
 }
 
 export type CardSideMode = 'MOCKUP' | 'FRONT' | 'BACK' | 'BOTH';
@@ -43,9 +46,12 @@ interface StagingPage {
 
 export const CardPrinter: React.FC<CardPrinterProps> = ({
   students,
+  teachers = [],
   schoolConfig,
   config: propConfig,
+  defaultCategory = 'SISWA',
 }) => {
+  const [targetCategory, setTargetCategory] = useState<'SISWA' | 'GURU'>(defaultCategory);
   const config = schoolConfig || propConfig || {
     namaSekolah: 'SMP PGRI 1 CIKADU',
     npsn: '20252876',
@@ -75,7 +81,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
   const [selectedStudentNisn, setSelectedStudentNisn] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [qrMap, setQrMap] = useState<Record<string, string>>({});
-  const [previewStudent, setPreviewStudent] = useState<Student | null>(null);
+  const [previewStudent, setPreviewStudent] = useState<any | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState<boolean>(false);
   const [pdfProgressPercent, setPdfProgressPercent] = useState<number>(0);
   const [pdfProgressText, setPdfProgressText] = useState<string>('');
@@ -103,25 +109,71 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+interface PrintableItem {
+  id: string;
+  nisn: string;
+  nama: string;
+  kelas: string;
+  jk: 'L' | 'P' | string;
+  fotoUrl?: string;
+  rawStudent?: Student;
+  rawTeacher?: TeacherUser;
+}
+
+  const isTeacherCategory = targetCategory === 'GURU';
   const classes = Array.from(new Set(students.map((s) => s.kelas))).filter(Boolean).sort();
 
-  // Filter students
-  let filtered = [...students];
-  if (selectedClass !== 'ALL') {
-    filtered = filtered.filter((s) => s.kelas === selectedClass);
+  const formatTeacherTugas = (t: TeacherUser) => {
+    if (t.role === 'admin' && (!t.mapel || t.mapel === '-')) return 'Administrator Sekolah';
+    return 'Guru Mapel';
+  };
+
+  // Unified items list
+  const rawItems: PrintableItem[] = useMemo(() => {
+    if (isTeacherCategory) {
+      return teachers.map((t) => ({
+        id: t.id,
+        nisn: t.nip && t.nip !== '-' ? t.nip : t.username || t.id,
+        nama: t.nama,
+        kelas: formatTeacherTugas(t),
+        jk: t.jk || 'L',
+        fotoUrl: t.fotoUrl,
+        rawTeacher: t,
+      }));
+    }
+    return students.map((s) => ({
+      id: s.nisn,
+      nisn: s.nisn,
+      nama: s.nama,
+      kelas: s.kelas,
+      jk: s.jk,
+      fotoUrl: s.fotoUrl,
+      rawStudent: s,
+    }));
+  }, [isTeacherCategory, students, teachers]);
+
+  // Filter items
+  let filtered = [...rawItems];
+  if (!isTeacherCategory) {
+    if (selectedClass !== 'ALL') {
+      filtered = filtered.filter((s) => s.kelas === selectedClass);
+    }
   }
   if (selectedStudentNisn !== 'ALL') {
-    filtered = filtered.filter((s) => s.nisn === selectedStudentNisn);
+    filtered = filtered.filter((s) => s.nisn === selectedStudentNisn || s.id === selectedStudentNisn);
   }
   if (searchQuery.trim()) {
     const q = searchQuery.toLowerCase();
     filtered = filtered.filter(
-      (s) => s.nama.toLowerCase().includes(q) || s.nisn.includes(q)
+      (s) =>
+        s.nama.toLowerCase().includes(q) ||
+        s.nisn.toLowerCase().includes(q) ||
+        s.kelas.toLowerCase().includes(q)
     );
   }
   filtered.sort((a, b) => a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' }));
 
-  // Generate QR Codes for filtered students in memory
+  // Generate QR Codes for filtered items in memory
   useEffect(() => {
     let isMounted = true;
     const loadQrs = async () => {
@@ -141,8 +193,8 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
     };
   }, [filtered]);
 
-  // Single student direct print execution
-  const handlePrintSingleStudent = (targetStudent: Student, targetMode: CardSideMode) => {
+  // Single person direct print execution
+  const handlePrintSingleStudent = (targetStudent: any, targetMode: CardSideMode) => {
     setSelectedStudentNisn(targetStudent.nisn);
     setCardSide(targetMode);
     setTimeout(() => {
@@ -177,7 +229,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
   };
 
   // High-Resolution True-Fidelity PDF Download using html2canvas
-  const handleDownloadPdf = async (customSide?: CardSideMode, customStudents?: Student[]) => {
+  const handleDownloadPdf = async (customSide?: CardSideMode, customStudents?: any[]) => {
     const listToExport = customStudents && customStudents.length > 0 ? customStudents : filtered;
     if (listToExport.length === 0 || isGeneratingPdf) return;
     setShowDownloadMenu(false);
@@ -334,12 +386,11 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
           : modeToUse === 'BACK'
           ? 'Tampak-Belakang'
           : 'Mockup-Sejajar';
-      const studentTag = listToExport.length === 1 ? `-${listToExport[0].nama.replace(/\s+/g, '-')}` : '';
-      const classLabel = selectedClass === 'ALL' ? 'Semua-Kelas' : `Kelas-${selectedClass}`;
-      const filename = `Kartu-Absensi-${(config.namaSekolah || 'SMP-PGRI-1-CIKADU').replace(/\s+/g, '-')}-${classLabel}${studentTag}-${modeLabel}-${paperSize}-${dateStr}.pdf`;
+      const categoryLabel = isTeacherCategory ? 'Kartu-Guru' : 'Kartu-Siswa';
+      const filename = `${categoryLabel}-${(config.namaSekolah || 'SMP-PGRI-1-CIKADU').replace(/\s+/g, '-')}-${modeLabel}-${paperSize}-${dateStr}.pdf`;
 
       doc.save(filename);
-      toast.success('Berkas PDF Kartu Siap', `${listToExport.length} kartu siswa berhasil disimpan ke file PDF.`);
+      toast.success('Berkas PDF Kartu Siap', `${listToExport.length} kartu ${isTeacherCategory ? 'guru & tendik' : 'siswa'} berhasil disimpan ke file PDF.`);
     } catch (err) {
       console.error('Gagal membuat PDF:', err);
       toast.error('Gagal Menyusun PDF', 'Terjadi kesalahan saat memproses kartu. Silakan gunakan tombol Cetak Printer.');
@@ -354,10 +405,17 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
   const handleDownloadZipQr = async () => {
     try {
       setIsZippingQr(true);
-      toast.info('Menyiapkan ZIP QR Code', `Mengompres barcode QR kartu ${filtered.length} siswa...`);
-      const nameLabel = selectedClass === 'ALL' ? 'SEMUA_KELAS' : `KELAS_${selectedClass}`;
-      await downloadQrZipForStudents(filtered, nameLabel, config.namaSekolah);
-      toast.success('ZIP QR Code Selesai', 'Berkas arsip QR Code siswa berhasil diunduh.');
+      if (isTeacherCategory) {
+        toast.info('Menyiapkan ZIP QR Code', `Mengompres barcode QR ${teachers.length} guru & tendik...`);
+        await downloadQrZipForTeachers(teachers, 'SEMUA_GURU', config.namaSekolah);
+        toast.success('ZIP QR Code Selesai', 'Berkas arsip QR Code guru & tendik berhasil diunduh.');
+      } else {
+        toast.info('Menyiapkan ZIP QR Code', `Mengompres barcode QR ${filtered.length} siswa...`);
+        const nameLabel = selectedClass === 'ALL' ? 'SEMUA_KELAS' : `KELAS_${selectedClass}`;
+        const studentObjList = filtered.map((f) => f.rawStudent || (f as any)).filter(Boolean);
+        await downloadQrZipForStudents(studentObjList, nameLabel, config.namaSekolah);
+        toast.success('ZIP QR Code Selesai', 'Berkas arsip QR Code siswa berhasil diunduh.');
+      }
     } catch (err) {
       console.error('Failed to download QR ZIP:', err);
       toast.error('Gagal Mengunduh ZIP', 'Terjadi gangguan saat membuat berkas arsip ZIP.');
@@ -372,17 +430,57 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
+      {/* Category Target Selector (SISWA vs GURU) */}
+      <div className="no-print flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => {
+            setTargetCategory('SISWA');
+            setSelectedStudentNisn('ALL');
+          }}
+          className={`flex-1 py-2.5 px-4 rounded-xl font-extrabold text-xs transition flex items-center justify-center gap-2 cursor-pointer ${
+            targetCategory === 'SISWA'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Kartu Pelajar Siswa ({students.length} Siswa)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setTargetCategory('GURU');
+            setSelectedStudentNisn('ALL');
+          }}
+          className={`flex-1 py-2.5 px-4 rounded-xl font-extrabold text-xs transition flex items-center justify-center gap-2 cursor-pointer ${
+            targetCategory === 'GURU'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <GraduationCap className="w-4 h-4" />
+          <span>Kartu Identitas Guru &amp; Tendik ({teachers.length} Pendidik)</span>
+        </button>
+      </div>
+
       {/* Action Header (Hidden on Direct Print) */}
       <div className="no-print bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-blue-600" />
+            {isTeacherCategory ? (
+              <GraduationCap className="w-5 h-5 text-amber-600" />
+            ) : (
+              <CreditCard className="w-5 h-5 text-blue-600" />
+            )}
             <h3 className="text-base font-extrabold text-slate-900">
-              Desain Kartu Absensi Siswa {config.namaSekolah}
+              {isTeacherCategory ? 'Desain Kartu Identitas Guru & Tendik' : 'Desain Kartu Absensi Siswa'} {config.namaSekolah}
             </h3>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Format resmi (10,5 × 6,5 cm) dengan tata letak presisi: Kop Gelombang Biru-Kuning, Logo PGRI Bulat, Pas Foto Siswa, Tabel Identitas (#dceeff), QR Code tebal, dan Panduan Belakang 3 Langkah.
+            {isTeacherCategory
+              ? 'Format resmi (10,5 × 6,5 cm) presisi untuk Pendidik & Tenaga Kependidikan: Kop Gelombang Emas PGRI, Foto Guru, Tabel NIP/Tugas, QR Code Kiosk/Mandiri, dan Panduan Presensi Belakang.'
+              : 'Format resmi (10,5 × 6,5 cm) dengan tata letak presisi: Kop Gelombang Biru-Kuning, Logo PGRI Bulat, Pas Foto Siswa, Tabel Identitas (#dceeff), QR Code tebal, dan Panduan Belakang 3 Langkah.'}
           </p>
         </div>
 
@@ -697,76 +795,88 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-xs">
+          {!isTeacherCategory ? (
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                Filter Rombel / Kelas
+              </label>
+              <select
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-hidden"
+              >
+                <option value="ALL">Semua Kelas ({students.length} Siswa)</option>
+                {classes.map((c) => (
+                  <option key={c} value={c}>
+                    Kelas {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 mb-1">
+                Kategori Kepegawaian
+              </label>
+              <div className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <GraduationCap className="w-4 h-4 text-amber-600" />
+                <span>Semua Guru &amp; Tenaga Kependidikan ({teachers.length})</span>
+              </div>
+            </div>
+          )}
+
           <div>
-            <label className="block text-[10px] font-bold text-slate-500 mb-1">
-              Filter Rombel / Kelas
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[10px] font-bold text-slate-500">
+                {isTeacherCategory ? 'Pilih Guru Tertentu' : 'Pilih Siswa Tertentu'}
+              </label>
+              {filtered.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target =
+                      (selectedStudentNisn !== 'ALL' && filtered.find((st) => st.nisn === selectedStudentNisn)) ||
+                      filtered[0];
+                    if (target) setPreviewStudent(target as any);
+                  }}
+                  className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer"
+                  title="Buka pratinjau detail kartu"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>Preview Detail</span>
+                </button>
+              )}
+            </div>
             <select
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
+              value={selectedStudentNisn}
+              onChange={(e) => setSelectedStudentNisn(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-hidden"
             >
-              <option value="ALL">Semua Kelas ({students.length} Siswa)</option>
-              {classes.map((c) => (
-                <option key={c} value={c}>
-                  Kelas {c}
+              <option value="ALL">Semua {isTeacherCategory ? 'Guru' : 'Siswa'} Terfilter ({filtered.length})</option>
+              {filtered.map((s) => (
+                <option key={s.id || s.nisn} value={s.nisn}>
+                  {s.nama} ({s.nisn})
                 </option>
               ))}
             </select>
           </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-[10px] font-bold text-slate-500">
-              Pilih Siswa Tertentu
+          <div>
+            <label className="block text-[10px] font-bold text-slate-500 mb-1">
+              Pencarian Nama / {isTeacherCategory ? 'NIP' : 'NISN'}
             </label>
-            {filtered.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  const target =
-                    (selectedStudentNisn !== 'ALL' && filtered.find((st) => st.nisn === selectedStudentNisn)) ||
-                    filtered[0];
-                  if (target) setPreviewStudent(target);
-                }}
-                className="text-[10px] text-blue-600 hover:text-blue-800 font-bold flex items-center gap-1 cursor-pointer"
-                title="Buka pratinjau detail kartu siswa"
-              >
-                <Eye className="w-3 h-3" />
-                <span>Preview Detail</span>
-              </button>
-            )}
-          </div>
-          <select
-            value={selectedStudentNisn}
-            onChange={(e) => setSelectedStudentNisn(e.target.value)}
-            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-hidden"
-          >
-            <option value="ALL">Semua Siswa Terfilter ({filtered.length})</option>
-            {filtered.map((s) => (
-              <option key={s.nisn} value={s.nisn}>
-                {s.nama} ({s.nisn})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="block text-[10px] font-bold text-slate-500 mb-1">
-            Pencarian Nama / NISN
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Cari nama atau NISN..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden"
-            />
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={isTeacherCategory ? "Cari nama, NIP, atau mata pelajaran..." : "Cari nama atau NISN..."}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden"
+              />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Guide Note on Printer Margins (Hidden on Direct Print) */}
@@ -779,7 +889,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
           <p className="text-slate-700 leading-relaxed text-[11px]">
             • Mode <strong>Pasangan Sejajar (Siap Lipat)</strong>: Menata 3 pasang kartu (Depan &amp; Belakang berdampingan) per lembar kertas {paperSize} dengan garis bantu lipat &amp; potong.<br />
             • Mode <strong>9 Kartu Depan / Belakang / Duplex</strong>: Menata 9 kartu per lembar kertas {paperSize} secara presisi tanpa margin berlebih untuk efisiensi kertas maksimal.<br />
-            • Seluruh elemen pratinjau antarmuka (nama siswa, tombol, lencana indikator, dan bingkai layar) otomatis <strong>dihilangkan</strong> saat mencetak langsung agar hasil cetakan di kertas bersih dan rapi.
+            • Seluruh elemen pratinjau antarmuka (nama, tombol, lencana indikator, dan bingkai layar) otomatis <strong>dihilangkan</strong> saat mencetak langsung agar hasil cetakan di kertas bersih dan rapi.
           </p>
         </div>
       </div>
@@ -788,7 +898,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
       <div className="print-sheet-wrapper p-4 sm:p-8 print:p-0 bg-slate-200/80 print:bg-transparent rounded-2xl print:rounded-none border border-slate-300 print:border-none overflow-x-auto flex flex-col items-center w-full">
         {filtered.length === 0 ? (
           <div className="py-12 text-center text-slate-500 italic text-xs">
-            Tidak ada data kartu siswa yang cocok dengan filter.
+            Tidak ada data kartu {isTeacherCategory ? 'guru' : 'siswa'} yang cocok dengan filter.
           </div>
         ) : cardSide === 'MOCKUP' ? (
           /* ===== MOCKUP VIEW: 3 PAIRS PER PRINT SHEET (FRONT & BACK SIDE-BY-SIDE) ===== */
@@ -809,7 +919,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
                       Lembar Pasangan {pageIdx + 1} dari {Math.ceil(filtered.length / 3)}
                     </span>
                     <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md font-semibold">
-                      {pairBatch.length} Siswa ({pairBatch.length * 2} Kartu)
+                      {pairBatch.length} {isTeacherCategory ? 'Guru' : 'Siswa'} ({pairBatch.length * 2} Kartu)
                     </span>
                   </div>
 
@@ -819,19 +929,19 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
                         key={`mockup-${siswa.nisn}`}
                         className="mockup-item-container bg-slate-100/90 print:bg-transparent p-3 sm:p-4 print:p-0 rounded-2xl print:rounded-none border border-slate-300 print:border-none shadow-xs print:shadow-none flex flex-col items-center gap-2 print:gap-0 w-full print:w-auto"
                       >
-                        {/* Student Name Header - HIDDEN ON PRINT */}
+                        {/* Name Header - HIDDEN ON PRINT */}
                         <div className="no-print text-xs font-bold text-slate-700 flex items-center justify-between w-full">
                           <div className="flex items-center gap-2">
-                            <span>Pratinjau Kartu Siswa:</span>
+                            <span>Pratinjau Kartu:</span>
                             <span className="bg-blue-600 text-white px-2.5 py-0.5 rounded-md font-extrabold">
-                              {siswa.nama} ({siswa.nisn}) - Kelas {siswa.kelas}
+                              {siswa.nama} ({siswa.nisn}) - {siswa.kelas}
                             </span>
                           </div>
                           <button
                             type="button"
-                            onClick={() => setPreviewStudent(siswa)}
+                            onClick={() => setPreviewStudent(siswa as any)}
                             className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 hover:text-blue-800 border border-blue-200 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                            title="Buka modal pratinjau detail kartu siswa ini"
+                            title="Buka modal pratinjau detail kartu ini"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             <span>Preview Detail</span>
@@ -844,7 +954,9 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
                           <div className="flex flex-col items-center gap-1.5 print:gap-0">
                             <div className="shadow-lg print:shadow-none rounded-2xl bg-white">
                               <IdCardFront
-                                student={siswa}
+                                student={siswa.rawStudent}
+                                teacher={siswa.rawTeacher}
+                                category={targetCategory}
                                 config={config}
                                 qrDataUrl={qrMap[siswa.nisn]}
                                 paperSize={paperSize}
@@ -866,6 +978,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
                                 config={config}
                                 paperSize={paperSize}
                                 theme={cardTheme}
+                                category={targetCategory}
                               />
                             </div>
                             <span className="no-print bg-slate-600 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow-2xs">
@@ -905,11 +1018,13 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
                           <div
                             key={`front-${siswa.nisn}`}
                             className="relative group cursor-pointer"
-                            onClick={() => setPreviewStudent(siswa)}
+                            onClick={() => setPreviewStudent(siswa as any)}
                             title={`Klik untuk pratinjau detail kartu ${siswa.nama}`}
                           >
                             <IdCardFront
-                              student={siswa}
+                              student={siswa.rawStudent}
+                              teacher={siswa.rawTeacher}
+                              category={targetCategory}
                               config={config}
                               qrDataUrl={qrMap[siswa.nisn]}
                               paperSize={paperSize}
@@ -937,13 +1052,14 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
                           <div
                             key={`back-${siswa.nisn}`}
                             className="relative group cursor-pointer"
-                            onClick={() => setPreviewStudent(siswa)}
+                            onClick={() => setPreviewStudent(siswa as any)}
                             title={`Klik untuk pratinjau detail kartu ${siswa.nama}`}
                           >
                             <IdCardBack
                               config={config}
                               paperSize={paperSize}
                               theme={cardTheme}
+                              category={targetCategory}
                             />
                             <div className="no-print absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/85 text-white px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 shadow-md pointer-events-none z-10">
                               <Eye className="w-3 h-3" />
@@ -990,10 +1106,12 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
             }}
           >
             {currentStagingPage.type === 'FRONT' &&
-              currentStagingPage.students.map((siswa) => (
+              currentStagingPage.students.map((siswa: any) => (
                 <IdCardFront
                   key={`stage-front-${siswa.nisn}`}
-                  student={siswa}
+                  student={siswa.rawStudent}
+                  teacher={siswa.rawTeacher}
+                  category={targetCategory}
                   config={config}
                   qrDataUrl={qrMap[siswa.nisn]}
                   paperSize={paperSize}
@@ -1002,20 +1120,23 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
               ))}
 
             {currentStagingPage.type === 'BACK' &&
-              currentStagingPage.students.map((siswa) => (
+              currentStagingPage.students.map((siswa: any) => (
                 <IdCardBack
                   key={`stage-back-${siswa.nisn}`}
                   config={config}
                   paperSize={paperSize}
                   theme={cardTheme}
+                  category={targetCategory}
                 />
               ))}
 
             {currentStagingPage.type === 'MOCKUP_PAIR' &&
-              currentStagingPage.students.map((siswa) => (
+              currentStagingPage.students.map((siswa: any) => (
                 <React.Fragment key={`stage-pair-${siswa.nisn}`}>
                   <IdCardFront
-                    student={siswa}
+                    student={siswa.rawStudent}
+                    teacher={siswa.rawTeacher}
+                    category={targetCategory}
                     config={config}
                     qrDataUrl={qrMap[siswa.nisn]}
                     paperSize={paperSize}
@@ -1025,6 +1146,7 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
                     config={config}
                     paperSize={paperSize}
                     theme={cardTheme}
+                    category={targetCategory}
                   />
                 </React.Fragment>
               ))}
@@ -1069,11 +1191,12 @@ export const CardPrinter: React.FC<CardPrinterProps> = ({
         isOpen={previewStudent !== null}
         onClose={() => setPreviewStudent(null)}
         student={previewStudent}
-        studentsList={filtered.length > 0 ? filtered : students}
+        studentsList={(filtered.length > 0 ? filtered : students) as any}
         onSelectStudent={(st) => setPreviewStudent(st)}
         config={config}
         qrMap={qrMap}
         paperSize={paperSize}
+        category={targetCategory}
         onPrintSingle={(st, mode) => handlePrintSingleStudent(st, mode)}
         onDownloadSinglePdf={(st, mode) => handleDownloadPdf(mode, [st])}
       />

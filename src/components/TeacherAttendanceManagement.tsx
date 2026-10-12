@@ -11,6 +11,7 @@ import { PeriodFilterBar } from './PeriodFilterBar';
 import { TimePeriodFilter, filterItemsByPeriod } from '../utils/datePeriodUtils';
 import { exportTeacherAttendanceExcel } from '../utils/exportExcel';
 import { generateQrDataUrl, downloadQrZipForTeachers } from '../utils/qr';
+import { generateTeacherAttendanceRecapPdf, generateTeacherDailyAttendancePdf } from '../utils/exportPdf';
 import { soundService } from '../utils/audio';
 import { useToast } from '../context/ToastContext';
 import { 
@@ -31,7 +32,10 @@ import {
   Copy,
   FileArchive,
   Loader2,
-  Check
+  Check,
+  Printer,
+  Calendar,
+  Grid
 } from 'lucide-react';
 
 interface TeacherAttendanceManagementProps {
@@ -60,12 +64,16 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
   onOpenCardPrinter,
 }) => {
   const { toast } = useToast();
-  const [activeSubTab, setActiveSubTab] = useState<'rekap' | 'mandiri' | 'izin' | 'qr-generator'>('rekap');
+  const [activeSubTab, setActiveSubTab] = useState<'rekap' | 'matriks' | 'mandiri' | 'izin' | 'qr-generator'>('rekap');
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriodFilter>('hari');
   const [customDate, setCustomDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchQrQuery, setSearchQrQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('Semua');
+
+  // Matrix Recap States
+  const [selectedMonth, setSelectedMonth] = useState<string>('Oktober');
+  const [selectedYear, setSelectedYear] = useState<number>(2026);
 
   // QR Code States
   const [qrMap, setQrMap] = useState<Record<string, string>>({});
@@ -373,7 +381,18 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
           }`}
         >
           <UserCheck className="w-4 h-4" />
-          Rekap Presensi Guru
+          Rekap Presensi Harian
+        </button>
+        <button
+          onClick={() => setActiveSubTab('matriks')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeSubTab === 'matriks'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Grid className="w-4 h-4 text-emerald-300" />
+          Matriks Kehadiran Bulanan
         </button>
         <button
           onClick={() => setActiveSubTab('mandiri')}
@@ -500,13 +519,51 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
               </select>
             </div>
 
-            <button
-              onClick={() => setIsManualModalOpen(true)}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              Input Presensi Manual Guru
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  const label = selectedPeriod === 'hari'
+                    ? `Hari ini (${customDate})`
+                    : selectedPeriod === 'bulan'
+                    ? `Bulan (${customDate.substring(0, 7)})`
+                    : selectedPeriod === 'minggu'
+                    ? `Minggu (${customDate})`
+                    : `Periode (${customDate})`;
+                  generateTeacherDailyAttendancePdf({
+                    records: displayedRecords,
+                    teachers,
+                    schoolConfig,
+                    periodeLabel: label,
+                    piketName: currentUser?.nama || schoolConfig.namaPetugasPiket || 'AI SITI ROSITA',
+                    piketNip: currentUser?.nip || schoolConfig.nipPetugasPiket || '-',
+                  });
+                  toast.success('PDF Rekap Diunduh', 'Dokumen PDF rekapitulasi presensi harian guru/tendik berhasil dibuat.');
+                }}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Cetak PDF Rekap</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  exportTeacherAttendanceExcel(displayedRecords, schoolConfig, `Harian_${customDate}`);
+                  toast.success('Excel Rekap Diunduh', 'File Excel rekap presensi guru berhasil dibuat.');
+                }}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Ekspor Excel</span>
+              </button>
+
+              <button
+                onClick={() => setIsManualModalOpen(true)}
+                className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Input Presensi Manual</span>
+              </button>
+            </div>
           </div>
 
           {/* Table List */}
@@ -590,6 +647,223 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
           </div>
         </div>
       )}
+
+      {/* SUB-TAB MATRIKS: REKAPITULASI KEHADIRAN BULANAN MATRIKS */}
+      {activeSubTab === 'matriks' && (() => {
+        const monthNamesIndo = [
+          'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+          'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        const monthIdx = monthNamesIndo.indexOf(selectedMonth);
+        const daysInMonth = new Date(selectedYear, monthIdx >= 0 ? monthIdx + 1 : 10, 0).getDate();
+        const dayNumbers = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+        const monthStrPadded = String((monthIdx >= 0 ? monthIdx : 9) + 1).padStart(2, '0');
+        const monthPrefix = `${selectedYear}-${monthStrPadded}`;
+
+        const monthRecords = records.filter((r) => r.tanggal && r.tanggal.startsWith(monthPrefix));
+
+        return (
+          <div className="space-y-6">
+            {/* Header Control Bar */}
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                  <Grid className="w-5 h-5 text-emerald-600" />
+                  Matriks & Laporan Kehadiran Guru/Tendik Bulanan
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Rekapitulasi tanggal per tanggal kehadiran, jam datang, serta statistik persentase kedisiplinan.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Month Selector */}
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                >
+                  {monthNamesIndo.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+
+                {/* Year Selector */}
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(Number(e.target.value))}
+                  className="px-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+                >
+                  <option value={2026}>Tahun 2026</option>
+                  <option value={2025}>Tahun 2025</option>
+                  <option value={2027}>Tahun 2027</option>
+                </select>
+
+                {/* PDF Print Button */}
+                <button
+                  onClick={() => generateTeacherAttendanceRecapPdf({
+                    teachers,
+                    records,
+                    leaveRequests,
+                    schoolConfig,
+                    bulanNama: selectedMonth,
+                    tahun: selectedYear,
+                    piketName: currentUser?.nama || schoolConfig.namaPetugasPiket || 'AI SITI ROSITA',
+                    piketNip: currentUser?.nip || schoolConfig.nipPetugasPiket || '-',
+                  })}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  Cetak PDF Resmi
+                </button>
+
+                {/* Excel Export Button */}
+                <button
+                  onClick={() => exportTeacherAttendanceExcel(monthRecords, schoolConfig, `${selectedMonth}_${selectedYear}`)}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  Ekspor Excel
+                </button>
+              </div>
+            </div>
+
+            {/* Matrix Legend Badge Bar */}
+            <div className="bg-slate-50 rounded-2xl p-3 border border-slate-200 flex flex-wrap items-center gap-4 text-xs font-semibold">
+              <span className="text-slate-500 font-bold">Keterangan Matriks:</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">
+                H = Hadir Tepat Waktu
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold">
+                T = Terlambat
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded font-bold">
+                I/S = Izin / Sakit
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-100 text-purple-800 rounded font-bold">
+                DL = Dinas Luar
+              </span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-800 rounded font-bold">
+                A = Alpa
+              </span>
+            </div>
+
+            {/* Matrix Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
+                      <th className="p-2 w-8 text-center border-r border-slate-200">No</th>
+                      <th className="p-2 min-w-[140px] border-r border-slate-200">Nama Guru / Tendik</th>
+                      <th className="p-2 min-w-[120px] border-r border-slate-200">Mapel / Peran</th>
+                      {dayNumbers.map((d) => (
+                        <th key={d} className="p-1 w-7 text-center border-r border-slate-200 font-mono">
+                          {d}
+                        </th>
+                      ))}
+                      <th className="p-1 text-center bg-emerald-50 text-emerald-800 border-r border-slate-200">H</th>
+                      <th className="p-1 text-center bg-amber-50 text-amber-800 border-r border-slate-200">T</th>
+                      <th className="p-1 text-center bg-blue-50 text-blue-800 border-r border-slate-200">I/S</th>
+                      <th className="p-1 text-center bg-rose-50 text-rose-800 border-r border-slate-200">A</th>
+                      <th className="p-2 text-center bg-slate-200 text-slate-800 font-black min-w-[50px]">%</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-[11px]">
+                    {teachers.length === 0 ? (
+                      <tr>
+                        <td colSpan={daysInMonth + 9} className="py-12 text-center text-slate-400">
+                          Belum ada data guru / tendik terdaftar.
+                        </td>
+                      </tr>
+                    ) : (
+                      teachers.map((t, idx) => {
+                        const tRecs = monthRecords.filter((r) => r.teacherId === t.id);
+
+                        let countH = 0;
+                        let countT = 0;
+                        let countIS = 0;
+                        let countA = 0;
+
+                        return (
+                          <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-2 text-center font-bold text-slate-400 border-r border-slate-200">{idx + 1}</td>
+                            <td className="p-2 font-bold text-slate-800 border-r border-slate-200 whitespace-nowrap">
+                              {t.nama}
+                              <div className="text-[9px] font-mono text-slate-400 font-normal">NIP: {t.nip || '-'}</div>
+                            </td>
+                            <td className="p-2 text-slate-600 border-r border-slate-200 whitespace-nowrap">{t.mapel || 'Tendik'}</td>
+
+                            {/* Render Day Cells */}
+                            {dayNumbers.map((d) => {
+                              const dayPadded = String(d).padStart(2, '0');
+                              const dateStr = `${monthPrefix}-${dayPadded}`;
+                              const dateObj = new Date(selectedYear, monthIdx, d);
+                              const isSunday = dateObj.getDay() === 0;
+
+                              const rec = tRecs.find((r) => r.tanggal === dateStr);
+
+                              let label = '-';
+                              let cellClass = 'text-slate-300';
+
+                              if (rec) {
+                                if (rec.status === 'Hadir') {
+                                  label = 'H';
+                                  cellClass = 'bg-emerald-500 text-white font-black';
+                                  countH++;
+                                } else if (rec.status === 'Terlambat') {
+                                  label = 'T';
+                                  cellClass = 'bg-amber-400 text-slate-900 font-black';
+                                  countT++;
+                                } else if (rec.status === 'Izin' || rec.status === 'Sakit') {
+                                  label = rec.kategori === 'Dinas Luar' ? 'DL' : 'I';
+                                  cellClass = 'bg-blue-500 text-white font-black';
+                                  countIS++;
+                                } else if (rec.status === 'Alpa') {
+                                  label = 'A';
+                                  cellClass = 'bg-rose-500 text-white font-black';
+                                  countA++;
+                                }
+                              } else if (isSunday) {
+                                cellClass = 'bg-rose-50 text-rose-300 font-bold';
+                              }
+
+                              return (
+                                <td key={d} className={`p-0.5 text-center border-r border-slate-100 font-mono text-[10px] ${cellClass}`}>
+                                  {label}
+                                </td>
+                              );
+                            })}
+
+                            {/* Summary Columns */}
+                            <td className="p-1 text-center font-bold text-emerald-700 bg-emerald-50/50 border-r border-slate-200">{countH}</td>
+                            <td className="p-1 text-center font-bold text-amber-700 bg-amber-50/50 border-r border-slate-200">{countT}</td>
+                            <td className="p-1 text-center font-bold text-blue-700 bg-blue-50/50 border-r border-slate-200">{countIS}</td>
+                            <td className="p-1 text-center font-bold text-rose-700 bg-rose-50/50 border-r border-slate-200">{countA}</td>
+                            
+                            {/* % Attendance */}
+                            {(() => {
+                              const totalLogged = countH + countT + countIS + countA;
+                              const pct = totalLogged > 0 ? Math.round(((countH + countT) / totalLogged) * 100) : 100;
+                              return (
+                                <td className={`p-2 text-center font-black text-xs ${
+                                  pct >= 90 ? 'text-emerald-700' : pct >= 75 ? 'text-amber-700' : 'text-rose-700'
+                                }`}>
+                                  {pct}%
+                                </td>
+                              );
+                            })()}
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* SUB-TAB 2: ABSEN MANDIRI GURU */}
       {activeSubTab === 'mandiri' && (

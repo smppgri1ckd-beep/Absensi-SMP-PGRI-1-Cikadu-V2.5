@@ -2425,6 +2425,42 @@ export class DatabaseService {
     }, (err) => console.warn('Firestore onSnapshot error (guru_users):', err));
   }
 
+  static subscribeTeacherAttendanceRecords(callback: (records: TeacherAttendanceRecord[]) => void): () => void {
+    if (!db) {
+      const handler = () => callback(getLocal<TeacherAttendanceRecord[]>('teacher_attendance_records', []));
+      syncChannel?.addEventListener('message', handler);
+      return () => syncChannel?.removeEventListener('message', handler);
+    }
+    const colRef = collection(db, 'presensi_guru');
+    return onSnapshot(colRef, (snap) => {
+      if (!snap.empty) {
+        const list: TeacherAttendanceRecord[] = [];
+        snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
+        list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
+        setLocal('teacher_attendance_records', list);
+        callback(list);
+      }
+    }, (err) => console.warn('Firestore onSnapshot error (presensi_guru):', err));
+  }
+
+  static subscribeTeacherLeaveRequests(callback: (requests: TeacherLeaveRequest[]) => void): () => void {
+    if (!db) {
+      const handler = () => callback(getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []));
+      syncChannel?.addEventListener('message', handler);
+      return () => syncChannel?.removeEventListener('message', handler);
+    }
+    const colRef = collection(db, 'permohonan_izin_guru');
+    return onSnapshot(colRef, (snap) => {
+      if (!snap.empty) {
+        const list: TeacherLeaveRequest[] = [];
+        snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
+        list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
+        setLocal('teacher_leave_requests', list);
+        callback(list);
+      }
+    }, (err) => console.warn('Firestore onSnapshot error (permohonan_izin_guru):', err));
+  }
+
   static subscribeSchoolConfig(callback: (config: SchoolConfig) => void): () => void {
     if (!db) {
       const handler = () => callback(getLocal<SchoolConfig>('school_config', DEFAULT_SCHOOL_CONFIG));

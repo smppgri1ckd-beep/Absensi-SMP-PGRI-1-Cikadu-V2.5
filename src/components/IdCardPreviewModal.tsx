@@ -30,6 +30,7 @@ interface IdCardPreviewModalProps {
   config: SchoolConfig;
   qrMap: Record<string, string>;
   paperSize: 'F4' | 'A4';
+  category?: 'SISWA' | 'GURU';
   onPrintSingle?: (student: Student, mode: 'FRONT' | 'BACK' | 'BOTH' | 'MOCKUP') => void;
   onDownloadSinglePdf?: (student: Student, mode: 'FRONT' | 'BACK' | 'BOTH' | 'MOCKUP') => void;
 }
@@ -45,6 +46,7 @@ export const IdCardPreviewModal: React.FC<IdCardPreviewModalProps> = ({
   config,
   qrMap,
   paperSize,
+  category = 'SISWA',
   onPrintSingle,
   onDownloadSinglePdf,
 }) => {
@@ -325,6 +327,7 @@ export const IdCardPreviewModal: React.FC<IdCardPreviewModalProps> = ({
                         config={config}
                         qrDataUrl={qrCodeUrl}
                         paperSize={paperSize}
+                        category={category}
                       />
                     </div>
                     <span className="bg-slate-700 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow-2xs">
@@ -342,7 +345,7 @@ export const IdCardPreviewModal: React.FC<IdCardPreviewModalProps> = ({
                   {/* Tampak Belakang */}
                   <div className="flex flex-col items-center gap-2">
                     <div className="shadow-2xl rounded-2xl bg-white ring-1 ring-slate-900/10">
-                      <IdCardBack config={config} paperSize={paperSize} />
+                      <IdCardBack config={config} paperSize={paperSize} category={category} />
                     </div>
                     <span className="bg-slate-700 text-white text-[10px] font-bold px-3 py-0.5 rounded-full shadow-2xs">
                       Tampak Belakang (10,5 × 6,5 cm)
@@ -360,11 +363,12 @@ export const IdCardPreviewModal: React.FC<IdCardPreviewModalProps> = ({
                       config={config}
                       qrDataUrl={qrCodeUrl}
                       paperSize={paperSize}
+                      category={category}
                     />
                   </div>
                   <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-xs flex items-center gap-1">
                     <CreditCard className="w-3.5 h-3.5" />
-                    <span>Tampak Depan (Identitas & Kode QR Absensi)</span>
+                    <span>Tampak Depan (Identitas &amp; Kode QR Absensi)</span>
                   </span>
                 </div>
               )}
@@ -373,11 +377,11 @@ export const IdCardPreviewModal: React.FC<IdCardPreviewModalProps> = ({
               {viewTab === 'BACK' && (
                 <div className="flex flex-col items-center gap-3">
                   <div className="shadow-2xl rounded-2xl bg-white ring-1 ring-slate-900/10">
-                    <IdCardBack config={config} paperSize={paperSize} />
+                    <IdCardBack config={config} paperSize={paperSize} category={category} />
                   </div>
                   <span className="bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-xs flex items-center gap-1">
                     <BookOpen className="w-3.5 h-3.5" />
-                    <span>Tampak Belakang (Panduan 3 Langkah & Catatan Tata Tertib)</span>
+                    <span>Tampak Belakang (Panduan 3 Langkah &amp; Catatan Tata Tertib)</span>
                   </span>
                 </div>
               )}
@@ -392,13 +396,14 @@ export const IdCardPreviewModal: React.FC<IdCardPreviewModalProps> = ({
                   >
                     <div className="shadow-2xl rounded-2xl bg-white ring-2 ring-blue-500/30 transition-transform duration-500 hover:scale-[1.02]">
                       {isFlipped ? (
-                        <IdCardBack config={config} paperSize={paperSize} />
+                        <IdCardBack config={config} paperSize={paperSize} category={category} />
                       ) : (
                         <IdCardFront
                           student={student}
                           config={config}
                           qrDataUrl={qrCodeUrl}
                           paperSize={paperSize}
+                          category={category}
                         />
                       )}
                     </div>

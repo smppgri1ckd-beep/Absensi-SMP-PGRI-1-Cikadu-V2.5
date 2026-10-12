@@ -346,6 +346,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         groupTitle: 'Layanan & Operasional Sekolah',
         items: [
           {
+            id: 'my-profile',
+            label: 'Profil & Kartu Saya',
+            desc: 'Edit foto, NIP, penugasan & cetak kartu QR individu',
+            icon: GraduationCap,
+            tag: 'Profil',
+            tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
+          },
+          {
             id: 'teacher-attendance',
             label: 'Absensi Saya & Pendidik',
             desc: 'Absen mandiri, rekap & izin dinas guru',
@@ -437,6 +445,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         groupTitle: 'Data Pokok Pendidikan',
         items: [
           {
+            id: 'my-profile',
+            label: 'Profil & Kartu Saya',
+            desc: 'Edit foto, NIP, penugasan & cetak kartu QR individu',
+            icon: GraduationCap,
+            tag: 'Profil',
+            tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
+          },
+          {
             id: 'students',
             label: 'Data Pokok Siswa',
             desc: 'Dapodik, foto profil & impor Excel',
@@ -493,9 +509,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           },
           {
             id: 'cards',
-            label: 'Cetak Massal Kartu (F4/A4)',
-            desc: 'Layout presisi cetak kartu QR',
+            label: 'Cetak Kartu Siswa (F4/A4)',
+            desc: 'Layout presisi cetak kartu QR Pelajar',
             icon: Printer,
+            tag: 'Siswa',
+            tagColor: 'bg-blue-100 text-blue-900 font-bold',
+          },
+          {
+            id: 'cards-guru',
+            label: 'Cetak Kartu Guru & Tendik (F4/A4)',
+            desc: 'Layout presisi cetak kartu QR Pendidik',
+            icon: GraduationCap,
+            tag: 'Guru',
+            tagColor: 'bg-amber-100 text-amber-900 font-bold',
           },
           {
             id: 'heb-calendar',

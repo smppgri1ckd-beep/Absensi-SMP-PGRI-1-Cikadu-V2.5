@@ -1,5 +1,14 @@
 import { jsPDF } from 'jspdf';
-import { SchoolConfig, AttendanceRecord, Student, TeachingJournal, TeacherUser, KalenderHeb } from '../types';
+import { 
+  SchoolConfig, 
+  AttendanceRecord, 
+  Student, 
+  TeachingJournal, 
+  TeacherUser, 
+  KalenderHeb,
+  TeacherAttendanceRecord,
+  TeacherLeaveRequest 
+} from '../types';
 import { SCHOOL_LOGO_PNG_DATA_URL } from '../assets/schoolLogo';
 import { generateQrDataUrl } from './qr';
 
@@ -69,10 +78,11 @@ function drawOfficialKop(
   );
 
   // Baris 5: Kontak & Identitas Resmi
+  const rawKontak = schoolConfig.kontak || '0852 1258 7750';
+  const cleanKontak = rawKontak.split('|')[0].trim();
   const npsn = schoolConfig.npsn || '69919136';
-  const kontak = schoolConfig.kontak || '0852 1258 7750';
   const email = schoolConfig.email || 'smp.pgri1ckd@gmail.com';
-  const kontakStr = kontak.includes('Telp') ? kontak : `Telp: ${kontak}`;
+  const kontakStr = cleanKontak.includes('Telp') ? cleanKontak : `Telp: ${cleanKontak}`;
   doc.text(
     `${kontakStr} | e-mail: ${email} | NPSN: ${npsn}`,
     centerX,
@@ -2981,5 +2991,440 @@ export function generateClassRankingsPdf({
   const cleanKelas = kelas.replace(/[^\w]/g, '_');
   doc.save(`Rekap_Peringkat_Kelas_${cleanKelas}_${semester.replace(/\s+/g, '_')}.pdf`);
 }
+
+/**
+ * Helper to safely draw cell text with dynamic scaling and truncation
+ */
+function drawPdfCellText(
+  doc: jsPDF,
+  text: string,
+  cellX: number,
+  cellY: number,
+  colWidth: number,
+  align: 'left' | 'center' | 'right' = 'left',
+  baseFontSize = 7,
+  padding = 1.2
+): void {
+  const safeText = text || '-';
+  doc.setFontSize(baseFontSize);
+  const maxWidth = Math.max(2, colWidth - padding * 2);
+  let textWidth = doc.getTextWidth(safeText);
+
+  // Dynamic font scaling down to 5.2pt
+  let currentFontSize = baseFontSize;
+  while (textWidth > maxWidth && currentFontSize > 5.2) {
+    currentFontSize -= 0.3;
+    doc.setFontSize(currentFontSize);
+    textWidth = doc.getTextWidth(safeText);
+  }
+
+  // Truncate with '..' if still too wide
+  let textToDraw = safeText;
+  if (textWidth > maxWidth) {
+    while (textToDraw.length > 0 && doc.getTextWidth(textToDraw + '..') > maxWidth) {
+      textToDraw = textToDraw.substring(0, textToDraw.length - 1);
+    }
+    textToDraw += '..';
+  }
+
+  const textX =
+    align === 'center'
+      ? cellX + colWidth / 2
+      : align === 'right'
+      ? cellX + colWidth - padding
+      : cellX + padding;
+
+  doc.text(textToDraw, textX, cellY, { align });
+  doc.setFontSize(baseFontSize);
+}
+
+export function generateTeacherAttendanceRecapPdf({
+  teachers,
+  records,
+  leaveRequests,
+  schoolConfig,
+  bulanNama,
+  tahun,
+  piketName,
+  piketNip,
+}: {
+  teachers: TeacherUser[];
+  records: TeacherAttendanceRecord[];
+  leaveRequests: TeacherLeaveRequest[];
+  schoolConfig: SchoolConfig;
+  bulanNama: string;
+  tahun: number;
+  piketName?: string;
+  piketNip?: string;
+}): void {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const startY = drawOfficialKop(doc, schoolConfig, false);
+
+  let y = startY + 2;
+
+  // Title Block
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42); // slate-900
+  doc.text('LAPORAN REKAPITULASI KEHADIRAN & KEDISIPLINAN GURU / TENDIK', 105, y, { align: 'center' });
+
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85); // slate-700
+  doc.text(`Periode: ${bulanNama} ${tahun}  |  ${schoolConfig.namaSekolah}`, 105, y, { align: 'center' });
+
+  y += 8;
+
+  // Table Columns (Total = 194mm)
+  const cols = [
+    { header: 'NO', width: 8, align: 'center' as const },
+    { header: 'NIP / ID', width: 34, align: 'left' as const },
+    { header: 'NAMA GURU / TENDIK', width: 52, align: 'left' as const },
+    { header: 'TUGAS / JABATAN', width: 44, align: 'left' as const },
+    { header: 'HADIR', width: 14, align: 'center' as const },
+    { header: 'TELAT', width: 14, align: 'center' as const },
+    { header: 'IZIN', width: 14, align: 'center' as const },
+    { header: 'ALPA', width: 14, align: 'center' as const },
+  ];
+
+  const tableWidth = cols.reduce((acc, c) => acc + c.width, 0);
+  const startX = (210 - tableWidth) / 2;
+
+  const drawTableHeader = (curY: number) => {
+    doc.setFillColor(30, 41, 59); // Dark Navy / Slate-800
+    doc.rect(startX, curY, tableWidth, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.setLineWidth(0.2);
+    doc.setDrawColor(30, 41, 59);
+
+    let currX = startX;
+    cols.forEach((col) => {
+      const textX = col.align === 'center' ? currX + col.width / 2 : currX + 1.5;
+      doc.text(col.header, textX, curY + 4.6, { align: col.align });
+      currX += col.width;
+    });
+  };
+
+  drawTableHeader(y);
+  y += 7;
+
+  // Filter records for month/year
+  const monthMap: Record<string, string> = {
+    'Januari': '01', 'Februari': '02', 'Maret': '03', 'April': '04',
+    'Mei': '05', 'Juni': '06', 'Juli': '07', 'Agustus': '08',
+    'September': '09', 'Oktober': '10', 'November': '11', 'Desember': '12'
+  };
+  const mStr = monthMap[bulanNama] || '10';
+  const prefixYearMonth = `${tahun}-${mStr}`;
+
+  const monthRecords = records.filter((r) => r.tanggal && r.tanggal.startsWith(prefixYearMonth));
+
+  // Sort Teachers Alphabetically (A-Z)
+  const sortedTeachers = [...teachers].sort((a, b) =>
+    a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' })
+  );
+
+  // Render Rows
+  sortedTeachers.forEach((t, idx) => {
+    if (y + 7.5 > 268) {
+      doc.addPage();
+      y = 18;
+      drawTableHeader(y);
+      y += 7;
+    }
+
+    const tRecs = monthRecords.filter((r) => r.teacherId === t.id);
+    const totalHadir = tRecs.filter((r) => r.status === 'Hadir').length;
+    const totalTelat = tRecs.filter((r) => r.status === 'Terlambat').length;
+    const totalIzin = tRecs.filter((r) => r.status === 'Izin' || r.status === 'Sakit').length;
+    const totalAlpa = tRecs.filter((r) => r.status === 'Alpa').length;
+
+    const isEven = idx % 2 === 0;
+    if (isEven) {
+      doc.setFillColor(255, 255, 255);
+    } else {
+      doc.setFillColor(248, 250, 252);
+    }
+    doc.rect(startX, y, tableWidth, 6.5, 'F');
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.15);
+
+    const rowValues = [
+      String(idx + 1),
+      t.nip || '-',
+      t.nama,
+      t.mapel || 'Guru Mapel',
+      String(totalHadir),
+      String(totalTelat),
+      String(totalIzin),
+      String(totalAlpa),
+    ];
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(15, 23, 42);
+
+    let cellX = startX;
+    cols.forEach((col, cIdx) => {
+      doc.rect(cellX, y, col.width, 6.5);
+      const val = rowValues[cIdx];
+
+      if (cIdx >= 4) {
+        doc.setFont('helvetica', val !== '0' ? 'bold' : 'normal');
+      } else {
+        doc.setFont('helvetica', 'normal');
+      }
+
+      drawPdfCellText(doc, val, cellX, y + 4.3, col.width, col.align, 7.5, 1.2);
+      cellX += col.width;
+    });
+
+    y += 6.5;
+  });
+
+  y += 8;
+
+  if (y + 38 > 275) {
+    doc.addPage();
+    y = 22;
+  }
+
+  const signerName = piketName || schoolConfig.namaPetugasPiket || 'AI SITI ROSITA';
+  const signerNip = piketNip || schoolConfig.nipPetugasPiket || '-';
+
+  drawSignatures(
+    doc,
+    y,
+    schoolConfig,
+    'Koordinator Piket & Kedisiplinan,',
+    signerName,
+    signerNip,
+    false
+  );
+
+  doc.save(`Rekap_Kehadiran_Guru_${schoolConfig.namaSekolah.replace(/\s+/g, '_')}_${bulanNama}_${tahun}.pdf`);
+}
+
+export function generateTeacherDailyAttendancePdf({
+  records,
+  teachers,
+  schoolConfig,
+  periodeLabel,
+  piketName,
+  piketNip,
+}: {
+  records: TeacherAttendanceRecord[];
+  teachers: TeacherUser[];
+  schoolConfig: SchoolConfig;
+  periodeLabel: string;
+  piketName?: string;
+  piketNip?: string;
+}): void {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const startY = drawOfficialKop(doc, schoolConfig, false);
+
+  let y = startY + 2;
+
+  // Title Block
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42); // slate-900
+  doc.text('LAPORAN REKAPITULASI PRESENSI HARIAN GURU & TENDIK', 105, y, { align: 'center' });
+
+  y += 5;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Periode / Tanggal: ${periodeLabel}  |  ${schoolConfig.namaSekolah}`, 105, y, { align: 'center' });
+
+  y += 8;
+
+  // Summary KPI Box
+  const totalG = teachers.length;
+  const hadirCount = records.filter((r) => r.status === 'Hadir').length;
+  const telatCount = records.filter((r) => r.status === 'Terlambat').length;
+  const izinCount = records.filter((r) => r.status === 'Izin' || r.status === 'Sakit').length;
+  const alpaCount = records.filter((r) => r.status === 'Alpa').length;
+
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.2);
+  doc.rect(8, y, 194, 11, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Ringkasan Kehadiran Guru & Tendik (${records.length} Catatan Presensi):`, 11, y + 4.2);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(51, 65, 85);
+  doc.text(`Total Guru: ${totalG}  |  Hadir Tepat Waktu: ${hadirCount}  |  Terlambat: ${telatCount}  |  Izin/Sakit: ${izinCount}  |  Alpa: ${alpaCount}`, 11, y + 8.2);
+
+  y += 15;
+
+  // Table Columns (Total width = 194mm)
+  const cols = [
+    { header: 'NO', width: 8, align: 'center' as const },
+    { header: 'TANGGAL & WAKTU', width: 26, align: 'left' as const },
+    { header: 'NAMA GURU / TENDIK', width: 42, align: 'left' as const },
+    { header: 'NIP / ID', width: 34, align: 'left' as const },
+    { header: 'TUGAS / MAPEL', width: 32, align: 'left' as const },
+    { header: 'SESI', width: 12, align: 'center' as const },
+    { header: 'STATUS', width: 14, align: 'center' as const },
+    { header: 'CATATAN', width: 26, align: 'left' as const },
+  ];
+
+  const tableWidth = cols.reduce((acc, c) => acc + c.width, 0);
+  const startX = (210 - tableWidth) / 2;
+
+  const drawTableHeader = (curY: number) => {
+    doc.setFillColor(30, 41, 59); // Dark Navy / Slate-800
+    doc.rect(startX, curY, tableWidth, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.setLineWidth(0.2);
+    doc.setDrawColor(30, 41, 59);
+
+    let currX = startX;
+    cols.forEach((col) => {
+      const textX = col.align === 'center' ? currX + col.width / 2 : currX + 1.2;
+      doc.text(col.header, textX, curY + 4.6, { align: col.align });
+      currX += col.width;
+    });
+  };
+
+  drawTableHeader(y);
+  y += 7;
+
+  // Sort Records Alphabetically by Teacher Name (A-Z)
+  const sortedRecords = [...records].sort((a, b) => {
+    const nameCompare = a.nama.localeCompare(b.nama, 'id', { sensitivity: 'base' });
+    if (nameCompare !== 0) return nameCompare;
+    return (a.tanggal + (a.waktu || '')).localeCompare(b.tanggal + (b.waktu || ''));
+  });
+
+  // Render Rows
+  sortedRecords.forEach((r, idx) => {
+    if (y + 7.5 > 268) {
+      doc.addPage();
+      y = 18;
+      drawTableHeader(y);
+      y += 7;
+    }
+
+    const isEven = idx % 2 === 0;
+    if (isEven) {
+      doc.setFillColor(255, 255, 255);
+    } else {
+      doc.setFillColor(248, 250, 252);
+    }
+    doc.rect(startX, y, tableWidth, 6.5, 'F');
+
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.15);
+
+    const rowValues = [
+      String(idx + 1),
+      `${r.tanggal} ${r.waktu || ''}`.trim(),
+      r.nama,
+      r.nip || '-',
+      r.mapel || 'Guru Mapel',
+      r.sesi || 'Masuk',
+      r.status,
+      r.catatan || r.kategori || '-',
+    ];
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(15, 23, 42);
+
+    let cellX = startX;
+    cols.forEach((col, cIdx) => {
+      doc.rect(cellX, y, col.width, 6.5);
+      const val = rowValues[cIdx];
+
+      if (cIdx === 6) {
+        // Status Badge
+        let fillR = 241, fillG = 245, fillB = 249;
+        let textR = 51, textG = 65, textB = 85;
+
+        if (r.status === 'Hadir') {
+          fillR = 220; fillG = 252; fillB = 231; // emerald-100
+          textR = 22; textG = 101; textB = 52; // emerald-800
+        } else if (r.status === 'Terlambat') {
+          fillR = 254; fillG = 243; fillB = 199; // amber-100
+          textR = 146; textG = 64; textB = 14; // amber-800
+        } else if (r.status === 'Izin' || r.status === 'Sakit') {
+          fillR = 219; fillG = 234; fillB = 254; // blue-100
+          textR = 30; textG = 64; textB = 175; // blue-800
+        } else if (r.status === 'Alpa') {
+          fillR = 254; fillG = 226; fillB = 226; // rose-100
+          textR = 153; textG = 27; textB = 27; // rose-800
+        }
+
+        const badgeW = col.width - 2;
+        const badgeH = 4.5;
+        const badgeX = cellX + 1;
+        const badgeY = y + 1;
+
+        doc.setFillColor(fillR, fillG, fillB);
+        doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1, 1, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.5);
+        doc.setTextColor(textR, textG, textB);
+        doc.text(val, cellX + col.width / 2, y + 4.2, { align: 'center' });
+
+        // Reset text color
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(15, 23, 42);
+      } else {
+        drawPdfCellText(doc, val, cellX, y + 4.3, col.width, col.align, 7, 1.2);
+      }
+
+      cellX += col.width;
+    });
+
+    y += 6.5;
+  });
+
+  if (records.length === 0) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Tidak ada data presensi guru untuk periode yang dipilih.', 105, y + 6, { align: 'center' });
+    y += 10;
+  }
+
+  y += 8;
+
+  if (y + 38 > 275) {
+    doc.addPage();
+    y = 22;
+  }
+
+  const signerName = piketName || schoolConfig.namaPetugasPiket || 'AI SITI ROSITA';
+  const signerNip = piketNip || schoolConfig.nipPetugasPiket || '-';
+
+  drawSignatures(
+    doc,
+    y,
+    schoolConfig,
+    'Koordinator Piket & Kedisiplinan,',
+    signerName,
+    signerNip,
+    false
+  );
+
+  const cleanLabel = periodeLabel.replace(/[^\w]/g, '_');
+  doc.save(`Rekap_Presensi_Guru_Harian_${cleanLabel}.pdf`);
+}
+
 
 

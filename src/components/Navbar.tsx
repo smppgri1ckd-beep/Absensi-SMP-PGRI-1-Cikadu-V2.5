@@ -411,8 +411,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                         </div>
                       </div>
 
-                      {/* Account Actions & Teacher Piket Switcher */}
+                      {/* Account Actions & Teacher Profile */}
                       <div className="py-2.5 border-b border-slate-100 space-y-1.5">
+                        {/* Self Profile & Card Button */}
+                        <button
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            setActiveTab?.('my-profile');
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-900 border border-teal-200 font-extrabold text-xs flex items-center justify-start gap-2 transition-colors cursor-pointer"
+                        >
+                          <GraduationCap className="w-4 h-4 text-teal-700 shrink-0" />
+                          <span>Profil &amp; Kartu Identitas Saya</span>
+                        </button>
+
                         {/* Teacher Piket Mode Toggle Button */}
                         {user.role === 'guru' && (
                           actingAsPiket ? (
