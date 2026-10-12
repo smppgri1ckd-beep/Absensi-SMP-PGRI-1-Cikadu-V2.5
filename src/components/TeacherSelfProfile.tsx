@@ -19,9 +19,15 @@ import {
   Image as ImageIcon,
   Sparkles,
   Calendar,
-  Layers
+  Layers,
+  Clock,
+  Edit3,
+  MapPin,
+  X,
+  Zap,
+  Tag
 } from 'lucide-react';
-import { AuthUser, TeacherUser, SchoolConfig, TeachingAssignment, DayOfWeek } from '../types';
+import { AuthUser, TeacherUser, SchoolConfig, TeachingAssignment, DayOfWeek, ClassScheduleItem } from '../types';
 import { IdCardFront } from './IdCardFront';
 import { IdCardBack } from './IdCardBack';
 import { IdCardPreviewModal } from './IdCardPreviewModal';
@@ -37,6 +43,9 @@ interface TeacherSelfProfileProps {
   teachers: TeacherUser[];
   onSaveTeacher: (updated: TeacherUser) => Promise<void> | void;
   schoolConfig: SchoolConfig;
+  schedules?: ClassScheduleItem[];
+  onSaveSchedule?: (schedule: ClassScheduleItem) => Promise<void>;
+  onDeleteSchedule?: (id: string) => Promise<void>;
 }
 
 export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
@@ -44,6 +53,9 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
   teachers,
   onSaveTeacher,
   schoolConfig,
+  schedules = [],
+  onSaveSchedule,
+  onDeleteSchedule,
 }) => {
   const { toast } = useToast();
 
@@ -99,6 +111,130 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
   const [isEnlargedQrOpen, setIsEnlargedQrOpen] = useState(false);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [pdfProgressText, setPdfProgressText] = useState('');
+
+  // Schedules for this specific teacher
+  const mySchedules = useMemo(() => {
+    if (!schedules || schedules.length === 0) return [];
+    const teacherId = formData.id || currentUser.id;
+    const teacherNama = (formData.nama || currentUser.nama || '').toLowerCase().trim();
+    const teacherNip = (formData.nip || currentUser.nip || '').trim();
+
+    return schedules.filter((s) => {
+      if (s.guruId && s.guruId === teacherId) return true;
+      if (s.guruNip && teacherNip && teacherNip !== '-' && s.guruNip.trim() === teacherNip) return true;
+      if (s.guruNama && teacherNama && s.guruNama.toLowerCase().trim().includes(teacherNama)) return true;
+      return false;
+    });
+  }, [schedules, formData.id, formData.nama, formData.nip, currentUser.id, currentUser.nama, currentUser.nip]);
+
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [editingScheduleId, setEditingScheduleId] = useState<string | null>(null);
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+
+  const [formSchedule, setFormSchedule] = useState<{
+    hari: DayOfWeek;
+    kelas: string;
+    jamKe: string;
+    jamMulai: string;
+    jamSelesai: string;
+    mapel: string;
+    ruang: string;
+    warna: string;
+  }>({
+    hari: 'Senin',
+    kelas: '7A',
+    jamKe: '1 - 2',
+    jamMulai: '07:30',
+    jamSelesai: '08:50',
+    mapel: formData.mapel || 'Mata Pelajaran',
+    ruang: 'R. Kelas 7A',
+    warna: 'teal',
+  });
+
+  const resetScheduleForm = (overrideDay?: DayOfWeek) => {
+    setEditingScheduleId(null);
+    setFormSchedule({
+      hari: overrideDay || 'Senin',
+      kelas: '7A',
+      jamKe: '1 - 2',
+      jamMulai: '07:30',
+      jamSelesai: '08:50',
+      mapel: formData.mapel || 'Mata Pelajaran',
+      ruang: 'R. Kelas 7A',
+      warna: 'teal',
+    });
+  };
+
+  const handleOpenNewScheduleModal = (day?: DayOfWeek) => {
+    resetScheduleForm(day);
+    setIsScheduleModalOpen(true);
+  };
+
+  const handleEditScheduleItem = (sch: ClassScheduleItem) => {
+    setEditingScheduleId(sch.id);
+    setFormSchedule({
+      hari: sch.hari as DayOfWeek,
+      kelas: sch.kelas,
+      jamKe: sch.jamKe || '1 - 2',
+      jamMulai: sch.jamMulai || '07:30',
+      jamSelesai: sch.jamSelesai || '08:50',
+      mapel: sch.mapel,
+      ruang: sch.ruang || `R. Kelas ${sch.kelas}`,
+      warna: sch.warna || 'teal',
+    });
+    setIsScheduleModalOpen(true);
+  };
+
+  const handleSaveScheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formSchedule.kelas || !formSchedule.hari) {
+      toast.error('Gagal Menyimpan', 'Pilih hari dan kelas mengajar.');
+      return;
+    }
+
+    const scheduleItem: ClassScheduleItem = {
+      id: editingScheduleId || `sch_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      kelas: formSchedule.kelas,
+      hari: formSchedule.hari,
+      jamMulai: formSchedule.jamMulai || '07:30',
+      jamSelesai: formSchedule.jamSelesai || '08:50',
+      jamKe: formSchedule.jamKe || '1 - 2',
+      mapel: formSchedule.mapel || formData.mapel || 'Mata Pelajaran',
+      guruNama: formData.nama || currentUser.nama || 'Guru',
+      guruId: formData.id || currentUser.id,
+      guruNip: formData.nip || currentUser.nip || '',
+      ruang: formSchedule.ruang || `R. Kelas ${formSchedule.kelas}`,
+      warna: formSchedule.warna || 'teal',
+    };
+
+    try {
+      setIsSavingSchedule(true);
+      if (onSaveSchedule) {
+        await onSaveSchedule(scheduleItem);
+      }
+      toast.success('Jadwal Pelajaran Tersimpan', `Jadwal ${scheduleItem.mapel} kelas ${scheduleItem.kelas} hari ${scheduleItem.hari} berhasil disinkronkan ke database.`);
+      setIsScheduleModalOpen(false);
+      resetScheduleForm();
+    } catch (err) {
+      console.error('Error saving schedule:', err);
+      toast.error('Gagal Menyimpan', 'Terjadi kesalahan saat memetakan jadwal mengajar.');
+    } finally {
+      setIsSavingSchedule(false);
+    }
+  };
+
+  const handleDeleteScheduleSlot = async (id: string) => {
+    if (!confirm('Hapus slot jadwal mengajar ini dari database sekolah?')) return;
+    try {
+      if (onDeleteSchedule) {
+        await onDeleteSchedule(id);
+      }
+      toast.success('Jadwal Dihapus', 'Slot jadwal berhasil dihapus dari rekap.');
+    } catch (err) {
+      console.error('Error deleting schedule slot:', err);
+      toast.error('Gagal Menghapus', 'Terjadi kesalahan saat menghapus slot jadwal.');
+    }
+  };
 
   const cardContainerRef = useRef<HTMLDivElement>(null);
   const singleCardPdfRef = useRef<HTMLDivElement>(null);
@@ -631,6 +767,121 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* ===== SECTION: PEMETAAN JADWAL MENGAJAR HARIAN ===== */}
+              <div className="space-y-4 pt-4 border-t-2 border-dashed border-teal-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-teal-50/80 p-4 rounded-2xl border border-teal-200/80">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center font-bold shadow-md shrink-0">
+                      <Calendar className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-extrabold text-teal-950 flex items-center gap-2">
+                        <span>Pemetaan Jadwal Mengajar Harian</span>
+                        <span className="px-2 py-0.5 rounded-full bg-teal-600 text-white text-[10px] font-black">
+                          {mySchedules.length} Slot
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-teal-800 font-medium leading-relaxed">
+                        Petakan jadwal di hari apa saja dan di kelas mana saja. Otomatis masuk ke Rekap Jadwal &amp; Tersinkron Realtime.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenNewScheduleModal()}
+                    className="px-3.5 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Tambah Slot Jadwal</span>
+                  </button>
+                </div>
+
+                {/* Days Schedule Grid */}
+                <div className="space-y-3">
+                  {allDays.map((day) => {
+                    const daySlots = mySchedules.filter((s) => s.hari === day);
+                    return (
+                      <div key={day} className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">
+                        <div className="px-3.5 py-2 bg-slate-100/80 border-b border-slate-200 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 font-bold text-slate-800">
+                            <Clock className="w-3.5 h-3.5 text-teal-600" />
+                            <span>Hari {day}</span>
+                            <span className="text-[10px] font-semibold text-slate-500">
+                              ({daySlots.length} Jam Tatap Muka)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenNewScheduleModal(day)}
+                            className="text-[11px] font-bold text-teal-700 hover:text-teal-800 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" />
+                            <span>Tambah {day}</span>
+                          </button>
+                        </div>
+
+                        <div className="p-2.5">
+                          {daySlots.length === 0 ? (
+                            <p className="text-[11px] text-slate-400 italic text-center py-2">
+                              Belum ada jadwal terpetakan di hari {day}.
+                            </p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {daySlots.map((sch) => (
+                                <div
+                                  key={sch.id}
+                                  className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:shadow-xs transition flex items-center justify-between gap-2"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-black bg-teal-100 text-teal-800 uppercase tracking-wider">
+                                        Kelas {sch.kelas}
+                                      </span>
+                                      <span className="text-[10px] font-semibold text-slate-500 font-mono">
+                                        {sch.jamMulai} - {sch.jamSelesai}
+                                      </span>
+                                    </div>
+                                    <h5 className="text-xs font-extrabold text-slate-900 truncate">
+                                      {sch.mapel}
+                                    </h5>
+                                    {sch.ruang && (
+                                      <p className="text-[10px] text-slate-500 flex items-center gap-1 font-medium">
+                                        <MapPin className="w-2.5 h-2.5 text-slate-400" />
+                                        <span>{sch.ruang}</span>
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditScheduleItem(sch)}
+                                      className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition cursor-pointer"
+                                      title="Edit slot ini"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteScheduleSlot(sch.id)}
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                      title="Hapus slot ini"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Save Button */}
@@ -792,6 +1043,180 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
         category="GURU"
         schoolConfig={schoolConfig}
       />
+
+      {/* ===== MODAL TAMBAH / EDIT SLOT JADWAL MENGAJAR ===== */}
+      {isScheduleModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center font-bold">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    {editingScheduleId ? 'Edit Slot Jadwal' : 'Pemetaan Slot Jadwal Baru'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Tentukan hari, kelas, jam, dan mata pelajaran.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveScheduleSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Hari Mengajar <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={formSchedule.hari}
+                    onChange={(e) => setFormSchedule((prev) => ({ ...prev, hari: e.target.value as DayOfWeek }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  >
+                    {allDays.map((d) => (
+                      <option key={d} value={d}>
+                        Hari {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    Kelas Rombel <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={formSchedule.kelas}
+                    onChange={(e) => setFormSchedule((prev) => ({ ...prev, kelas: e.target.value, ruang: `R. Kelas ${e.target.value}` }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  >
+                    {availableClasses.map((c) => (
+                      <option key={c} value={c}>
+                        Kelas {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  Preset Jam Tatap Muka
+                </label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { label: 'Jam 1 - 2 (07:30 - 08:50)', jamKe: '1 - 2', jamMulai: '07:30', jamSelesai: '08:50' },
+                    { label: 'Jam 3 - 4 (09:05 - 10:25)', jamKe: '3 - 4', jamMulai: '09:05', jamSelesai: '10:25' },
+                    { label: 'Jam 5 - 6 (10:40 - 12:00)', jamKe: '5 - 6', jamMulai: '10:40', jamSelesai: '12:00' },
+                    { label: 'Jam 7 - 8 (13:00 - 14:20)', jamKe: '7 - 8', jamMulai: '13:00', jamSelesai: '14:20' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() =>
+                        setFormSchedule((prev) => ({
+                          ...prev,
+                          jamKe: preset.jamKe,
+                          jamMulai: preset.jamMulai,
+                          jamSelesai: preset.jamSelesai,
+                        }))
+                      }
+                      className={`p-2 rounded-xl text-[10px] font-bold border transition text-left cursor-pointer ${
+                        formSchedule.jamKe === preset.jamKe && formSchedule.jamMulai === preset.jamMulai
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Jam Ke</label>
+                  <input
+                    type="text"
+                    value={formSchedule.jamKe}
+                    onChange={(e) => setFormSchedule((prev) => ({ ...prev, jamKe: e.target.value }))}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:bg-white focus:outline-none"
+                    placeholder="1 - 2"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Jam Mulai</label>
+                  <input
+                    type="time"
+                    value={formSchedule.jamMulai}
+                    onChange={(e) => setFormSchedule((prev) => ({ ...prev, jamMulai: e.target.value }))}
+                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-semibold focus:bg-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Jam Selesai</label>
+                  <input
+                    type="time"
+                    value={formSchedule.jamSelesai}
+                    onChange={(e) => setFormSchedule((prev) => ({ ...prev, jamSelesai: e.target.value }))}
+                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-semibold focus:bg-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Mata Pelajaran</label>
+                <input
+                  type="text"
+                  required
+                  value={formSchedule.mapel}
+                  onChange={(e) => setFormSchedule((prev) => ({ ...prev, mapel: e.target.value }))}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  placeholder="Contoh: Matematika, Bahasa Indonesia"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Ruangan Kelas (Opsional)</label>
+                <input
+                  type="text"
+                  value={formSchedule.ruang}
+                  onChange={(e) => setFormSchedule((prev) => ({ ...prev, ruang: e.target.value }))}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-medium focus:bg-white focus:outline-none"
+                  placeholder="R. Kelas 7A"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsScheduleModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingSchedule}
+                  className="px-5 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl font-extrabold transition shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{isSavingSchedule ? 'Menyimpan...' : 'Simpan Slot Jadwal'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Off-screen Staging for 1:1 Scale Single Card PDF Export */}
       <div

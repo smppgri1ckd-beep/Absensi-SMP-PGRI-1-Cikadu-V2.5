@@ -1212,6 +1212,9 @@ function AppContent() {
                     teachers={teachers}
                     onSaveTeacher={handleSaveTeacher}
                     schoolConfig={schoolConfig}
+                    schedules={schedules}
+                    onSaveSchedule={handleSaveSchedule}
+                    onDeleteSchedule={handleDeleteSchedule}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
