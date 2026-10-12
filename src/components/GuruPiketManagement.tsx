@@ -1342,7 +1342,7 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
                       <th className="py-2.5 px-3 w-12 border-r border-slate-300">No</th>
                       <th className="py-2.5 px-3 w-28 border-r border-slate-300">Hari</th>
                       <th className="py-2.5 px-4 border-r border-slate-300">Nama Petugas Guru Piket</th>
-                      <th className="py-2.5 px-4 border-r border-slate-300">NIP / NUPTK</th>
+                      <th className="py-2.5 px-4 border-r border-slate-300">NUPTK / ID</th>
                       <th className="py-2.5 px-4 border-r border-slate-300">Peran & Tanggung Jawab</th>
                       <th className="py-2.5 px-3 w-32">Jam Tugas</th>
                     </tr>

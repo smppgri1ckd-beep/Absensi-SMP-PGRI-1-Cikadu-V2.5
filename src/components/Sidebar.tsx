@@ -348,7 +348,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {
             id: 'my-profile',
             label: 'Profil & Kartu Saya',
-            desc: 'Edit foto, NIP, penugasan & cetak kartu QR individu',
+            desc: 'Edit foto, NUPTK/ID, penugasan & cetak kartu QR individu',
             icon: GraduationCap,
             tag: 'Profil',
             tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
@@ -447,7 +447,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {
             id: 'my-profile',
             label: 'Profil & Kartu Saya',
-            desc: 'Edit foto, NIP, penugasan & cetak kartu QR individu',
+            desc: 'Edit foto, NUPTK/ID, penugasan & cetak kartu QR individu',
             icon: GraduationCap,
             tag: 'Profil',
             tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
@@ -461,7 +461,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {
             id: 'teachers',
             label: 'Data & Akun Guru',
-            desc: 'Akun login, NIP & penugasan mapel',
+            desc: 'Akun login, NUPTK/ID & penugasan mapel',
             icon: GraduationCap,
           },
           {

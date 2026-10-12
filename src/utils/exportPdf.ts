@@ -3079,7 +3079,7 @@ export function generateTeacherAttendanceRecapPdf({
   // Table Columns (Total = 194mm)
   const cols = [
     { header: 'NO', width: 8, align: 'center' as const },
-    { header: 'NIP / ID', width: 34, align: 'left' as const },
+    { header: 'NUPTK / ID', width: 34, align: 'left' as const },
     { header: 'NAMA GURU / TENDIK', width: 52, align: 'left' as const },
     { header: 'TUGAS / JABATAN', width: 44, align: 'left' as const },
     { header: 'HADIR', width: 14, align: 'center' as const },
@@ -3271,7 +3271,7 @@ export function generateTeacherDailyAttendancePdf({
     { header: 'NO', width: 8, align: 'center' as const },
     { header: 'TANGGAL & WAKTU', width: 26, align: 'left' as const },
     { header: 'NAMA GURU / TENDIK', width: 42, align: 'left' as const },
-    { header: 'NIP / ID', width: 34, align: 'left' as const },
+    { header: 'NUPTK / ID', width: 34, align: 'left' as const },
     { header: 'TUGAS / MAPEL', width: 32, align: 'left' as const },
     { header: 'SESI', width: 12, align: 'center' as const },
     { header: 'STATUS', width: 14, align: 'center' as const },

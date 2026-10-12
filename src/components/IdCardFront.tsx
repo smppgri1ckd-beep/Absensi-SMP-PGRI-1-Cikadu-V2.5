@@ -95,7 +95,7 @@ export const IdCardFront: React.FC<IdCardFrontProps> = ({
   const field1Label = 'Nama';
   const field1Val = personName;
 
-  const field2Label = isTeacher ? 'NIP/ID' : 'JK';
+  const field2Label = isTeacher ? 'NUPTK/ID' : 'JK';
   const field2Val = isTeacher
     ? (teacher?.nip && teacher?.nip !== '-' ? teacher.nip : teacher?.username || teacher?.id || '-')
     : student?.jk === 'L' ? 'Laki-laki' : student?.jk === 'P' ? 'Perempuan' : student?.jk || '-';
@@ -309,7 +309,7 @@ export const IdCardFront: React.FC<IdCardFrontProps> = ({
               {config.namaKepsek || 'H. SURYADI, M.Pd.'}
             </p>
             <p className="text-[4.5px] font-bold text-white/80 font-mono">
-              NIP. {config.nipKepsek || '19700101 199501 1 001'}
+              NUPTK. {config.nipKepsek || '19700101 199501 1 001'}
             </p>
           </div>
         </div>

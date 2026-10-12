@@ -479,7 +479,7 @@ interface PrintableItem {
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
             {isTeacherCategory
-              ? 'Format resmi (10,5 × 6,5 cm) presisi untuk Pendidik & Tenaga Kependidikan: Kop Gelombang Emas PGRI, Foto Guru, Tabel NIP/Tugas, QR Code Kiosk/Mandiri, dan Panduan Presensi Belakang.'
+              ? 'Format resmi (10,5 × 6,5 cm) presisi untuk Pendidik & Tenaga Kependidikan: Kop Gelombang Emas PGRI, Foto Guru, Tabel NUPTK/ID/Tugas, QR Code Kiosk/Mandiri, dan Panduan Presensi Belakang.'
               : 'Format resmi (10,5 × 6,5 cm) dengan tata letak presisi: Kop Gelombang Biru-Kuning, Logo PGRI Bulat, Pas Foto Siswa, Tabel Identitas (#dceeff), QR Code tebal, dan Panduan Belakang 3 Langkah.'}
           </p>
         </div>
@@ -863,12 +863,12 @@ interface PrintableItem {
 
           <div>
             <label className="block text-[10px] font-bold text-slate-500 mb-1">
-              Pencarian Nama / {isTeacherCategory ? 'NIP' : 'NISN'}
+              Pencarian Nama / {isTeacherCategory ? 'NUPTK / ID' : 'NISN'}
             </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder={isTeacherCategory ? "Cari nama, NIP, atau mata pelajaran..." : "Cari nama atau NISN..."}
+                placeholder={isTeacherCategory ? "Cari nama, NUPTK, ID, atau mata pelajaran..." : "Cari nama atau NISN..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden"

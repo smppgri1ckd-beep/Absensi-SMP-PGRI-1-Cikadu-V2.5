@@ -252,7 +252,7 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
               Profil &amp; Kartu Identitas Saya
             </h1>
             <p className="text-xs sm:text-sm text-teal-100/90 max-w-2xl leading-relaxed">
-              Kelola foto resmi, NIP, nomor kontak WhatsApp, penugasan mengajar, serta cetak kartu QR individu Anda untuk presensi harian.
+              Kelola foto resmi, NUPTK / ID, nomor kontak WhatsApp, penugasan mengajar, serta cetak kartu QR individu Anda untuk presensi harian.
             </p>
           </div>
 
@@ -270,7 +270,7 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
                 {formData.nama}
               </h4>
               <p className="text-[11px] font-mono text-amber-200 font-semibold truncate">
-                NIP: {formData.nip || '-'}
+                NUPTK / ID: {formData.nip || '-'}
               </p>
               <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-black bg-emerald-500/30 text-emerald-200 border border-emerald-400/30 uppercase">
                 {formData.mapel || 'Guru Mapel'}
@@ -395,14 +395,14 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  NIP / NUPTK / ID Guru
+                  NUPTK / ID Guru
                 </label>
                 <input
                   type="text"
                   value={formData.nip || ''}
                   onChange={(e) => setFormData((prev) => ({ ...prev, nip: e.target.value }))}
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl font-mono font-medium focus:bg-white focus:ring-2 focus:ring-teal-500 focus:outline-none"
-                  placeholder="Isi NIP atau kosongi jika non-NIP"
+                  placeholder="Isi 16 Digit NUPTK atau ID Otomatis"
                 />
               </div>
 

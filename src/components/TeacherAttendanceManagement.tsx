@@ -498,7 +498,7 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Cari nama guru / NIP / mapel..."
+                  placeholder="Cari nama guru / NUPTK / ID / mapel..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -610,7 +610,7 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
                         </td>
                         <td className="py-3 px-4">
                           <div className="font-bold text-slate-800">{r.nama}</div>
-                          <div className="text-[10px] text-slate-500 font-mono">NIP: {r.nip || '-'}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">NUPTK/ID: {r.nip || '-'}</div>
                         </td>
                         <td className="py-3 px-4 font-medium text-slate-700">{r.mapel || '-'}</td>
                         <td className="py-3 px-4">
@@ -790,7 +790,7 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
                             <td className="p-2 text-center font-bold text-slate-400 border-r border-slate-200">{idx + 1}</td>
                             <td className="p-2 font-bold text-slate-800 border-r border-slate-200 whitespace-nowrap">
                               {t.nama}
-                              <div className="text-[9px] font-mono text-slate-400 font-normal">NIP: {t.nip || '-'}</div>
+                              <div className="text-[9px] font-mono text-slate-400 font-normal">NUPTK/ID: {t.nip || '-'}</div>
                             </td>
                             <td className="p-2 text-slate-600 border-r border-slate-200 whitespace-nowrap">{t.mapel || 'Tendik'}</td>
 
@@ -885,7 +885,7 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
                 <div>
                   <div className="text-xs font-semibold text-slate-400">Akun Teridentifikasi:</div>
                   <div className="font-black text-slate-800 text-base">{currentTeacherObj.nama}</div>
-                  <div className="text-xs text-slate-500">NIP: {currentTeacherObj.nip || '-'} • Mapel: {currentTeacherObj.mapel}</div>
+                  <div className="text-xs text-slate-500">NUPTK/ID: {currentTeacherObj.nip || '-'} • Mapel: {currentTeacherObj.mapel}</div>
                 </div>
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-bold text-xs rounded-full">
                   Aktif
@@ -1036,7 +1036,7 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
-                  placeholder="Cari nama guru / NIP..."
+                  placeholder="Cari nama guru / NUPTK / ID..."
                   value={searchQrQuery}
                   onChange={(e) => setSearchQrQuery(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
@@ -1110,7 +1110,7 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
                       <div>
                         <h3 className="font-extrabold text-slate-900 text-sm line-clamp-1">{t.nama}</h3>
                         <p className="text-xs text-slate-500 font-medium line-clamp-1">{t.mapel || 'Pendidik'}</p>
-                        <p className="text-[11px] font-mono text-slate-400 mt-0.5">NIP: {t.nip || '-'}</p>
+                        <p className="text-[11px] font-mono text-slate-400 mt-0.5">NUPTK/ID: {t.nip || '-'}</p>
                       </div>
                     </div>
 

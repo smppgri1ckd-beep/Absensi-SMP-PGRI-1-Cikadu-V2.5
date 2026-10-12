@@ -260,7 +260,7 @@ export const EnlargedQrCodeModal: React.FC<EnlargedQrCodeModalProps> = ({
                 {person.nama}
               </h2>
               <div className="text-xs text-blue-300 font-mono font-semibold mt-0.5">
-                {category === 'GURU' ? 'NIP / ID:' : 'NISN:'} {codeValue}
+                {category === 'GURU' ? 'NUPTK / ID:' : 'NISN:'} {codeValue}
               </div>
               <div className="text-[11px] text-slate-400 mt-0.5 truncate">
                 {person.roleOrKelas} {person.mapel ? `• ${person.mapel}` : ''}

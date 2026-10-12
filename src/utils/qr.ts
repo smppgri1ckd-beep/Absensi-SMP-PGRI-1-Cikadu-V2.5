@@ -70,7 +70,7 @@ export async function downloadQrZipForTeachers(
 
   folder?.file(
     'BACA_SAYA.txt',
-    `BERKAS QR CODE GURU & TENAGA KEPENDIDIKAN\n${schoolName}\nTotal Guru/Tendik: ${teachers.length}\nTanggal Generate: ${new Date().toLocaleDateString('id-ID')}\nFormat Penamaan: GURU_NIP_NAMA.png`
+    `BERKAS QR CODE GURU & TENAGA KEPENDIDIKAN\n${schoolName}\nTotal Guru/Tendik: ${teachers.length}\nTanggal Generate: ${new Date().toLocaleDateString('id-ID')}\nFormat Penamaan: GURU_NUPTK_NAMA.png`
   );
 
   const content = await zip.generateAsync({ type: 'blob' });
