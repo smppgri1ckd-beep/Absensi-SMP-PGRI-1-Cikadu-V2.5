@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
 import { 
@@ -22,11 +22,15 @@ import {
   SchoolEventItem,
   ClassScheduleItem,
   TeacherAttendanceRecord,
-  TeacherLeaveRequest
+  TeacherLeaveRequest,
+  PetugasPiketItem,
+  DayOfWeek,
+  AssignmentItem
 } from './types';
 import { DatabaseService, DEFAULT_SCHOOL_CONFIG } from './services/db';
 import { soundService } from './utils/audio';
 import { DailyAutoUpdateService } from './utils/dailyAutoUpdate';
+import { isSubjectMatch } from './utils/teacherFilter';
 
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -39,6 +43,7 @@ import { TeacherAttendanceManagement } from './components/TeacherAttendanceManag
 import { TeacherSelfProfile } from './components/TeacherSelfProfile';
 import { GuruPiketManagement } from './components/GuruPiketManagement';
 import { TeachingJournalComponent } from './components/TeachingJournal';
+import { AssignmentManagement } from './components/AssignmentManagement';
 import { Reports } from './components/Reports';
 import { PetugasApelAttendance } from './components/PetugasApelAttendance';
 import { CalendarHeb } from './components/CalendarHeb';
@@ -60,7 +65,7 @@ import { AutoUpdateStatusBar } from './components/AutoUpdateStatusBar';
 import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School, QrCode } from 'lucide-react';
 
 function AppContent() {
-  const { user, actingAsPiket, effectiveRole } = useAuth();
+  const { user, actingAsPiket, effectiveRole, updateCurrentUserTeacherData } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('public-info');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -79,6 +84,8 @@ function AppContent() {
   const [schoolEvents, setSchoolEvents] = useState<SchoolEventItem[]>([]);
   const [teacherRecords, setTeacherRecords] = useState<TeacherAttendanceRecord[]>([]);
   const [teacherLeaves, setTeacherLeaves] = useState<TeacherLeaveRequest[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+  const availableClasses = useMemo(() => Array.from(new Set(students.map((s) => s.kelas))).sort(), [students]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [loadingProgress, setLoadingProgress] = useState<number>(15);
   const [loadingStepText, setLoadingStepText] = useState<string>('Menghubungkan ke pangkalan data sekolah...');
@@ -156,7 +163,8 @@ function AppContent() {
         piketList,
         eventList,
         teacherRecList,
-        teacherLeaveList
+        teacherLeaveList,
+        assignmentList
       ] = await Promise.all([
         trackStep(DatabaseService.getSchoolConfig(), 'Memuat konfigurasi & jadwal sekolah...'),
         trackStep(DatabaseService.getStudents(), 'Sinkronisasi profil & data siswa...'),
@@ -171,6 +179,7 @@ function AppContent() {
         trackStep(DatabaseService.getSchoolEvents(), 'Memuat agenda kegiatan sekolah...'),
         trackStep(DatabaseService.getTeacherAttendanceRecords(), 'Memuat presensi guru & tendik...'),
         trackStep(DatabaseService.getTeacherLeaveRequests(), 'Memuat permohonan izin guru...'),
+        trackStep(DatabaseService.getAssignments(), 'Memuat daftar tugas & penugasan siswa...'),
       ]);
 
       setSchoolConfig(cfg);
@@ -186,6 +195,7 @@ function AppContent() {
       setSchoolEvents(eventList);
       setTeacherRecords(teacherRecList);
       setTeacherLeaves(teacherLeaveList);
+      setAssignments(assignmentList);
 
       setLoadingProgress(100);
       setLoadingStepText('Data berhasil disinkronkan, menyiapkan antarmuka...');
@@ -222,6 +232,7 @@ function AppContent() {
     const unsubHeb = DatabaseService.subscribeKalenderHeb((data) => setKalenderHeb(data));
     const unsubPiket = DatabaseService.subscribeJadwalPiket((data) => setJadwalPiket(data));
     const unsubEvents = DatabaseService.subscribeSchoolEvents((data) => setSchoolEvents(data));
+    const unsubAssignments = DatabaseService.subscribeAssignments((data) => setAssignments(data));
 
     return () => {
       unsubAutoUpdate();
@@ -238,6 +249,7 @@ function AppContent() {
       unsubHeb();
       unsubPiket();
       unsubEvents();
+      unsubAssignments();
     };
   }, [loadAllData]);
 
@@ -431,7 +443,7 @@ function AppContent() {
     toast.upload('Impor Siswa Berhasil', `${newStudents.length} data siswa berhasil diimpor ke database.`);
   };
 
-  // Teacher handlers (Debounced pada penulisan database, State instan)
+  // Teacher handlers: Synchronize immediately to Firestore, sync Piket Schedule, and unlock roles
   const handleSaveTeacher = async (teacher: TeacherUser) => {
     setTeachers((prev) => {
       const idx = prev.findIndex((t) => t.id === teacher.id);
@@ -443,10 +455,56 @@ function AppContent() {
       return [...prev, teacher];
     });
 
-    await debouncedDbWrite(`teacher_${teacher.id}`, async () => {
-      await DatabaseService.saveTeacher(teacher);
-    }, 400);
-    toast.success('Akun Guru Disimpan', `Data akun ${teacher.nama} berhasil disimpan.`);
+    await DatabaseService.saveTeacher(teacher);
+
+    // Synchronize Guru Piket duties with jadwalPiket
+    if (teacher.piketDays !== undefined) {
+      setJadwalPiket((prevPiket) => {
+        const updatedPiket = prevPiket.map((dayItem) => {
+          const isAssigned = Boolean(teacher.isGuruPiket) && teacher.piketDays?.includes(dayItem.hari);
+          const existingIdx = dayItem.petugas.findIndex((p) => 
+            (p.teacherId && p.teacherId === teacher.id) ||
+            (p.nama && p.nama.toLowerCase().trim() === teacher.nama.toLowerCase().trim())
+          );
+
+          if (isAssigned) {
+            const officerObj: PetugasPiketItem = {
+              id: existingIdx >= 0 ? dayItem.petugas[existingIdx].id : `piket_${dayItem.hari.toLowerCase()}_${teacher.id}`,
+              teacherId: teacher.id,
+              nama: teacher.nama,
+              nip: teacher.nip || '-',
+              nomorHp: teacher.nomorHp,
+              peran: teacher.piketRole || 'Piket Disiplin & Kerapian Siswa',
+              jamMulai: '06:30',
+              jamSelesai: '14:30',
+              syncUserRole: true,
+            };
+            if (existingIdx >= 0) {
+              const list = [...dayItem.petugas];
+              list[existingIdx] = officerObj;
+              return { ...dayItem, petugas: list };
+            } else {
+              return { ...dayItem, petugas: [...dayItem.petugas, officerObj] };
+            }
+          } else {
+            if (existingIdx >= 0) {
+              return { ...dayItem, petugas: dayItem.petugas.filter((_, idx) => idx !== existingIdx) };
+            }
+          }
+          return dayItem;
+        });
+
+        DatabaseService.saveJadwalPiket(updatedPiket).catch((err) => console.warn('Sync piket error:', err));
+        return updatedPiket;
+      });
+    }
+
+    // Immediately unlock roles in AuthContext if current user is this teacher
+    if (user && (user.id === teacher.id || user.nama.toLowerCase().trim() === teacher.nama.toLowerCase().trim())) {
+      updateCurrentUserTeacherData(teacher);
+    }
+
+    toast.success('Akun & Penugasan Disimpan', `Data penugasan peran ${teacher.nama} berhasil disinkronkan ke database.`);
   };
 
   const handleDeleteTeacher = async (id: string) => {
@@ -573,8 +631,9 @@ function AppContent() {
     toast.success('Nilai Siswa Disimpan', `${newGrades.length} data nilai siswa berhasil dicatat ke database.`);
   };
 
-  // Schedule Handlers (Debounced pada penulisan database, State instan)
+  // Schedule Handlers: Synchronize immediately to database, update teacher workload, and unlock roles
   const handleSaveSchedule = async (schedule: ClassScheduleItem) => {
+    // 1. Immediately update schedule in state
     setSchedules((prev) => {
       const idx = prev.findIndex((s) => s.id === schedule.id);
       if (idx >= 0) {
@@ -584,10 +643,59 @@ function AppContent() {
       }
       return [...prev, schedule];
     });
-    await debouncedDbWrite(`schedule_${schedule.id}`, async () => {
-      await DatabaseService.saveClassSchedule(schedule);
-    }, 350);
-    toast.success('Jadwal Pelajaran Disimpan', `Jadwal ${schedule.mapel} kelas ${schedule.kelas} hari ${schedule.hari} berhasil disimpan.`);
+
+    // 2. Persist schedule to database immediately
+    await DatabaseService.saveClassSchedule(schedule);
+
+    // 3. Automatically sync with Teacher User (guru_users) and unlock roles!
+    const targetTeacher = teachers.find((t) => {
+      if (schedule.guruId && t.id === schedule.guruId) return true;
+      if (schedule.guruNip && t.nip && t.nip.trim() !== '-' && t.nip.trim() === schedule.guruNip.trim()) return true;
+      if (schedule.guruNama && t.nama && t.nama.toLowerCase().trim() === schedule.guruNama.toLowerCase().trim()) return true;
+      return false;
+    });
+
+    if (targetTeacher) {
+      const currentAssignments = targetTeacher.penugasanMapel ? [...targetTeacher.penugasanMapel] : [];
+      const updatedMapel = targetTeacher.mapel || schedule.mapel;
+
+      const existingAsgnIdx = currentAssignments.findIndex((a) => isSubjectMatch(a.mapel, schedule.mapel));
+      if (existingAsgnIdx >= 0) {
+        const asgn = { ...currentAssignments[existingAsgnIdx] };
+        const kelasList = asgn.kelas || [];
+        if (!kelasList.includes(schedule.kelas)) {
+          asgn.kelas = [...kelasList, schedule.kelas];
+          currentAssignments[existingAsgnIdx] = asgn;
+        }
+      } else {
+        currentAssignments.push({
+          id: `asgn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          mapel: schedule.mapel,
+          kelas: [schedule.kelas],
+          bebanJam: 2,
+        });
+      }
+
+      const totalJam = currentAssignments.reduce((acc, a) => acc + (a.bebanJam || 2), 0);
+
+      const updatedTeacher: TeacherUser = {
+        ...targetTeacher,
+        mapel: updatedMapel,
+        penugasanMapel: currentAssignments,
+        totalJamMengajar: totalJam,
+        isGuruMapel: true, // Otomatis membuka role Guru Mapel
+      };
+
+      await DatabaseService.saveTeacher(updatedTeacher);
+      setTeachers((prev) => prev.map((t) => (t.id === updatedTeacher.id ? updatedTeacher : t)));
+
+      // If current logged-in user is this teacher, immediately unlock roles
+      if (user && (user.id === targetTeacher.id || user.nama.toLowerCase().trim() === targetTeacher.nama.toLowerCase().trim())) {
+        updateCurrentUserTeacherData(updatedTeacher);
+      }
+    }
+
+    toast.success('Jadwal Pelajaran Disimpan', `Jadwal ${schedule.mapel} kelas ${schedule.kelas} hari ${schedule.hari} berhasil disinkronkan ke database.`);
   };
 
   const handleDeleteSchedule = async (id: string) => {
@@ -609,6 +717,71 @@ function AppContent() {
     const defaultSchedules = await DatabaseService.resetClassSchedulesToDefault();
     setSchedules(defaultSchedules);
     toast.success('Jadwal Direset', 'Jadwal pelajaran berhasil dikembalikan ke format standar sekolah.');
+  };
+
+  // Assignment Handlers (Tugas Siswa): Synchronize immediately to database and automatically unlock teacher roles
+  const handleSaveAssignment = async (assignment: AssignmentItem) => {
+    setAssignments((prev) => {
+      const idx = prev.findIndex((a) => a.id === assignment.id);
+      if (idx >= 0) {
+        const copy = [...prev];
+        copy[idx] = assignment;
+        return copy;
+      }
+      return [assignment, ...prev];
+    });
+
+    await DatabaseService.saveAssignment(assignment);
+
+    const targetTeacher = teachers.find((t) => {
+      if (assignment.guruId && t.id === assignment.guruId) return true;
+      if (assignment.guruNama && t.nama && t.nama.toLowerCase().trim() === assignment.guruNama.toLowerCase().trim()) return true;
+      return false;
+    });
+
+    if (targetTeacher) {
+      const currentAssignments = targetTeacher.penugasanMapel ? [...targetTeacher.penugasanMapel] : [];
+      const updatedMapel = targetTeacher.mapel || assignment.mapel;
+
+      const existingAsgnIdx = currentAssignments.findIndex((a) => isSubjectMatch(a.mapel, assignment.mapel));
+      if (existingAsgnIdx >= 0) {
+        const asgn = { ...currentAssignments[existingAsgnIdx] };
+        const kelasList = asgn.kelas || [];
+        if (!kelasList.includes(assignment.kelas)) {
+          asgn.kelas = [...kelasList, assignment.kelas];
+          currentAssignments[existingAsgnIdx] = asgn;
+        }
+      } else {
+        currentAssignments.push({
+          id: `asgn_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          mapel: assignment.mapel,
+          kelas: [assignment.kelas],
+          bebanJam: 2,
+        });
+      }
+
+      const updatedTeacher: TeacherUser = {
+        ...targetTeacher,
+        mapel: updatedMapel,
+        penugasanMapel: currentAssignments,
+        isGuruMapel: true,
+      };
+
+      await DatabaseService.saveTeacher(updatedTeacher);
+      setTeachers((prev) => prev.map((t) => (t.id === updatedTeacher.id ? updatedTeacher : t)));
+
+      if (user && (user.id === targetTeacher.id || user.nama.toLowerCase().trim() === targetTeacher.nama.toLowerCase().trim())) {
+        updateCurrentUserTeacherData(updatedTeacher);
+      }
+    }
+
+    toast.success('Tugas Siswa Disimpan', `Tugas "${assignment.judul}" untuk kelas ${assignment.kelas} berhasil disinkronkan ke database.`);
+  };
+
+  const handleDeleteAssignment = async (id: string) => {
+    setAssignments((prev) => prev.filter((a) => a.id !== id));
+    await DatabaseService.deleteAssignment(id);
+    toast.delete('Tugas Dihapus', 'Data tugas siswa berhasil dihapus dari database.');
   };
 
   // Leave Request Handlers
@@ -652,10 +825,47 @@ function AppContent() {
 
   const handleSaveJadwalPiket = async (updated: JadwalPiketHarian[]) => {
     setJadwalPiket(updated);
-    await debouncedDbWrite('jadwal_piket', async () => {
-      await DatabaseService.saveJadwalPiket(updated);
-    }, 400);
-    toast.success('Jadwal Piket Disimpan', 'Jadwal penugasan guru piket mingguan berhasil diperbarui.');
+    await DatabaseService.saveJadwalPiket(updated);
+
+    // Sync piket assignment back to teachers in guru_users
+    const teacherPiketMap = new Map<string, { days: DayOfWeek[]; peran?: string }>();
+    updated.forEach((dayData) => {
+      dayData.petugas.forEach((p) => {
+        const key = p.teacherId || p.nama.toLowerCase().trim();
+        const existing = teacherPiketMap.get(key) || { days: [] };
+        if (!existing.days.includes(dayData.hari)) {
+          existing.days.push(dayData.hari);
+        }
+        if (p.peran) existing.peran = p.peran;
+        teacherPiketMap.set(key, existing);
+      });
+    });
+
+    const updatedTeachers = teachers.map((t) => {
+      const piketInfo = teacherPiketMap.get(t.id) || teacherPiketMap.get(t.nama.toLowerCase().trim());
+      if (piketInfo && piketInfo.days.length > 0) {
+        return {
+          ...t,
+          isGuruPiket: true,
+          piketDays: piketInfo.days,
+          piketRole: piketInfo.peran || t.piketRole,
+        };
+      }
+      return t;
+    });
+
+    setTeachers(updatedTeachers);
+    await DatabaseService.bulkSaveTeachers(updatedTeachers);
+
+    // Unlock or update roles for current user if impacted
+    if (user) {
+      const found = updatedTeachers.find((t) => t.id === user.id || t.nama.toLowerCase().trim() === user.nama.toLowerCase().trim());
+      if (found) {
+        updateCurrentUserTeacherData(found);
+      }
+    }
+
+    toast.success('Jadwal Piket Disimpan', 'Jadwal penugasan guru piket mingguan berhasil disinkronkan ke database.');
   };
 
   // Teacher Attendance Handlers
@@ -1099,6 +1309,7 @@ function AppContent() {
                     schedules={schedules}
                     records={records}
                     leaveRequests={leaveRequests}
+                    assignments={assignments}
                     onSaveJournal={handleSaveJournal}
                     onDeleteJournal={handleDeleteJournal}
                     onBulkDeleteJournals={handleBulkDeleteJournals}
@@ -1106,6 +1317,8 @@ function AppContent() {
                     onDeleteSchedule={handleDeleteSchedule}
                     onBulkDeleteSchedules={handleBulkDeleteSchedules}
                     onResetSchedules={handleResetSchedules}
+                    onSaveAssignment={handleSaveAssignment}
+                    onDeleteAssignment={handleDeleteAssignment}
                   />
                 ) : (
                   <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
@@ -1123,6 +1336,39 @@ function AppContent() {
                       >
                         <LogIn className="w-4 h-4" />
                         <span>Login Akun Guru</span>
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Tab: KELOLA TUGAS & PR SISWA (Admin & Guru) */}
+              {activeTab === 'assignments' && (
+                user ? (
+                  <AssignmentManagement
+                    assignments={assignments}
+                    teachers={teachers}
+                    schoolConfig={schoolConfig}
+                    availableClasses={availableClasses}
+                    onSaveAssignment={handleSaveAssignment}
+                    onDeleteAssignment={handleDeleteAssignment}
+                  />
+                ) : (
+                  <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-indigo-50 text-indigo-700 flex items-center justify-center shadow-inner">
+                      <ShieldCheck className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Akses Khusus: Kelola Tugas Siswa</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Manajemen penugasan, PR, dan proyek siswa dapat diakses oleh Dewan Guru dan Administrator Sekolah.
+                    </p>
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                      <button
+                        onClick={() => setIsLoginOpen(true)}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-2"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Login Akun Guru / Admin</span>
                       </button>
                     </div>
                   </div>

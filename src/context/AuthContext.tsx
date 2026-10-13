@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { AuthUser, TeacherUser, UserRole, JadwalPiketHarian, DayOfWeek, PetugasPiketItem, AdminAccountConfig } from '../types';
-import { DatabaseService, INITIAL_TEACHERS, DEFAULT_ADMIN_ACCOUNT } from '../services/db';
+import { DatabaseService, INITIAL_TEACHERS, DEFAULT_ADMIN_ACCOUNT, parseList } from '../services/db';
 
 interface LoginResult {
   success: boolean;
@@ -23,11 +23,12 @@ interface AuthContextType {
   logout: () => void;
   refreshTeachers: () => Promise<void>;
   updateAdminAccount: (account: AdminAccountConfig) => Promise<void>;
+  updateCurrentUserTeacherData: (updated: Partial<TeacherUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
-  teachers: INITIAL_TEACHERS,
+  teachers: [],
   adminAccount: DEFAULT_ADMIN_ACCOUNT,
   actingAsPiket: false,
   setActingAsPiket: () => {},
@@ -41,17 +42,26 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
   refreshTeachers: async () => {},
   updateAdminAccount: async () => {},
+  updateCurrentUserTeacherData: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [teachers, setTeachers] = useState<TeacherUser[]>(INITIAL_TEACHERS);
+  const [teachers, setTeachers] = useState<TeacherUser[]>([]);
   const [adminAccount, setAdminAccount] = useState<AdminAccountConfig>(DEFAULT_ADMIN_ACCOUNT);
   const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>([]);
   
   const [user, setUser] = useState<AuthUser | null>(() => {
     try {
-      const saved = localStorage.getItem('presensi_user_session');
-      return saved ? JSON.parse(saved) : null;
+      if (typeof window !== 'undefined') {
+        const sessionSaved = sessionStorage.getItem('presensi_user_session');
+        if (sessionSaved) return JSON.parse(sessionSaved);
+        const localSaved = localStorage.getItem('presensi_user_session');
+        if (localSaved) {
+          try { localStorage.removeItem('presensi_user_session'); } catch {}
+          return JSON.parse(localSaved);
+        }
+      }
+      return null;
     } catch {
       return null;
     }
@@ -113,7 +123,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user || !currentDayOfWeek || !jadwalPiket.length) return null;
     const dayData = jadwalPiket.find((j) => j.hari === currentDayOfWeek);
     if (!dayData) return null;
-    return dayData.petugas.find((p) => {
+    const petugasList = parseList<PetugasPiketItem>(dayData.petugas);
+    return petugasList.find((p) => {
       if (p.teacherId && p.teacherId === user.id) return true;
       if (p.nama && user.nama && p.nama.toLowerCase().trim() === user.nama.toLowerCase().trim()) return true;
       if (p.nip && user.nip && p.nip.trim() !== '-' && p.nip.trim() !== '' && p.nip.trim() === user.nip.trim()) return true;
@@ -126,7 +137,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user || !jadwalPiket.length) return [];
     const days: DayOfWeek[] = [];
     jadwalPiket.forEach((j) => {
-      const match = j.petugas.some((p) => {
+      const petugasList = parseList<PetugasPiketItem>(j.petugas);
+      const match = petugasList.some((p) => {
         if (p.teacherId && p.teacherId === user.id) return true;
         if (p.nama && user.nama && p.nama.toLowerCase().trim() === user.nama.toLowerCase().trim()) return true;
         if (p.nip && user.nip && p.nip.trim() !== '-' && p.nip.trim() !== '' && p.nip.trim() === user.nip.trim()) return true;
@@ -167,7 +179,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (list && list.length > 0) {
         setTeachers(list);
         setUser((currentUser) => {
-          if (!currentUser || (currentUser.role !== 'guru' && currentUser.role !== 'piket')) return currentUser;
+          if (!currentUser || (currentUser.role !== 'guru' && currentUser.role !== 'piket' && currentUser.role !== 'kepsek')) return currentUser;
           const found = list.find((t) => {
             if (t.id === currentUser.id) return true;
             if (t.username && currentUser.username && t.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) return true;
@@ -185,6 +197,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               username: found.username,
               nama: found.nama,
               nip: found.nip,
+              role: found.role || currentUser.role,
+              fotoUrl: found.fotoUrl || currentUser.fotoUrl,
               mapel: found.mapel,
               penugasanMapel: found.penugasanMapel || [],
               waliKelas: found.waliKelas,
@@ -205,15 +219,68 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Subscribe to live teacher updates from Firestore
   useEffect(() => {
     refreshTeachers();
+
+    const unsubscribe = DatabaseService.subscribeTeachers((list) => {
+      if (list && list.length > 0) {
+        setTeachers(list);
+        setUser((currentUser) => {
+          if (!currentUser || (currentUser.role !== 'guru' && currentUser.role !== 'piket' && currentUser.role !== 'kepsek')) return currentUser;
+          const found = list.find((t) => {
+            if (t.id === currentUser.id) return true;
+            if (t.username && currentUser.username && t.username.toLowerCase().trim() === currentUser.username.toLowerCase().trim()) return true;
+            if (t.nip && currentUser.nip && currentUser.nip.trim() !== '-' && currentUser.nip.trim() !== '' && t.nip.trim() === currentUser.nip.trim()) return true;
+            if (t.nama && currentUser.nama && t.nama.toLowerCase().trim() === currentUser.nama.toLowerCase().trim()) return true;
+            return false;
+          });
+          if (found) {
+            const isGuruMapel = found.isGuruMapel ?? (found.role === 'guru' || !!found.mapel || (found.penugasanMapel && found.penugasanMapel.length > 0));
+            const isWaliKelas = found.isWaliKelas ?? (!!found.waliKelas && found.waliKelas !== '-' && found.waliKelas !== '');
+            const isGuruPiket = found.isGuruPiket ?? (found.role === 'piket' || (found.piketDays && found.piketDays.length > 0));
+            return {
+              ...currentUser,
+              id: found.id,
+              username: found.username,
+              nama: found.nama,
+              nip: found.nip,
+              role: found.role || currentUser.role,
+              fotoUrl: found.fotoUrl || currentUser.fotoUrl,
+              mapel: found.mapel,
+              penugasanMapel: found.penugasanMapel || [],
+              waliKelas: found.waliKelas,
+              nomorHp: found.nomorHp,
+              status: found.status || 'Aktif',
+              isGuruMapel,
+              isWaliKelas,
+              isGuruPiket,
+              piketDays: found.piketDays,
+              piketRole: found.piketRole,
+            };
+          }
+          return currentUser;
+        });
+      }
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
   }, [refreshTeachers]);
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem('presensi_user_session', JSON.stringify(user));
+      try {
+        sessionStorage.setItem('presensi_user_session', JSON.stringify(user));
+        // Remove legacy persistent storage to prevent stale phone data
+        localStorage.removeItem('presensi_user_session');
+      } catch {}
     } else {
-      localStorage.removeItem('presensi_user_session');
+      try {
+        sessionStorage.removeItem('presensi_user_session');
+        localStorage.removeItem('presensi_user_session');
+      } catch {}
     }
   }, [user]);
 
@@ -378,6 +445,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
+  const updateCurrentUserTeacherData = useCallback((updated: Partial<TeacherUser>) => {
+    setUser((currentUser) => {
+      if (!currentUser) return currentUser;
+      const isGuruMapel = updated.isGuruMapel !== undefined
+        ? updated.isGuruMapel
+        : (currentUser.role === 'guru' || !!updated.mapel || (updated.penugasanMapel && updated.penugasanMapel.length > 0));
+      const isWaliKelas = updated.isWaliKelas !== undefined
+        ? updated.isWaliKelas
+        : (!!updated.waliKelas && updated.waliKelas !== '-' && updated.waliKelas !== '');
+      const isGuruPiket = updated.isGuruPiket !== undefined
+        ? updated.isGuruPiket
+        : (currentUser.role === 'piket' || (updated.piketDays && updated.piketDays.length > 0));
+
+      const merged: AuthUser = {
+        ...currentUser,
+        nama: updated.nama || currentUser.nama,
+        nip: updated.nip !== undefined ? updated.nip : currentUser.nip,
+        mapel: updated.mapel !== undefined ? updated.mapel : currentUser.mapel,
+        penugasanMapel: updated.penugasanMapel !== undefined ? updated.penugasanMapel : currentUser.penugasanMapel,
+        waliKelas: updated.waliKelas !== undefined ? updated.waliKelas : currentUser.waliKelas,
+        nomorHp: updated.nomorHp !== undefined ? updated.nomorHp : currentUser.nomorHp,
+        fotoUrl: updated.fotoUrl !== undefined ? updated.fotoUrl : currentUser.fotoUrl,
+        status: updated.status || currentUser.status,
+        isGuruMapel,
+        isWaliKelas,
+        isGuruPiket,
+        piketDays: updated.piketDays !== undefined ? updated.piketDays : currentUser.piketDays,
+        piketRole: updated.piketRole !== undefined ? updated.piketRole : currentUser.piketRole,
+      };
+      try {
+        sessionStorage.setItem('presensi_user_session', JSON.stringify(merged));
+      } catch {}
+      return merged;
+    });
+  }, []);
+
   const logout = () => {
     setUser(null);
     setActingAsPiket(false);
@@ -399,7 +502,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       login, 
       logout, 
       refreshTeachers,
-      updateAdminAccount
+      updateAdminAccount,
+      updateCurrentUserTeacherData
     }}>
       {children}
     </AuthContext.Provider>

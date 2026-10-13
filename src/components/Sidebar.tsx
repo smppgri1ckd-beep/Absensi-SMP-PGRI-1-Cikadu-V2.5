@@ -21,7 +21,8 @@ import {
   CalendarDays,
   Award,
   Calendar,
-  MessageSquare
+  MessageSquare,
+  FileCheck
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SchoolConfig } from '../types';
@@ -344,6 +345,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
               tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
             },
             {
+              id: 'assignments',
+              label: 'Tugas & PR Siswa',
+              desc: 'Input penugasan, PR & deadline siswa',
+              icon: FileCheck,
+              tag: 'Tugas',
+              tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
+            },
+            {
               id: 'action-grades',
               label: 'Kelola Nilai Siswa',
               desc: 'Input nilai tugas, UH, PTS & PAS',
@@ -574,6 +583,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
             label: 'Absensi & Jurnal Pembelajaran',
             desc: 'Supervisi absensi KBM & agenda mengajar',
             icon: BookOpen,
+          },
+          {
+            id: 'assignments',
+            label: 'Kelola Tugas & PR Siswa',
+            desc: 'Monitoring & supervisi penugasan dewan guru',
+            icon: FileCheck,
+            tag: 'Tugas',
+            tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
           },
         ],
       },

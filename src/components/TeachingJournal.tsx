@@ -29,7 +29,8 @@ import {
   RotateCw,
   Printer,
   BarChart3,
-  TrendingUp
+  TrendingUp,
+  FileCheck
 } from 'lucide-react';
 import { 
   TeachingJournal, 
@@ -63,6 +64,8 @@ import { DatabaseService } from '../services/db';
 import { useToast } from '../context/ToastContext';
 import { TeachingScheduleManager } from './TeachingScheduleManager';
 import { WeeklyWorkloadSummary, calculateScheduleJP } from './WeeklyWorkloadSummary';
+import { AssignmentManagement } from './AssignmentManagement';
+import { AssignmentItem } from '../types';
 
 interface TeachingJournalProps {
   journals: TeachingJournal[];
@@ -72,6 +75,7 @@ interface TeachingJournalProps {
   schedules?: ClassScheduleItem[];
   records?: AttendanceRecord[];
   leaveRequests?: import('../types').LeaveRequest[];
+  assignments?: AssignmentItem[];
   onSaveJournal: (journal: TeachingJournal, classAttendanceRecords?: AttendanceRecord[]) => Promise<void>;
   onDeleteJournal: (id: string) => Promise<void>;
   onBulkDeleteJournals?: (ids: string[]) => Promise<void>;
@@ -79,6 +83,8 @@ interface TeachingJournalProps {
   onDeleteSchedule?: (id: string) => Promise<void>;
   onBulkDeleteSchedules?: (ids: string[]) => Promise<void>;
   onResetSchedules?: () => Promise<void>;
+  onSaveAssignment?: (assignment: AssignmentItem) => Promise<void>;
+  onDeleteAssignment?: (id: string) => Promise<void>;
 }
 
 export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
@@ -89,6 +95,7 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   schedules = [],
   records = [],
   leaveRequests = [],
+  assignments = [],
   onSaveJournal,
   onDeleteJournal,
   onBulkDeleteJournals,
@@ -96,10 +103,12 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
   onDeleteSchedule,
   onBulkDeleteSchedules,
   onResetSchedules,
+  onSaveAssignment,
+  onDeleteAssignment,
 }) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [mainTab, setMainTab] = useState<'jurnal' | 'ringkasan' | 'jadwal' | 'kelola-jadwal'>('jurnal');
+  const [mainTab, setMainTab] = useState<'jurnal' | 'ringkasan' | 'jadwal' | 'kelola-jadwal' | 'tugas'>('jurnal');
   const now = new Date();
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Semua');
   const [journalPeriodFilter, setJournalPeriodFilter] = useState<TimePeriodFilter>('semua');
@@ -1052,6 +1061,26 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
             {schedules.length}
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setMainTab('tugas')}
+          className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all cursor-pointer ${
+            mainTab === 'tugas'
+              ? 'bg-white text-indigo-700 shadow-sm'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <FileCheck className="w-4 h-4" />
+          <span>Tugas &amp; PR Siswa</span>
+          {assignments.length > 0 && (
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              mainTab === 'tugas' ? 'bg-indigo-100 text-indigo-800' : 'bg-slate-200 text-slate-700'
+            }`}>
+              {assignments.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ======================================================== */}
@@ -1543,6 +1572,22 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
             onResetSchedules={onResetSchedules}
             onStartJournalFromSchedule={handleStartJournalFromSchedule}
             defaultViewMode="manage"
+          />
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 4: KELOLA TUGAS & PR SISWA (ADMIN & GURU)            */}
+      {/* ======================================================== */}
+      {mainTab === 'tugas' && (
+        <div className="animate-in fade-in duration-150">
+          <AssignmentManagement
+            assignments={assignments}
+            teachers={teachers}
+            schoolConfig={schoolConfig}
+            availableClasses={classesList}
+            onSaveAssignment={onSaveAssignment || (async () => {})}
+            onDeleteAssignment={onDeleteAssignment || (async () => {})}
           />
         </div>
       )}

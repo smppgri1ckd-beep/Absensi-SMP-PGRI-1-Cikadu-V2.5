@@ -113,7 +113,7 @@ export const TeacherManagement: React.FC<TeacherManagementProps> = ({
     if (!jadwalPiket || jadwalPiket.length === 0) return [];
     const duties: { hari: string; peran: string; jam: string }[] = [];
     jadwalPiket.forEach((j) => {
-      j.petugas.forEach((p) => {
+      (Array.isArray(j.petugas) ? j.petugas : []).forEach((p) => {
         if (
           (p.teacherId && p.teacherId === t.id) ||
           (p.nama && t.nama && p.nama.toLowerCase().trim() === t.nama.toLowerCase().trim()) ||

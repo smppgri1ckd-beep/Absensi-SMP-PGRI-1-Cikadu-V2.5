@@ -250,6 +250,14 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   const httpServer = http.createServer(app);
 
+  // Always send no-cache headers for HTML and API responses to prevent mobile browsers from serving stale cache
+  app.use((_req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+  });
+
   if (!isProd) {
     const isHmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
@@ -261,8 +269,21 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    app.use(express.static(path.resolve(__dirname, 'dist'), {
+      etag: false,
+      lastModified: false,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+        }
+      }
+    }));
     app.get('*', (_req, res) => {
+      res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }

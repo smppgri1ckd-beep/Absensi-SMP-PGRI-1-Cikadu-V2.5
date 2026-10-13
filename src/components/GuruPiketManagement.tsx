@@ -104,8 +104,13 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
   // Ensure all 6 days exist in data
   const normalizedJadwal = useMemo<JadwalPiketHarian[]>(() => {
     return DAYS_LIST.map((day) => {
-      const existing = jadwalPiket.find((j) => j.hari === day);
-      if (existing) return existing;
+      const existing = (jadwalPiket || []).find((j) => j.hari === day);
+      if (existing) {
+        return {
+          ...existing,
+          petugas: Array.isArray(existing.petugas) ? existing.petugas : [],
+        };
+      }
       const initialDefault = INITIAL_JADWAL_PIKET.find((j) => j.hari === day);
       return initialDefault || { hari: day, petugas: [] };
     });

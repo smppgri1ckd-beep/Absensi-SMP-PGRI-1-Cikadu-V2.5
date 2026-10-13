@@ -19,6 +19,7 @@ import {
   KalenderHeb,
   ParentUser,
   ClassScheduleItem,
+  TeachingAssignment,
   AssignmentItem,
   StudentAssignmentSubmission,
   StudentGradeItem,
@@ -280,57 +281,92 @@ export const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' i
   ? new BroadcastChannel('presensi_pgri_sync')
   : null;
 
-// Cleanup legacy localStorage cache so browsers on HP and desktop immediately drop stale data
-if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+const CACHE_PREFIX = 'smp_pgri_cikadu_cache_v3_';
+
+function setLocal<T>(key: string, value: T): void {
+  memoryStore.set(key, value);
   try {
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && (
-        k.startsWith('presensi_pgri_') || 
-        k.startsWith('pgri_') || 
-        k === 'attendance' || 
-        k === 'leave_requests' || 
-        k === 'activity_logs' || 
-        k === 'teaching_journals' || 
-        k === 'teacher_attendance' ||
-        k === 'class_schedules' ||
-        k === 'school_config' ||
-        k === 'students' ||
-        k === 'teachers' ||
-        k === 'student_grades'
-      )) {
-        keysToRemove.push(k);
-      }
+    if (typeof localStorage !== 'undefined' && value !== undefined && value !== null) {
+      localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(value));
     }
-    keysToRemove.forEach((k) => localStorage.removeItem(k));
   } catch {
-    // Ignore storage errors
+    // Ignore quota errors
   }
+  syncChannel?.postMessage({ type: 'SYNC_UPDATE', key, timestamp: Date.now() });
 }
 
 function getLocal<T>(key: string, defaultValue: T): T {
   if (memoryStore.has(key)) {
     return memoryStore.get(key) as T;
   }
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(CACHE_PREFIX + key);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed !== null && parsed !== undefined) {
+          memoryStore.set(key, parsed);
+          return parsed as T;
+        }
+      }
+    }
+  } catch {
+    // Ignore JSON parse errors
+  }
   return defaultValue;
 }
 
-function setLocal<T>(key: string, value: T): void {
-  memoryStore.set(key, value);
-  syncChannel?.postMessage({ type: 'SYNC_UPDATE', key, timestamp: Date.now() });
+let hasLoggedQuotaWarning = false;
+export function handleFirestoreError(context: string, error?: unknown): void {
+  const errMsg = error ? (error instanceof Error ? error.message : String(error)) : '';
+  if (errMsg.includes('Quota limit exceeded') || errMsg.includes('quota metric') || errMsg.includes('Quota exceeded')) {
+    if (!hasLoggedQuotaWarning) {
+      hasLoggedQuotaWarning = true;
+      console.info('Pangkalan data beroperasi dalam mode cache lokal/offline (kuota gratis harian Firestore tercapai).');
+    }
+    return;
+  }
+  console.warn(`Firestore ${context}:`, error);
 }
 
-// Clean object helper: ensures no unsupported 'undefined' values are passed to Firestore
-function cleanData<T extends Record<string, any>>(obj: T): T {
-  if (!obj || typeof obj !== 'object') return obj;
-  const result: any = {};
-  Object.keys(obj).forEach((key) => {
-    if (obj[key] !== undefined) {
-      result[key] = obj[key];
-    }
-  });
-  return result;
+// Clean object helper: ensures no unsupported 'undefined' values are passed to Firestore while strictly preserving arrays as Arrays
+function cleanData<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map((item) => cleanData(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const result: any = {};
+    Object.keys(obj).forEach((key) => {
+      const val = (obj as any)[key];
+      if (val !== undefined) {
+        result[key] = cleanData(val);
+      }
+    });
+    return result;
+  }
+  return obj;
+}
+
+// Safely parses array whether stored in Firestore as an array or as an object map with numeric keys
+export function parseList<T>(val: any): T[] {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'object') {
+    return Object.keys(val)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => val[k]);
+  }
+  return [];
+}
+
+// Ensure all days and petugas items in Jadwal Piket are real arrays
+export function sanitizeJadwalPiket(rawList: any): JadwalPiketHarian[] {
+  const days = parseList<any>(rawList);
+  return days.map((day) => ({
+    hari: day.hari || 'Senin',
+    petugas: parseList<PetugasPiketItem>(day.petugas),
+  }));
 }
 
 export const INITIAL_JADWAL_PIKET: JadwalPiketHarian[] = [
@@ -596,7 +632,7 @@ export class DatabaseService {
         await setDoc(docRef, local);
       }
     } catch (e) {
-      console.warn('Firestore getSchoolConfig fallback to local', e);
+      handleFirestoreError('', );
     }
     return local;
   }
@@ -608,7 +644,7 @@ export class DatabaseService {
       const docRef = doc(db, 'pengaturan', 'identitas_sekolah');
       await setDoc(docRef, config);
     } catch (e) {
-      console.warn('Firestore saveSchoolConfig offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -636,7 +672,7 @@ export class DatabaseService {
         await setDoc(docRef, cleanData(local));
       }
     } catch (e) {
-      console.warn('Firestore getAdminAccount fallback to local', e);
+      handleFirestoreError('', );
     }
     return local;
   }
@@ -652,7 +688,7 @@ export class DatabaseService {
       const docRef = doc(db, 'pengaturan', 'akun_admin');
       await setDoc(docRef, cleanData(updated));
     } catch (e) {
-      console.warn('Firestore saveAdminAccount offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -675,37 +711,27 @@ export class DatabaseService {
           callback(merged);
         }
       }
-    }, (err) => console.warn('Firestore onSnapshot error (akun_admin):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   // --- STUDENTS ---
   static async getStudents(): Promise<Student[]> {
-    const local = getLocal<Student[]>('students', INITIAL_STUDENTS);
-    if (!db) return local;
+    if (!db) return getLocal<Student[]>('students', INITIAL_STUDENTS);
 
     try {
       const colRef = collection(db, 'siswa');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const students: Student[] = [];
-        snap.forEach((docSnap) => {
-          students.push(docSnap.data() as Student);
-        });
-        setLocal('students', students);
-        return students;
-      } else {
-        // Seed if remote collection empty
-        const batch = writeBatch(db!);
-        local.forEach((s) => {
-          const docRef = doc(db!, 'siswa', s.nisn);
-          batch.set(docRef, s);
-        });
-        await batch.commit().catch(() => {});
-      }
+      const students: Student[] = [];
+      snap.forEach((docSnap) => {
+        students.push(docSnap.data() as Student);
+      });
+      students.sort((a, b) => a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama));
+      setLocal('students', students);
+      return students;
     } catch (e) {
-      console.warn('Firestore getStudents fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<Student[]>('students', INITIAL_STUDENTS);
   }
 
   static async saveStudent(student: Student): Promise<void> {
@@ -723,7 +749,7 @@ export class DatabaseService {
       const docRef = doc(db, 'siswa', student.nisn);
       await setDoc(docRef, cleanData(student));
     } catch (e) {
-      console.warn('Firestore saveStudent offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -737,7 +763,7 @@ export class DatabaseService {
       const docRef = doc(db, 'siswa', nisn);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteStudent offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -761,7 +787,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkDeleteStudents offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -787,13 +813,13 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkSaveStudents offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
   // --- ATTENDANCE ---
   static async getAttendanceRecords(): Promise<AttendanceRecord[]> {
-    if (!db) return getLocal<AttendanceRecord[]>('attendance', []);
+    if (!db) return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords());
 
     try {
       const colRef = collection(db, 'presensi');
@@ -806,9 +832,9 @@ export class DatabaseService {
       setLocal('attendance', records);
       return records;
     } catch (e) {
-      console.warn('Firestore getAttendanceRecords error:', e);
+      handleFirestoreError('', );
     }
-    return getLocal<AttendanceRecord[]>('attendance', []);
+    return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords());
   }
 
   static async addAttendanceRecord(record: AttendanceRecord): Promise<void> {
@@ -826,7 +852,7 @@ export class DatabaseService {
       const docRef = doc(db, 'presensi', record.id);
       await setDoc(docRef, cleanData(record));
     } catch (e) {
-      console.warn('Firestore addAttendanceRecord offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -852,7 +878,7 @@ export class DatabaseService {
       const docRef = doc(db, 'presensi', id);
       await setDoc(docRef, cleanData(item), { merge: true });
     } catch (e) {
-      console.warn('Firestore updateAttendanceStatus offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -866,7 +892,7 @@ export class DatabaseService {
       const docRef = doc(db, 'presensi', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteAttendanceRecord offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -890,7 +916,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkDeleteAttendanceRecords offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -918,75 +944,43 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkSaveAttendanceRecords error:', e);
+      handleFirestoreError('', );
     }
   }
 
   // --- TEACHERS ---
   static async getTeachers(): Promise<TeacherUser[]> {
-    const local = getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS);
-    if (!db) return local;
+    if (!db) return getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS);
 
     try {
       const colRef = collection(db, 'guru_users');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const teachers: TeacherUser[] = [];
-        snap.forEach((docSnap) => {
-          teachers.push(docSnap.data() as TeacherUser);
-        });
-
-        // Ensure Suryadi is updated with PKN classes 9A & 9B and waliKelas 9A
-        const suryadiIdx = teachers.findIndex((t) => t.id === 'T_SURYADI' || t.username.toLowerCase() === 'suryadi');
-        if (suryadiIdx >= 0) {
-          const s = teachers[suryadiIdx];
-          const hasOldClasses = s.penugasanMapel?.some((p) => p.kelas.includes('7A') || p.kelas.includes('8A'));
-          if (hasOldClasses || !s.waliKelas || !s.penugasanMapel || s.penugasanMapel.length === 0) {
-            const updatedSuryadi: TeacherUser = {
-              ...s,
-              mapel: 'Pendidikan Pancasila & PKN',
-              waliKelas: '9A',
-              penugasanMapel: [
-                { id: 'ASGN_SURYADI_1', mapel: 'Pendidikan Pancasila & PKN', kelas: ['9A', '9B'], bebanJam: 6 },
-              ],
-              totalJamMengajar: 6,
-            };
-            teachers[suryadiIdx] = updatedSuryadi;
-            if (db) {
-              const docRef = doc(db, 'guru_users', updatedSuryadi.id);
-              setDoc(docRef, cleanData(updatedSuryadi)).catch(() => {});
-            }
-          }
+      const teachers: TeacherUser[] = [];
+      snap.forEach((docSnap) => {
+        const t = docSnap.data() as TeacherUser;
+        if (t.penugasanMapel) {
+          t.penugasanMapel = parseList<TeachingAssignment>(t.penugasanMapel).map((asgn) => ({
+            ...asgn,
+            kelas: parseList<string>(asgn.kelas),
+          }));
         } else {
-          // If Suryadi doesn't exist in Firestore collection yet, add him
-          const initialSuryadi = INITIAL_TEACHERS.find((t) => t.id === 'T_SURYADI');
-          if (initialSuryadi) {
-            teachers.unshift(initialSuryadi);
-            if (db) {
-              const docRef = doc(db, 'guru_users', initialSuryadi.id);
-              setDoc(docRef, cleanData(initialSuryadi)).catch(() => {});
-            }
-          }
+          t.penugasanMapel = [];
         }
-
+        teachers.push(t);
+      });
+      teachers.sort((a, b) => a.nama.localeCompare(b.nama));
+      if (teachers.length > 0) {
         setLocal('teachers', teachers);
         return teachers;
-      } else {
-        const batch = writeBatch(db);
-        local.forEach((t) => {
-          const docRef = doc(db!, 'guru_users', t.id);
-          batch.set(docRef, t);
-        });
-        await batch.commit().catch(() => {});
       }
     } catch (e) {
-      console.warn('Firestore getTeachers fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS);
   }
 
   static async saveTeacher(teacher: TeacherUser): Promise<void> {
-    const teachers = await this.getTeachers();
+    const teachers = getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS);
     const idx = teachers.findIndex((t) => t.id === teacher.id);
     if (idx >= 0) {
       teachers[idx] = teacher;
@@ -1000,7 +994,7 @@ export class DatabaseService {
       const docRef = doc(db, 'guru_users', teacher.id);
       await setDoc(docRef, cleanData(teacher));
     } catch (e) {
-      console.warn('Firestore saveTeacher offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1026,7 +1020,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkSaveTeachers offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1040,7 +1034,7 @@ export class DatabaseService {
       const docRef = doc(db, 'guru_users', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteTeacher offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1064,63 +1058,28 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkDeleteTeachers offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
   // --- TEACHING JOURNALS ---
   static async getTeachingJournals(): Promise<TeachingJournal[]> {
-    const today = new Date().toISOString().split('T')[0];
-    const defaultJournal: TeachingJournal[] = [
-      {
-        id: `JRN_IPA_7A_${today}_1`,
-        guruId: 'T1',
-        guruNama: 'Hj. Siti Maryam, S.Pd.',
-        guruNip: '19750918 200501 2 006',
-        kelas: '7A',
-        mapel: 'Ilmu Pengetahuan Alam (IPA)',
-        tanggal: today,
-        pertemuanKe: 4,
-        jamPelajaran: '1 - 2 (07.30 - 08.50)',
-        materiPokok: 'Klasifikasi Makhluk Hidup dan Pengelompokan Tumbuhan',
-        kegiatanPembelajaran: 'Observasi spesimen daun di taman sekolah dan identifikasi dikotil/monokotil dengan panduan LKPD.',
-        catatanRefleksi: 'Siswa sangat aktif berdiskusi kelompok. 2 siswa terlambat telah bergabung dan menyelesaikan LKPD.',
-        totalSiswa: 10,
-        hadir: 8,
-        terlambat: 2,
-        izin: 0,
-        sakit: 0,
-        alpa: 0,
-        persentaseKehadiran: 100,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    const local = getLocal<TeachingJournal[]>('teaching_journals', defaultJournal);
-    if (!db) return local;
+    if (!db) return getLocal<TeachingJournal[]>('teaching_journals', []);
 
     try {
       const colRef = collection(db, 'jurnal_mengajar');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const journals: TeachingJournal[] = [];
-        snap.forEach((docSnap) => {
-          journals.push(docSnap.data() as TeachingJournal);
-        });
-        setLocal('teaching_journals', journals);
-        return journals;
-      } else {
-        const batch = writeBatch(db);
-        local.forEach((j) => {
-          const docRef = doc(db!, 'jurnal_mengajar', j.id);
-          batch.set(docRef, cleanData(j));
-        });
-        await batch.commit().catch(() => {});
-      }
+      const journals: TeachingJournal[] = [];
+      snap.forEach((docSnap) => {
+        journals.push(docSnap.data() as TeachingJournal);
+      });
+      journals.sort((a, b) => (b.tanggal + (b.createdAt || '')).localeCompare(a.tanggal + (a.createdAt || '')));
+      setLocal('teaching_journals', journals);
+      return journals;
     } catch (e) {
-      console.warn('Firestore getTeachingJournals fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<TeachingJournal[]>('teaching_journals', []);
   }
 
   static async saveTeachingJournal(journal: TeachingJournal): Promise<void> {
@@ -1138,7 +1097,7 @@ export class DatabaseService {
       const docRef = doc(db, 'jurnal_mengajar', journal.id);
       await setDoc(docRef, cleanData(journal));
     } catch (e) {
-      console.warn('Firestore saveTeachingJournal offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1152,7 +1111,7 @@ export class DatabaseService {
       const docRef = doc(db, 'jurnal_mengajar', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteTeachingJournal offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1176,7 +1135,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkDeleteTeachingJournals offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1210,7 +1169,7 @@ export class DatabaseService {
         await setDoc(docRef, cleanData(local));
       }
     } catch (e) {
-      console.warn('Firestore getKalenderHeb fallback to local', e);
+      handleFirestoreError('', );
     }
     return local;
   }
@@ -1222,7 +1181,7 @@ export class DatabaseService {
       const docRef = doc(db, 'kalender_heb', 'active');
       await setDoc(docRef, cleanData(heb));
     } catch (e) {
-      console.warn('Firestore saveKalenderHeb offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1231,35 +1190,32 @@ export class DatabaseService {
   // ==========================================================
 
   static async getJadwalPiket(): Promise<JadwalPiketHarian[]> {
-    const local = getLocal<JadwalPiketHarian[]>('jadwal_piket_data', INITIAL_JADWAL_PIKET);
-    if (!db) return local;
+    if (!db) return getLocal<JadwalPiketHarian[]>('jadwal_piket_data', INITIAL_JADWAL_PIKET);
 
     try {
       const docRef = doc(db, 'pengaturan', 'jadwal_guru_piket');
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        const data = snap.data()?.list as JadwalPiketHarian[];
-        if (data && Array.isArray(data)) {
-          setLocal('jadwal_piket_data', data);
-          return data;
-        }
-      } else {
-        await setDoc(docRef, { list: cleanData(local) });
+        const rawList = snap.data()?.list;
+        const list = sanitizeJadwalPiket(rawList);
+        setLocal('jadwal_piket_data', list);
+        return list;
       }
     } catch (e) {
-      console.warn('Firestore getJadwalPiket fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<JadwalPiketHarian[]>('jadwal_piket_data', INITIAL_JADWAL_PIKET);
   }
 
   static async saveJadwalPiket(jadwal: JadwalPiketHarian[]): Promise<void> {
-    setLocal('jadwal_piket_data', jadwal);
+    const sanitized = sanitizeJadwalPiket(jadwal);
+    setLocal('jadwal_piket_data', sanitized);
     if (!db) return;
     try {
       const docRef = doc(db, 'pengaturan', 'jadwal_guru_piket');
-      await setDoc(docRef, { list: cleanData(jadwal) });
+      await setDoc(docRef, { list: cleanData(sanitized) });
     } catch (e) {
-      console.warn('Firestore saveJadwalPiket offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1272,13 +1228,12 @@ export class DatabaseService {
     const docRef = doc(db, 'pengaturan', 'jadwal_guru_piket');
     return onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
-        const data = snap.data()?.list as JadwalPiketHarian[];
-        if (data && Array.isArray(data)) {
-          setLocal('jadwal_piket_data', data);
-          callback(data);
-        }
+        const rawList = snap.data()?.list;
+        const list = sanitizeJadwalPiket(rawList);
+        setLocal('jadwal_piket_data', list);
+        callback(list);
       }
-    }, (err) => console.warn('Firestore onSnapshot error (jadwal_guru_piket):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   // ==========================================================
@@ -1304,14 +1259,14 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore getParents fallback to local', e);
+      handleFirestoreError('', );
     }
     return local;
   }
 
   static async getClassSchedules(kelas?: string): Promise<ClassScheduleItem[]> {
-    const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
     if (!db) {
+      const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
       if (kelas && kelas !== 'Semua') {
         return local.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
       }
@@ -1320,25 +1275,20 @@ export class DatabaseService {
     try {
       const colRef = collection(db, 'jadwal_pelajaran');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const list: ClassScheduleItem[] = [];
-        snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
+      const list: ClassScheduleItem[] = [];
+      snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
+      if (list.length > 0) {
         setLocal('class_schedules', list);
-        if (kelas && kelas !== 'Semua') {
-          return list.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
-        }
-        return list;
-      } else {
-        const batch = writeBatch(db);
-        local.forEach((s) => {
-          const docRef = doc(db!, 'jadwal_pelajaran', s.id);
-          batch.set(docRef, cleanData(s));
-        });
-        await batch.commit().catch(() => {});
       }
+      const effectiveList = list.length > 0 ? list : getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
+      if (kelas && kelas !== 'Semua') {
+        return effectiveList.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
+      }
+      return effectiveList;
     } catch (e) {
-      console.warn('Firestore getClassSchedules fallback to local', e);
+      handleFirestoreError('', );
     }
+    const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
     if (kelas && kelas !== 'Semua') {
       return local.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
     }
@@ -1346,7 +1296,7 @@ export class DatabaseService {
   }
 
   static async saveClassSchedule(schedule: ClassScheduleItem): Promise<void> {
-    const list = await this.getClassSchedules();
+    const list = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
     const idx = list.findIndex((s) => s.id === schedule.id);
     if (idx >= 0) {
       list[idx] = schedule;
@@ -1360,7 +1310,7 @@ export class DatabaseService {
       const docRef = doc(db, 'jadwal_pelajaran', schedule.id);
       await setDoc(docRef, cleanData(schedule));
     } catch (e) {
-      console.warn('Firestore saveClassSchedule offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1379,7 +1329,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore saveClassSchedules error', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1396,7 +1346,7 @@ export class DatabaseService {
         return list;
       }
     } catch (e) {
-      console.warn('Firestore getAgendaSekolah fallback to local', e);
+      handleFirestoreError('', );
     }
     return local;
   }
@@ -1416,7 +1366,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore saveAgendaSekolah error', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1430,7 +1380,7 @@ export class DatabaseService {
       const docRef = doc(db, 'jadwal_pelajaran', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteClassSchedule offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1450,7 +1400,7 @@ export class DatabaseService {
       });
       await batch.commit();
     } catch (e) {
-      console.warn('Firestore bulkDeleteClassSchedules error', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1468,7 +1418,7 @@ export class DatabaseService {
         });
         await batch.commit();
       } catch (e) {
-        console.warn('Firestore resetClassSchedules error', e);
+        handleFirestoreError('', );
       }
     }
     return INITIAL_SCHEDULES;
@@ -1486,15 +1436,81 @@ export class DatabaseService {
       snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
       setLocal('class_schedules', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (jadwal_pelajaran):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
+  // --- ASSIGNMENTS (TUGAS SISWA) ---
   static async getAssignments(kelas?: string): Promise<AssignmentItem[]> {
-    const local = getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS);
-    if (kelas) {
-      return local.filter((a) => a.kelas.toLowerCase() === kelas.toLowerCase());
+    if (!db) {
+      const local = getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS);
+      return (kelas && kelas !== 'Semua') ? local.filter((a) => a.kelas.toLowerCase() === kelas.toLowerCase()) : local;
     }
-    return local;
+
+    try {
+      const colRef = collection(db, 'tugas_siswa');
+      const snap = await getDocs(colRef);
+      const list: AssignmentItem[] = [];
+      snap.forEach((d) => list.push(d.data() as AssignmentItem));
+      list.sort((a, b) => (b.deadline || '').localeCompare(a.deadline || ''));
+      setLocal('assignments_data', list);
+      if (kelas && kelas !== 'Semua') {
+        return list.filter((a) => a.kelas.toLowerCase() === kelas.toLowerCase());
+      }
+      return list;
+    } catch (e) {
+      handleFirestoreError('', );
+    }
+    const local = getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS);
+    return (kelas && kelas !== 'Semua') ? local.filter((a) => a.kelas.toLowerCase() === kelas.toLowerCase()) : local;
+  }
+
+  static async saveAssignment(assignment: AssignmentItem): Promise<void> {
+    const list = await this.getAssignments();
+    const idx = list.findIndex((a) => a.id === assignment.id);
+    if (idx >= 0) {
+      list[idx] = assignment;
+    } else {
+      list.unshift(assignment);
+    }
+    setLocal('assignments_data', list);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'tugas_siswa', assignment.id);
+      await setDoc(docRef, cleanData(assignment));
+    } catch (e) {
+      handleFirestoreError('', );
+    }
+  }
+
+  static async deleteAssignment(id: string): Promise<void> {
+    const list = await this.getAssignments();
+    const filtered = list.filter((a) => a.id !== id);
+    setLocal('assignments_data', filtered);
+
+    if (!db) return;
+    try {
+      const docRef = doc(db, 'tugas_siswa', id);
+      await deleteDoc(docRef);
+    } catch (e) {
+      handleFirestoreError('', );
+    }
+  }
+
+  static subscribeAssignments(callback: (assignments: AssignmentItem[]) => void): () => void {
+    if (!db) {
+      const handler = () => callback(getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS));
+      syncChannel?.addEventListener('message', handler);
+      return () => syncChannel?.removeEventListener('message', handler);
+    }
+    const colRef = collection(db, 'tugas_siswa');
+    return onSnapshot(colRef, (snap) => {
+      const list: AssignmentItem[] = [];
+      snap.forEach((d) => list.push(d.data() as AssignmentItem));
+      list.sort((a, b) => (b.deadline || '').localeCompare(a.deadline || ''));
+      setLocal('assignments_data', list);
+      callback(list);
+    }, (err) => handleFirestoreError('', ));
   }
 
   static async getSubmissions(nisn?: string): Promise<StudentAssignmentSubmission[]> {
@@ -1506,28 +1522,22 @@ export class DatabaseService {
   }
 
   static async getStudentGrades(nisn?: string): Promise<StudentGradeItem[]> {
-    const local = getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES);
     if (!db) {
+      const local = getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES);
       return nisn ? local.filter((g) => g.nisn === nisn) : local;
     }
     try {
       const colRef = collection(db, 'nilai_siswa');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const list: StudentGradeItem[] = [];
-        snap.forEach((d) => list.push(d.data() as StudentGradeItem));
-        setLocal('student_grades', list);
-        return nisn ? list.filter((g) => g.nisn === nisn) : list;
-      } else {
-        const batch = writeBatch(db);
-        local.forEach((g) => {
-          batch.set(doc(db!, 'nilai_siswa', g.id), g);
-        });
-        await batch.commit().catch(() => {});
-      }
+      const list: StudentGradeItem[] = [];
+      snap.forEach((d) => list.push(d.data() as StudentGradeItem));
+      list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
+      setLocal('student_grades', list);
+      return nisn ? list.filter((g) => g.nisn === nisn) : list;
     } catch (e) {
-      console.warn('Firestore getStudentGrades fallback to local', e);
+      handleFirestoreError('', );
     }
+    const local = getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES);
     return nisn ? local.filter((g) => g.nisn === nisn) : local;
   }
 
@@ -1546,7 +1556,7 @@ export class DatabaseService {
       const docRef = doc(db, 'nilai_siswa', grade.id);
       await setDoc(docRef, cleanData(grade));
     } catch (e) {
-      console.warn('Firestore saveStudentGrade offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1560,7 +1570,7 @@ export class DatabaseService {
       const docRef = doc(db, 'nilai_siswa', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteStudentGrade offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1584,7 +1594,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkDeleteStudentGrades offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1609,34 +1619,26 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkSaveStudentGrades offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
   // --- LEAVE REQUESTS (PENGAJUAN IZIN / SAKIT MANDIRI) ---
   static async getLeaveRequests(): Promise<LeaveRequest[]> {
-    const local = getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS);
-    if (!db) return local;
+    if (!db) return getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS);
 
     try {
       const colRef = collection(db, 'permohonan_izin');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const list: LeaveRequest[] = [];
-        snap.forEach((d) => list.push(d.data() as LeaveRequest));
-        setLocal('leave_requests', list);
-        return list;
-      } else {
-        const batch = writeBatch(db);
-        local.forEach((r) => {
-          batch.set(doc(db!, 'permohonan_izin', r.id), cleanData(r));
-        });
-        await batch.commit().catch(() => {});
-      }
+      const list: LeaveRequest[] = [];
+      snap.forEach((d) => list.push(d.data() as LeaveRequest));
+      list.sort((a, b) => b.tanggalPengajuan.localeCompare(a.tanggalPengajuan));
+      setLocal('leave_requests', list);
+      return list;
     } catch (e) {
-      console.warn('Firestore getLeaveRequests fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS);
   }
 
   static async saveLeaveRequest(req: LeaveRequest): Promise<void> {
@@ -1654,7 +1656,7 @@ export class DatabaseService {
       const docRef = doc(db, 'permohonan_izin', req.id);
       await setDoc(docRef, cleanData(req));
     } catch (e) {
-      console.warn('Firestore saveLeaveRequest offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1678,7 +1680,7 @@ export class DatabaseService {
         const docRef = doc(db, 'permohonan_izin', id);
         await setDoc(docRef, cleanData(item), { merge: true });
       } catch (e) {
-        console.warn('Firestore updateLeaveRequestStatus offline cache used', e);
+        handleFirestoreError('', );
       }
     }
 
@@ -1769,7 +1771,7 @@ export class DatabaseService {
           });
           await batch.commit().catch(() => {});
         } catch (e) {
-          console.warn('Firestore auto attendance sync error', e);
+          handleFirestoreError('', );
         }
       }
     }
@@ -1785,7 +1787,7 @@ export class DatabaseService {
       const docRef = doc(db, 'permohonan_izin', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteLeaveRequest offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1809,89 +1811,26 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkDeleteLeaveRequests offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
   // --- ABSENSI GURU & TENDIK ---
   static async getTeacherAttendanceRecords(): Promise<TeacherAttendanceRecord[]> {
-    const today = new Date().toISOString().split('T')[0];
-    const defaultRecords: TeacherAttendanceRecord[] = [
-      {
-        id: `PRESENSI_GURU_T_SURYADI_${today}_Masuk`,
-        tanggal: today,
-        waktu: '06:45:10',
-        teacherId: 'T_SURYADI',
-        nip: '-',
-        nama: 'SURYADI',
-        mapel: 'Pendidikan Pancasila & PKN',
-        sesi: 'Masuk',
-        status: 'Hadir',
-        kategori: 'Kiosk QR',
-        catatan: 'Tiba di gerbang sekolah tepat waktu',
-      },
-      {
-        id: `PRESENSI_GURU_T1_${today}_Masuk`,
-        tanggal: today,
-        waktu: '06:40:22',
-        teacherId: 'T1',
-        nip: '19750918 200501 2 006',
-        nama: 'Hj. Siti Maryam, S.Pd.',
-        mapel: 'Ilmu Pengetahuan Alam (IPA)',
-        sesi: 'Masuk',
-        status: 'Hadir',
-        kategori: 'Kiosk QR',
-        catatan: 'Petugas Piket Gerbang Pagi',
-      },
-      {
-        id: `PRESENSI_GURU_T2_${today}_Masuk`,
-        tanggal: today,
-        waktu: '06:55:00',
-        teacherId: 'T2',
-        nip: '19810314 200801 1 009',
-        nama: 'Asep Saepudin, S.Pd.',
-        mapel: 'Matematika',
-        sesi: 'Masuk',
-        status: 'Hadir',
-        kategori: 'Absen Mandiri',
-      },
-      {
-        id: `PRESENSI_GURU_T3_${today}_Masuk`,
-        tanggal: today,
-        waktu: '07:20:15',
-        teacherId: 'T3',
-        nip: '19861102 201001 2 015',
-        nama: 'Rina Kusmayanti, M.Pd.',
-        mapel: 'Bahasa Indonesia',
-        sesi: 'Masuk',
-        status: 'Terlambat',
-        kategori: 'Kiosk QR',
-        catatan: 'Terlambat 5 menit',
-      },
-    ];
-
-    const local = getLocal<TeacherAttendanceRecord[]>('teacher_attendance', defaultRecords);
-    if (!db) return local;
+    if (!db) return getLocal<TeacherAttendanceRecord[]>('teacher_attendance', []);
 
     try {
       const colRef = collection(db, 'presensi_guru');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const list: TeacherAttendanceRecord[] = [];
-        snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
-        setLocal('teacher_attendance', list);
-        return list;
-      } else {
-        const batch = writeBatch(db);
-        local.forEach((r) => {
-          batch.set(doc(db!, 'presensi_guru', r.id), cleanData(r));
-        });
-        await batch.commit().catch(() => {});
-      }
+      const list: TeacherAttendanceRecord[] = [];
+      snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
+      list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
+      setLocal('teacher_attendance', list);
+      return list;
     } catch (e) {
-      console.warn('Firestore getTeacherAttendanceRecords fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<TeacherAttendanceRecord[]>('teacher_attendance', []);
   }
 
   static async saveTeacherAttendanceRecord(rec: TeacherAttendanceRecord): Promise<void> {
@@ -1909,7 +1848,7 @@ export class DatabaseService {
       const docRef = doc(db, 'presensi_guru', rec.id);
       await setDoc(docRef, cleanData(rec));
     } catch (e) {
-      console.warn('Firestore saveTeacherAttendanceRecord offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1936,7 +1875,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkSaveTeacherAttendance offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -1950,51 +1889,26 @@ export class DatabaseService {
       const docRef = doc(db, 'presensi_guru', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteTeacherAttendanceRecord offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
   // --- PERMOHONAN IZIN & SAKIT GURU ---
   static async getTeacherLeaveRequests(): Promise<TeacherLeaveRequest[]> {
-    const today = new Date().toISOString().split('T')[0];
-    const defaultLeaves: TeacherLeaveRequest[] = [
-      {
-        id: `TL_${today}_01`,
-        teacherId: 'T4',
-        nip: '19850212 200902 1 003',
-        nama: 'Dedi Kurniawan, S.Pd.',
-        jenis: 'Dinas Luar',
-        tanggalMulai: today,
-        tanggalSelesai: today,
-        alasan: 'Pendampingan Bimbingan Teknis Kurikulum Merdeka di Dinas Pendidikan Kabupaten.',
-        statusPengajuan: 'Disetujui',
-        tanggalPengajuan: `${today} 06:30`,
-        disetujuiOleh: 'CUNCUN MUHLISOH, S.Pd. (Kepala Sekolah)',
-      },
-    ];
-
-    const local = getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', defaultLeaves);
-    if (!db) return local;
+    if (!db) return getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []);
 
     try {
       const colRef = collection(db, 'permohonan_izin_guru');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const list: TeacherLeaveRequest[] = [];
-        snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
-        setLocal('teacher_leave_requests', list);
-        return list;
-      } else {
-        const batch = writeBatch(db);
-        local.forEach((r) => {
-          batch.set(doc(db!, 'permohonan_izin_guru', r.id), cleanData(r));
-        });
-        await batch.commit().catch(() => {});
-      }
+      const list: TeacherLeaveRequest[] = [];
+      snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
+      list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
+      setLocal('teacher_leave_requests', list);
+      return list;
     } catch (e) {
-      console.warn('Firestore getTeacherLeaveRequests fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []);
   }
 
   static async saveTeacherLeaveRequest(req: TeacherLeaveRequest): Promise<void> {
@@ -2012,7 +1926,7 @@ export class DatabaseService {
       const docRef = doc(db, 'permohonan_izin_guru', req.id);
       await setDoc(docRef, cleanData(req));
     } catch (e) {
-      console.warn('Firestore saveTeacherLeaveRequest offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -2026,7 +1940,7 @@ export class DatabaseService {
       const docRef = doc(db, 'permohonan_izin_guru', id);
       await deleteDoc(docRef);
     } catch (e) {
-      console.warn('Firestore deleteTeacherLeaveRequest offline cache used', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -2334,12 +2248,12 @@ export class DatabaseService {
       list.sort((a, b) => a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama));
       setLocal('students', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (siswa):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeAttendance(callback: (records: AttendanceRecord[]) => void): () => void {
     if (!db) {
-      const handler = () => callback(getLocal<AttendanceRecord[]>('attendance', []));
+      const handler = () => callback(getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()));
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
@@ -2350,12 +2264,12 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('attendance', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (presensi):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeGrades(callback: (grades: StudentGradeItem[]) => void): () => void {
     if (!db) {
-      const handler = () => callback(getLocal<StudentGradeItem[]>('student_grades', []));
+      const handler = () => callback(getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES));
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
@@ -2366,12 +2280,12 @@ export class DatabaseService {
       list.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
       setLocal('student_grades', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (nilai_siswa):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeLeaveRequests(callback: (requests: LeaveRequest[]) => void): () => void {
     if (!db) {
-      const handler = () => callback(getLocal<LeaveRequest[]>('leave_requests', []));
+      const handler = () => callback(getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS));
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
@@ -2382,7 +2296,7 @@ export class DatabaseService {
       list.sort((a, b) => b.tanggalPengajuan.localeCompare(a.tanggalPengajuan));
       setLocal('leave_requests', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (permohonan_izin):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeTeachingJournals(callback: (journals: TeachingJournal[]) => void): () => void {
@@ -2398,7 +2312,7 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt));
       setLocal('teaching_journals', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (jurnal_mengajar):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeTeachers(callback: (teachers: TeacherUser[]) => void): () => void {
@@ -2414,7 +2328,7 @@ export class DatabaseService {
       list.sort((a, b) => a.nama.localeCompare(b.nama));
       setLocal('teachers', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (guru_users):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeTeacherAttendanceRecords(callback: (records: TeacherAttendanceRecord[]) => void): () => void {
@@ -2430,7 +2344,7 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('teacher_attendance_records', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (presensi_guru):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeTeacherLeaveRequests(callback: (requests: TeacherLeaveRequest[]) => void): () => void {
@@ -2446,7 +2360,7 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
       setLocal('teacher_leave_requests', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (permohonan_izin_guru):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeSchoolConfig(callback: (config: SchoolConfig) => void): () => void {
@@ -2462,7 +2376,7 @@ export class DatabaseService {
         setLocal('school_config', data);
         callback(data);
       }
-    }, (err) => console.warn('Firestore onSnapshot error (pengaturan):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   static subscribeKalenderHeb(callback: (heb: KalenderHeb) => void): () => void {
@@ -2478,35 +2392,25 @@ export class DatabaseService {
         setLocal('kalender_heb', data);
         callback(data);
       }
-    }, (err) => console.warn('Firestore onSnapshot error (kalender_heb):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   // --- AGENDA KEGIATAN SEKOLAH ---
   static async getSchoolEvents(): Promise<SchoolEventItem[]> {
-    const local = getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS);
-    if (!db) return local;
+    if (!db) return getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS);
 
     try {
       const colRef = collection(db, 'agenda_sekolah');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const list: SchoolEventItem[] = [];
-        snap.forEach((d) => list.push(d.data() as SchoolEventItem));
-        list.sort((a, b) => a.tanggalMulai.localeCompare(b.tanggalMulai));
-        setLocal('school_events', list);
-        return list;
-      } else {
-        // Seed initial events if empty
-        const batch = writeBatch(db);
-        local.forEach((ev) => {
-          batch.set(doc(db!, 'agenda_sekolah', ev.id), cleanData(ev));
-        });
-        await batch.commit().catch(() => {});
-      }
+      const list: SchoolEventItem[] = [];
+      snap.forEach((d) => list.push(d.data() as SchoolEventItem));
+      list.sort((a, b) => a.tanggalMulai.localeCompare(b.tanggalMulai));
+      setLocal('school_events', list);
+      return list;
     } catch (e) {
-      console.warn('Firestore getSchoolEvents fallback to local', e);
+      handleFirestoreError('', );
     }
-    return local;
+    return getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS);
   }
 
   static async saveSchoolEvent(event: SchoolEventItem): Promise<void> {
@@ -2525,7 +2429,7 @@ export class DatabaseService {
         const docRef = doc(db, 'agenda_sekolah', event.id);
         await setDoc(docRef, cleanData(event));
       } catch (e) {
-        console.warn('Firestore saveSchoolEvent error', e);
+        handleFirestoreError('', );
       }
     }
   }
@@ -2540,7 +2444,7 @@ export class DatabaseService {
         const docRef = doc(db, 'agenda_sekolah', id);
         await deleteDoc(docRef);
       } catch (e) {
-        console.warn('Firestore deleteSchoolEvent error', e);
+        handleFirestoreError('', );
       }
     }
   }
@@ -2565,7 +2469,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      console.warn('Firestore bulkDeleteSchoolEvents error', e);
+      handleFirestoreError('', );
     }
   }
 
@@ -2582,7 +2486,7 @@ export class DatabaseService {
       list.sort((a, b) => a.tanggalMulai.localeCompare(b.tanggalMulai));
       setLocal('school_events', list);
       callback(list);
-    }, (err) => console.warn('Firestore onSnapshot error (agenda_sekolah):', err));
+    }, (err) => handleFirestoreError('', ));
   }
 
   // --- WHATSAPP TEMPLATES ---

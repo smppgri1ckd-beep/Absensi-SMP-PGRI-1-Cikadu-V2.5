@@ -35,6 +35,7 @@ import { EnlargedQrCodeModal } from './EnlargedQrCodeModal';
 import { generateQrDataUrl } from '../utils/qr';
 import { triggerDirectPrint } from '../utils/print';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas-pro';
 
@@ -58,6 +59,7 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
   onDeleteSchedule,
 }) => {
   const { toast } = useToast();
+  const { updateCurrentUserTeacherData } = useAuth();
 
   // Find or create current teacher object
   const currentTeacher: TeacherUser = useMemo(() => {

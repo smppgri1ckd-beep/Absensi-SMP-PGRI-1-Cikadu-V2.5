@@ -101,7 +101,7 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>(dayNameToday);
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Semua');
   const [selectedTeacherFilter, setSelectedTeacherFilter] = useState<string>(
-    user?.role === 'guru' ? user.nama : 'Semua'
+    user?.role === 'guru' ? 'Jadwal Saya' : 'Semua'
   );
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [displayMode, setDisplayMode] = useState<'timeline' | 'grid' | 'manage'>(defaultViewMode);
@@ -297,8 +297,11 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
 
   // Teacher-scoped base schedules
   const teacherScopedSchedules = useMemo(() => {
-    return filterSchedulesForTeacher(schedules, user);
-  }, [schedules, user]);
+    if (user?.role === 'guru' && selectedTeacherFilter === 'Jadwal Saya') {
+      return filterSchedulesForTeacher(schedules, user);
+    }
+    return schedules;
+  }, [schedules, user, selectedTeacherFilter]);
 
   const teacherAssignedSubjects = useMemo(() => {
     if (user?.role === 'guru') {
@@ -309,12 +312,9 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
   }, [user]);
 
   const teacherAccessibleClassesForForm = useMemo(() => {
-    if (user?.role === 'guru') {
-      const cls = getTeacherClassesForSubject(user, formMapel);
-      return cls.length > 0 ? cls : availableClasses;
-    }
-    return availableClasses;
-  }, [user, formMapel, availableClasses]);
+    // Both guru and admin should have access to choose any available school class
+    return availableClasses.length > 0 ? availableClasses : ['7A', '7B', '8A', '8B', '9A', '9B'];
+  }, [availableClasses]);
 
   // Filtered schedules
   const filteredSchedules = useMemo(() => {
@@ -324,7 +324,7 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
       // Class Filter
       if (selectedClassFilter !== 'Semua' && !isClassMatch(s.kelas, selectedClassFilter)) return false;
       // Teacher Filter
-      if (user?.role !== 'guru' && selectedTeacherFilter !== 'Semua') {
+      if (selectedTeacherFilter !== 'Semua' && selectedTeacherFilter !== 'Jadwal Saya') {
         if (!s.guruNama.toLowerCase().includes(selectedTeacherFilter.toLowerCase())) return false;
       }
       // Search Query
@@ -338,7 +338,7 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
       }
       return true;
     });
-  }, [teacherScopedSchedules, selectedDayFilter, selectedClassFilter, selectedTeacherFilter, searchQuery, user]);
+  }, [teacherScopedSchedules, selectedDayFilter, selectedClassFilter, selectedTeacherFilter, searchQuery]);
 
   // Group schedules by Day for Timeline / Matrix
   const schedulesByDay = useMemo(() => {
@@ -1197,12 +1197,17 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
                     Guru Pengampu <span className="text-rose-500">*</span>
                   </label>
                   {user?.role === 'guru' ? (
-                    <input
-                      type="text"
-                      value={user.nama}
-                      readOnly
-                      className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-not-allowed"
-                    />
+                    <div>
+                      <input
+                        type="text"
+                        value={user.nama}
+                        readOnly
+                        className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-not-allowed"
+                      />
+                      <p className="text-[10px] text-emerald-700 font-bold mt-1">
+                        ✓ Jadwal otomatis terhubung &amp; membuka akses kelas di akun Anda
+                      </p>
+                    </div>
                   ) : (
                     <select
                       value={formGuruId}
@@ -1222,18 +1227,7 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
                   <label className="block text-xs font-black text-slate-700 mb-1">
                     Mata Pelajaran <span className="text-rose-500">*</span>
                   </label>
-                  {user?.role === 'guru' && teacherAssignedSubjects.length > 0 ? (
-                    <select
-                      value={formMapel}
-                      onChange={(e) => setFormMapel(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white cursor-pointer"
-                      required
-                    >
-                      {teacherAssignedSubjects.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  ) : (
+                  <div className="space-y-1.5">
                     <input
                       type="text"
                       value={formMapel}
@@ -1242,7 +1236,26 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white"
                       required
                     />
-                  )}
+                    {teacherAssignedSubjects.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-400 font-bold">Pilih Cepat:</span>
+                        {teacherAssignedSubjects.map((m) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setFormMapel(m)}
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-colors cursor-pointer ${
+                              formMapel.toLowerCase() === m.toLowerCase()
+                                ? 'bg-indigo-600 text-white border-indigo-600'
+                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                            }`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

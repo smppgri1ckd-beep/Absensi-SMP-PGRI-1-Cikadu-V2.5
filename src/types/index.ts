@@ -191,6 +191,7 @@ export interface AuthUser {
   penugasanMapel?: TeachingAssignment[];
   waliKelas?: string;
   nomorHp?: string;
+  fotoUrl?: string;
   childrenNisns?: string[]; // Khusus akun role 'ortu'
   status?: string;
   loginAt?: string;
@@ -228,10 +229,12 @@ export interface AssignmentItem {
   kelas: string;
   mapel: string;
   guruNama: string;
+  guruId?: string;
   judul: string;
   deskripsi: string;
   deadline: string; // YYYY-MM-DD atau ISO
   tipe: 'Tugas' | 'Ulangan' | 'Praktikum' | 'Proyek';
+  createdAt?: string;
 }
 
 export interface StudentAssignmentSubmission {
