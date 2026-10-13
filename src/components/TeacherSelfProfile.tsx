@@ -28,6 +28,7 @@ import {
   Tag
 } from 'lucide-react';
 import { AuthUser, TeacherUser, SchoolConfig, TeachingAssignment, DayOfWeek, ClassScheduleItem } from '../types';
+import { TimePicker24h } from './TimePicker24h';
 import { IdCardFront } from './IdCardFront';
 import { IdCardBack } from './IdCardBack';
 import { IdCardPreviewModal } from './IdCardPreviewModal';
@@ -1156,21 +1157,19 @@ export const TeacherSelfProfile: React.FC<TeacherSelfProfileProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Jam Mulai</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Jam Mulai"
                     value={formSchedule.jamMulai}
-                    onChange={(e) => setFormSchedule((prev) => ({ ...prev, jamMulai: e.target.value }))}
-                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-semibold focus:bg-white focus:outline-none"
+                    onChange={(val) => setFormSchedule((prev) => ({ ...prev, jamMulai: val }))}
+                    placeholder="07:30"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Jam Selesai</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Jam Selesai"
                     value={formSchedule.jamSelesai}
-                    onChange={(e) => setFormSchedule((prev) => ({ ...prev, jamSelesai: e.target.value }))}
-                    className="w-full px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-xl font-semibold focus:bg-white focus:outline-none"
+                    onChange={(val) => setFormSchedule((prev) => ({ ...prev, jamSelesai: val }))}
+                    placeholder="08:50"
                   />
                 </div>
               </div>

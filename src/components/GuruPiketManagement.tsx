@@ -25,6 +25,7 @@ import { JadwalPiketHarian, PetugasPiketItem, DayOfWeek, TeacherUser, SchoolConf
 import { useAuth } from '../context/AuthContext';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { INITIAL_JADWAL_PIKET } from '../services/db';
+import { TimePicker24h } from './TimePicker24h';
 
 interface GuruPiketManagementProps {
   jadwalPiket: JadwalPiketHarian[];
@@ -1134,25 +1135,19 @@ export const GuruPiketManagement: React.FC<GuruPiketManagementProps> = ({
               {/* Jam Dinas Piket */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-black text-slate-700 mb-1">
-                    Jam Mulai Piket
-                  </label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Jam Mulai Piket"
                     value={formJamMulai}
-                    onChange={(e) => setFormJamMulai(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white font-mono"
+                    onChange={(val) => setFormJamMulai(val)}
+                    placeholder="06:30"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-slate-700 mb-1">
-                    Jam Selesai Piket
-                  </label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Jam Selesai Piket"
                     value={formJamSelesai}
-                    onChange={(e) => setFormJamSelesai(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-hidden focus:border-emerald-500 focus:bg-white font-mono"
+                    onChange={(val) => setFormJamSelesai(val)}
+                    placeholder="14:15"
                   />
                 </div>
               </div>

@@ -81,6 +81,14 @@ export interface TeacherUser {
   piketRole?: string; // Peran saat bertugas piket
 }
 
+export interface JamPelajaranSlot {
+  jamKe: number; // 1 s/d 10 (0 untuk Istirahat / Apel)
+  label: string; // "Jam Ke-1", "Jam Ke-2", "Istirahat I", dll.
+  jamMulai: string; // HH:mm (misal "07:30")
+  jamSelesai: string; // HH:mm (misal "08:10")
+  isIstirahat?: boolean;
+}
+
 export interface AttendanceTimeSettings {
   pagiMulai: string; // e.g. "06:30"
   pagiBatasTepatWaktu: string; // e.g. "07:15"
@@ -94,6 +102,8 @@ export interface AttendanceTimeSettings {
   jumatPagiBatasAkhir?: string; // misal "11:00"
   jumatSiangMulai?: string; // misal "13:00"
   jumatSiangBatasTepatWaktu?: string; // misal "13:15"
+  // Master Fleksibel Jam Pelajaran (JP 1 - 10)
+  jamPelajaranMaster?: JamPelajaranSlot[];
 }
 
 export type IdCardTheme = 'pgri-blue' | 'emerald-green' | 'crimson-red' | 'gold-amber';

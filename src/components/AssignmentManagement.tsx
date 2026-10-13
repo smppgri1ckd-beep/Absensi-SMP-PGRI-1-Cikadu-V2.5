@@ -25,6 +25,7 @@ import { AssignmentItem, TeacherUser, SchoolConfig } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getTeacherAccessibleClasses, normalizeClassName, isClassMatch } from '../utils/teacherFilter';
+import { TimePicker24h } from './TimePicker24h';
 
 interface AssignmentManagementProps {
   assignments: AssignmentItem[];
@@ -664,14 +665,11 @@ export const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-black text-slate-700 mb-1">
-                    Pukul Selesai
-                  </label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Pukul Selesai"
                     value={formDeadlineTime}
-                    onChange={(e) => setFormDeadlineTime(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white"
+                    onChange={(val) => setFormDeadlineTime(val)}
+                    placeholder="14:15"
                   />
                 </div>
               </div>

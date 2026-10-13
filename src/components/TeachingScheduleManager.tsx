@@ -29,6 +29,7 @@ import {
 import { ClassScheduleItem, TeacherUser, SchoolConfig, DayOfWeek } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { TimePicker24h } from './TimePicker24h';
 import { exportClassSchedulesExcel } from '../utils/exportExcel';
 import { generateClassSchedulesPdf } from '../utils/exportPdf';
 import { 
@@ -97,6 +98,21 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
     const idx = new Date().getDay(); // 0: Sunday -> map to Senin or default
     return idx === 0 ? 'Senin' : days[idx];
   }, []);
+
+  // Dynamic time presets from SchoolConfig jamPelajaranMaster or fallback
+  const dynamicTimePresets = useMemo(() => {
+    if (schoolConfig?.jadwal?.jamPelajaranMaster && schoolConfig.jadwal.jamPelajaranMaster.length > 0) {
+      return schoolConfig.jadwal.jamPelajaranMaster
+        .filter((slot) => !slot.isIstirahat)
+        .map((slot) => ({
+          label: `JP ${slot.jamKe} (${slot.jamMulai} - ${slot.jamSelesai})`,
+          jamKe: `${slot.jamKe}`,
+          jamMulai: slot.jamMulai,
+          jamSelesai: slot.jamSelesai,
+        }));
+    }
+    return TIME_PRESETS;
+  }, [schoolConfig]);
 
   const [selectedDayFilter, setSelectedDayFilter] = useState<string>(dayNameToday);
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('Semua');
@@ -1139,7 +1155,7 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
 
                 {/* Quick Presets */}
                 <div className="flex flex-wrap gap-1.5">
-                  {TIME_PRESETS.map((p, idx) => (
+                  {dynamicTimePresets.map((p, idx) => (
                     <button
                       key={idx}
                       type="button"
@@ -1168,22 +1184,20 @@ export const TeachingScheduleManager: React.FC<TeachingScheduleManagerProps> = (
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Jam Mulai (WIB)</label>
-                    <input
-                      type="time"
+                    <TimePicker24h
+                      label="Jam Mulai"
                       value={formJamMulai}
-                      onChange={(e) => setFormJamMulai(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                      onChange={(val) => setFormJamMulai(val)}
+                      placeholder="07:30"
                       required
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Jam Selesai (WIB)</label>
-                    <input
-                      type="time"
+                    <TimePicker24h
+                      label="Jam Selesai"
                       value={formJamSelesai}
-                      onChange={(e) => setFormJamSelesai(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                      onChange={(val) => setFormJamSelesai(val)}
+                      placeholder="08:50"
                       required
                     />
                   </div>

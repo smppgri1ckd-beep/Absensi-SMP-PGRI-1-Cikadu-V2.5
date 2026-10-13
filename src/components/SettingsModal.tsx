@@ -25,8 +25,10 @@ import {
   UserCog,
   Check
 } from 'lucide-react';
-import { SchoolConfig, AdminAccountConfig } from '../types';
+import { SchoolConfig, AdminAccountConfig, JamPelajaranSlot } from '../types';
 import { DatabaseService, DEFAULT_SCHOOL_CONFIG, DEFAULT_ADMIN_ACCOUNT } from '../services/db';
+import { generateDefaultJPSlots, TIMEZONE_LABEL } from '../utils/wibTime';
+import { TimePicker24h } from './TimePicker24h';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -661,32 +663,26 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Sesi Pagi */}
             <div className="p-3.5 bg-amber-50/70 rounded-2xl border border-amber-200 space-y-2">
               <span className="text-xs font-extrabold text-amber-900 block">Sesi Pagi (Masuk / Apel)</span>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label className="text-[10px] font-bold text-amber-800 block mb-0.5">Jam Mulai</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Jam Mulai"
                     value={formData.jadwal?.pagiMulai || '06:30'}
-                    onChange={(e) => handleJadwalChange('pagiMulai', e.target.value)}
-                    className="w-full bg-white border border-amber-300 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                    onChange={(val) => handleJadwalChange('pagiMulai', val)}
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-amber-800 block mb-0.5">Batas Tepat Waktu</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Batas Tepat Waktu"
                     value={formData.jadwal?.pagiBatasTepatWaktu || '07:15'}
-                    onChange={(e) => handleJadwalChange('pagiBatasTepatWaktu', e.target.value)}
-                    className="w-full bg-white border border-amber-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-amber-900"
+                    onChange={(val) => handleJadwalChange('pagiBatasTepatWaktu', val)}
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-amber-800 block mb-0.5">Batas Akhir</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Batas Akhir"
                     value={formData.jadwal?.pagiBatasAkhir || '11:30'}
-                    onChange={(e) => handleJadwalChange('pagiBatasAkhir', e.target.value)}
-                    className="w-full bg-white border border-amber-300 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                    onChange={(val) => handleJadwalChange('pagiBatasAkhir', val)}
                   />
                 </div>
               </div>
@@ -695,34 +691,118 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* Sesi Siang */}
             <div className="p-3.5 bg-indigo-50/70 rounded-2xl border border-indigo-200 space-y-2">
               <span className="text-xs font-extrabold text-indigo-900 block">Sesi Siang (Pulang / KBM 2)</span>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label className="text-[10px] font-bold text-indigo-800 block mb-0.5">Jam Mulai</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Jam Mulai"
                     value={formData.jadwal?.siangMulai || '12:00'}
-                    onChange={(e) => handleJadwalChange('siangMulai', e.target.value)}
-                    className="w-full bg-white border border-indigo-300 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                    onChange={(val) => handleJadwalChange('siangMulai', val)}
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-indigo-800 block mb-0.5">Batas Tepat Waktu</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Batas Tepat Waktu"
                     value={formData.jadwal?.siangBatasTepatWaktu || '13:30'}
-                    onChange={(e) => handleJadwalChange('siangBatasTepatWaktu', e.target.value)}
-                    className="w-full bg-white border border-indigo-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-indigo-900"
+                    onChange={(val) => handleJadwalChange('siangBatasTepatWaktu', val)}
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-indigo-800 block mb-0.5">Batas Akhir</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Batas Akhir"
                     value={formData.jadwal?.siangBatasAkhir || '15:30'}
-                    onChange={(e) => handleJadwalChange('siangBatasAkhir', e.target.value)}
-                    className="w-full bg-white border border-indigo-300 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                    onChange={(val) => handleJadwalChange('siangBatasAkhir', val)}
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Master Fleksibel Jam Pelajaran (JP 1 - 10) */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-cyan-50/70 border border-blue-200/80 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-blue-900 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-blue-600" />
+                    <span>Fleksibilitas Jam Pelajaran (JP 1 - 10) - Zona {TIMEZONE_LABEL}</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-600">
+                    Atur rentang jam mulai & jam selesai per Jam Pelajaran (JP 1 s/d 10) atau alokasi waktu istirahat.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const autoSlots = generateDefaultJPSlots('07:15', 40, 10, [4, 7], 30);
+                    handleJadwalChange('jamPelajaranMaster', autoSlots);
+                    toast.info('Jadwal JP Dihasilkan', 'Alokasi 10 JP (@ 40 Menit + 2 Istirahat) otomatis diterapkan.');
+                  }}
+                  className="text-[10px] font-bold px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>⚡ Auto-Generate 40 Menit / JP</span>
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                {(formData.jadwal?.jamPelajaranMaster && formData.jadwal.jamPelajaranMaster.length > 0
+                  ? formData.jadwal.jamPelajaranMaster
+                  : generateDefaultJPSlots('07:15', 40, 10, [4, 7], 30)
+                ).map((slot, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-center justify-between p-2 rounded-xl text-xs border ${
+                      slot.isIstirahat
+                        ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                        : 'bg-white border-slate-200 text-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 w-36">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
+                        slot.isIstirahat ? 'bg-amber-200 text-amber-900' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {slot.isIstirahat ? 'ISTIRAHAT' : `JP ${slot.jamKe}`}
+                      </span>
+                      <input
+                        type="text"
+                        value={slot.label}
+                        onChange={(e) => {
+                          const currentSlots = formData.jadwal?.jamPelajaranMaster || generateDefaultJPSlots('07:15', 40, 10, [4, 7], 30);
+                          const next = [...currentSlots];
+                          next[index] = { ...next[index], label: e.target.value };
+                          handleJadwalChange('jamPelajaranMaster', next);
+                        }}
+                        className="w-full font-bold text-xs bg-transparent border-b border-dashed border-slate-300 focus:border-blue-500 focus:outline-hidden"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      <div className="w-32">
+                        <TimePicker24h
+                          value={slot.jamMulai}
+                          onChange={(val) => {
+                            const currentSlots = formData.jadwal?.jamPelajaranMaster || generateDefaultJPSlots('07:15', 40, 10, [4, 7], 30);
+                            const next = [...currentSlots];
+                            next[index] = { ...next[index], jamMulai: val };
+                            handleJadwalChange('jamPelajaranMaster', next);
+                          }}
+                          showNowButton={false}
+                        />
+                      </div>
+                      <span className="text-slate-400 font-bold">-</span>
+                      <div className="w-32">
+                        <TimePicker24h
+                          value={slot.jamSelesai}
+                          onChange={(val) => {
+                            const currentSlots = formData.jadwal?.jamPelajaranMaster || generateDefaultJPSlots('07:15', 40, 10, [4, 7], 30);
+                            const next = [...currentSlots];
+                            next[index] = { ...next[index], jamSelesai: val };
+                            handleJadwalChange('jamPelajaranMaster', next);
+                          }}
+                          showNowButton={false}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -769,23 +849,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <p className="text-[11px] text-slate-600 leading-snug">
                   Penyesuaian jam kepulangan lebih awal untuk ibadah Sholat Jumat.
                 </p>
-                <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                   <div>
-                    <label className="text-[10px] font-bold text-emerald-800 block mb-0.5">Batas Scan Jumat</label>
-                    <input
-                      type="time"
+                    <TimePicker24h
+                      label="Batas Scan Jumat"
                       value={formData.jadwal?.jumatPagiBatasAkhir || '11:00'}
-                      onChange={(e) => handleJadwalChange('jumatPagiBatasAkhir', e.target.value)}
-                      className="w-full bg-white border border-emerald-300 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                      onChange={(val) => handleJadwalChange('jumatPagiBatasAkhir', val)}
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-emerald-800 block mb-0.5">Sesi Siang Jumat</label>
-                    <input
-                      type="time"
+                    <TimePicker24h
+                      label="Sesi Siang Jumat"
                       value={formData.jadwal?.jumatSiangMulai || '13:00'}
-                      onChange={(e) => handleJadwalChange('jumatSiangMulai', e.target.value)}
-                      className="w-full bg-white border border-emerald-300 rounded-lg px-2 py-1 text-xs font-mono font-bold"
+                      onChange={(val) => handleJadwalChange('jumatSiangMulai', val)}
                     />
                   </div>
                 </div>

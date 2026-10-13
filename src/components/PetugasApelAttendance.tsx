@@ -39,6 +39,7 @@ import { SchoolLogo } from '../assets/schoolLogo';
 import { soundService } from '../utils/audio';
 import { generateDailyAttendancePdf, generateApelRecapPdf } from '../utils/exportPdf';
 import { exportDailyAttendanceExcel, exportApelRecapExcel } from '../utils/exportExcel';
+import { getWIBCurrentTimeString, getWIBTodayDateString } from '../utils/wibTime';
 
 interface PetugasApelAttendanceProps {
   students: Student[];
@@ -174,7 +175,7 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
 
   // Update status for a single student
   const handleSetStatus = (nisn: string, status: AttendanceStatus) => {
-    const currentTime = new Date().toTimeString().split(' ')[0];
+    const currentTime = getWIBCurrentTimeString();
     setClassAttendanceMap((prev) => ({
       ...prev,
       [nisn]: {

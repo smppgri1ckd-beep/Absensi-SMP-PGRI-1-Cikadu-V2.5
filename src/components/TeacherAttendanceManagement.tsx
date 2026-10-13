@@ -14,6 +14,7 @@ import { generateQrDataUrl, downloadQrZipForTeachers } from '../utils/qr';
 import { generateTeacherAttendanceRecapPdf, generateTeacherDailyAttendancePdf } from '../utils/exportPdf';
 import { soundService } from '../utils/audio';
 import { useToast } from '../context/ToastContext';
+import { TimePicker24h } from './TimePicker24h';
 import { 
   UserCheck, 
   Clock, 
@@ -1239,12 +1240,10 @@ export const TeacherAttendanceManagement: React.FC<TeacherAttendanceManagementPr
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Jam Datang</label>
-                  <input
-                    type="time"
+                  <TimePicker24h
+                    label="Jam Datang"
                     value={manualWaktu}
-                    onChange={(e) => setManualWaktu(e.target.value)}
-                    className="w-full p-2.5 border border-slate-300 rounded-xl"
+                    onChange={(val) => setManualWaktu(val)}
                   />
                 </div>
               </div>

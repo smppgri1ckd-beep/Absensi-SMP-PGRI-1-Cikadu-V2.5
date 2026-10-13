@@ -32,6 +32,7 @@ import {
   TrendingUp,
   FileCheck
 } from 'lucide-react';
+import { getWIBCurrentTimeString, TIMEZONE_LABEL } from '../utils/wibTime';
 import { 
   TeachingJournal, 
   Student, 
@@ -1735,17 +1736,49 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Jam Ke- & Alokasi Waktu
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">
+                      Jam Ke- & Alokasi Waktu ({TIMEZONE_LABEL})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const timeWib = getWIBCurrentTimeString();
+                        setFormJamPelajaran(`JP 1 - 2 (${timeWib} WIB)`);
+                      }}
+                      className="text-[10px] font-extrabold text-blue-700 hover:text-blue-900 flex items-center gap-1 cursor-pointer bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200"
+                    >
+                      <Clock className="w-3 h-3" />
+                      <span>Gunakan Jam WIB Sekarang ({getWIBCurrentTimeString()})</span>
+                    </button>
+                  </div>
                   <input
                     type="text"
                     required
                     value={formJamPelajaran}
                     onChange={(e) => setFormJamPelajaran(e.target.value)}
-                    placeholder="Contoh: 1 - 2 (07.30 - 08.50)"
+                    placeholder="Contoh: JP 1 - 2 (07:15 - 08:35 WIB)"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-blue-500"
                   />
+                  {/* Preset Jam Ke Quick Chips */}
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {[
+                      'JP 1 - 2 (07:15 - 08:35)',
+                      'JP 3 - 4 (08:35 - 09:55)',
+                      'JP 5 - 6 (10:25 - 11:45)',
+                      'JP 7 - 8 (12:15 - 13:35)',
+                      'JP 9 - 10 (13:35 - 14:55)',
+                    ].map((preset) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setFormJamPelajaran(preset)}
+                        className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 hover:bg-blue-100 text-slate-700 hover:text-blue-900 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                      >
+                        {preset}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
