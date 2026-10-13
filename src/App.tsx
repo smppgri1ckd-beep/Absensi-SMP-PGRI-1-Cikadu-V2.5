@@ -62,7 +62,8 @@ import { AiAttendanceAnalysisModal } from './components/AiAttendanceAnalysisModa
 import { StudentReportCardModal } from './components/StudentReportCardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { AutoUpdateStatusBar } from './components/AutoUpdateStatusBar';
-import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School, QrCode } from 'lucide-react';
+import { FirestoreQuotaDashboard } from './components/FirestoreQuotaDashboard';
+import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School, QrCode, Gauge } from 'lucide-react';
 
 function AppContent() {
   const { user, actingAsPiket, effectiveRole, updateCurrentUserTeacherData } = useAuth();
@@ -1025,7 +1026,11 @@ function AppContent() {
           ) : (
             <>
               {/* Daily Auto Update Status & Date Control Bar */}
-              <AutoUpdateStatusBar onRefreshAllData={loadAllData} className="mb-5" />
+              <AutoUpdateStatusBar 
+                onRefreshAllData={loadAllData} 
+                onOpenQuotaMonitor={() => setActiveTab('firestore-monitor')}
+                className="mb-5" 
+              />
 
               {/* Tab: KIOSK SCANNER (Khusus Guru Piket, Guru Mapel & Staf Sekolah) */}
               {activeTab === 'kiosk' && (
@@ -1568,6 +1573,32 @@ function AppContent() {
                       >
                         <LogIn className="w-4 h-4" />
                         <span>Login Pegawai / Guru</span>
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {/* Tab: MONITOR KUOTA FIRESTORE (Khusus Administrator) */}
+              {activeTab === 'firestore-monitor' && (
+                user?.role === 'admin' ? (
+                  <FirestoreQuotaDashboard onRefreshAllData={loadAllData} />
+                ) : (
+                  <div className="py-20 text-center max-w-lg mx-auto bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-4 animate-in fade-in duration-200">
+                    <div className="w-16 h-16 mx-auto rounded-3xl bg-blue-50 text-blue-700 flex items-center justify-center shadow-inner">
+                      <Gauge className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">Akses Khusus Administrator</h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Dashboard monitor penggunaan kuota Firestore hanya dapat diakses oleh Administrator Sistem sekolah.
+                    </p>
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-2">
+                      <button
+                        onClick={() => setIsLoginOpen(true)}
+                        className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs cursor-pointer shadow-xs transition-colors flex items-center justify-center gap-2"
+                      >
+                        <LogIn className="w-4 h-4" />
+                        <span>Login Administrator</span>
                       </button>
                     </div>
                   </div>

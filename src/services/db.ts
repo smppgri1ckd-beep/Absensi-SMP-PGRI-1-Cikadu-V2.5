@@ -41,6 +41,8 @@ import {
   TeacherLeaveRequest
 } from '../types';
 import { SCHOOL_LOGO_PNG_DATA_URL } from '../assets/schoolLogo';
+import { QuotaTracker } from './quotaTracker';
+export { QuotaTracker };
 
 export const DEFAULT_ADMIN_ACCOUNT: AdminAccountConfig = {
   username: 'admin',
@@ -358,6 +360,7 @@ let hasLoggedQuotaWarning = false;
 export function handleFirestoreError(context: string, error?: unknown): void {
   const errMsg = error ? (error instanceof Error ? error.message : String(error)) : '';
   if (errMsg.includes('Quota limit exceeded') || errMsg.includes('quota metric') || errMsg.includes('Quota exceeded')) {
+    QuotaTracker.recordQuotaExceeded(errMsg);
     if (!hasLoggedQuotaWarning) {
       hasLoggedQuotaWarning = true;
       console.info('Pangkalan data beroperasi dalam mode cache lokal/offline (kuota gratis harian Firestore tercapai).');
@@ -805,6 +808,7 @@ export class DatabaseService {
     try {
       const colRef = collection(db, 'siswa');
       const snap = await getDocs(colRef);
+      QuotaTracker.trackReads('siswa', Math.max(1, snap.size), 'Penarikan data pokok siswa dari cloud');
       const students: Student[] = [];
       snap.forEach((docSnap) => {
         const item = docSnap.data() as Student;
@@ -816,7 +820,7 @@ export class DatabaseService {
       setLocal('students', students);
       return students;
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('getStudents', e);
     }
     return getLocal<Student[]>('students', INITIAL_STUDENTS).filter((s) => !dead.has(s.nisn));
   }
@@ -836,8 +840,9 @@ export class DatabaseService {
     try {
       const docRef = doc(db, 'siswa', student.nisn);
       await setDoc(docRef, cleanData(student));
+      QuotaTracker.trackWrites('siswa', 1, `Simpan data siswa ${student.nama} (${student.nisn})`);
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('saveStudent', e);
     }
   }
 
@@ -918,6 +923,7 @@ export class DatabaseService {
     try {
       const colRef = collection(db, 'presensi');
       const snap = await getDocs(colRef);
+      QuotaTracker.trackReads('presensi', Math.max(1, snap.size), 'Penarikan data presensi apel & KBM dari cloud');
       const records: AttendanceRecord[] = [];
       snap.forEach((docSnap) => {
         const item = docSnap.data() as AttendanceRecord;
@@ -929,7 +935,7 @@ export class DatabaseService {
       setLocal('attendance', records);
       return records;
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('getAttendanceRecords', e);
     }
     return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()).filter((r) => !dead.has(r.id));
   }
@@ -949,8 +955,9 @@ export class DatabaseService {
     try {
       const docRef = doc(db, 'presensi', record.id);
       await setDoc(docRef, cleanData(record));
+      QuotaTracker.trackWrites('presensi', 1, `Input presensi ${record.nama} (${record.status})`);
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('addAttendanceRecord', e);
     }
   }
 

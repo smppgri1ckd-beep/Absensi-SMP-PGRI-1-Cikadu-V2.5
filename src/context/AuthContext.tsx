@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { AuthUser, TeacherUser, UserRole, JadwalPiketHarian, DayOfWeek, PetugasPiketItem, AdminAccountConfig } from '../types';
+import { AuthUser, TeacherUser, UserRole, DutyMode, JadwalPiketHarian, DayOfWeek, PetugasPiketItem, AdminAccountConfig } from '../types';
 import { DatabaseService, INITIAL_TEACHERS, DEFAULT_ADMIN_ACCOUNT, parseList } from '../services/db';
 
 interface LoginResult {
@@ -11,6 +11,12 @@ interface AuthContextType {
   user: AuthUser | null;
   teachers: TeacherUser[];
   adminAccount: AdminAccountConfig;
+  activeDutyMode: DutyMode;
+  setActiveDutyMode: (mode: DutyMode) => void;
+  canActAsGuruMapel: boolean;
+  canActAsWaliKelas: boolean;
+  canActAsPiket: boolean;
+  canActAsKepsek: boolean;
   actingAsPiket: boolean;
   setActingAsPiket: (val: boolean) => void;
   toggleActingAsPiket: () => void;
@@ -30,6 +36,12 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   teachers: [],
   adminAccount: DEFAULT_ADMIN_ACCOUNT,
+  activeDutyMode: 'guru_mapel',
+  setActiveDutyMode: () => {},
+  canActAsGuruMapel: false,
+  canActAsWaliKelas: false,
+  canActAsPiket: false,
+  canActAsKepsek: false,
   actingAsPiket: false,
   setActingAsPiket: () => {},
   toggleActingAsPiket: () => {},
@@ -152,11 +164,95 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAssignedPiketToday = Boolean(todayPiketAssignment);
   const todayPiketRole = todayPiketAssignment?.peran || null;
 
+  // Active Duty Mode State for Teachers & Staff
+  const [activeDutyModeState, setActiveDutyModeState] = useState<DutyMode>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const saved = sessionStorage.getItem('presensi_user_active_duty_mode') || localStorage.getItem('presensi_user_active_duty_mode');
+        if (saved) return saved as DutyMode;
+      }
+    } catch {}
+    return 'guru_mapel';
+  });
+
+  // Determine Capabilities for Current User
+  const canActAsWaliKelas = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (user.role === 'guru') {
+      return Boolean(user.isWaliKelas || (user.waliKelas && user.waliKelas.trim() !== '-' && user.waliKelas.trim() !== ''));
+    }
+    return false;
+  }, [user]);
+
+  const canActAsGuruMapel = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin' || user.role === 'guru') return true;
+    return false;
+  }, [user]);
+
+  const canActAsPiket = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin' || user.role === 'piket') return true;
+    if (user.role === 'guru') {
+      return Boolean(isAssignedPiketToday || user.isGuruPiket || userPiketDays.length > 0 || actingAsPiket);
+    }
+    return false;
+  }, [user, isAssignedPiketToday, userPiketDays, actingAsPiket]);
+
+  const canActAsKepsek = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin' || user.role === 'kepsek') return true;
+    if (user.role === 'guru' && user.isKepsek) return true;
+    return false;
+  }, [user]);
+
+  const activeDutyMode = useMemo<DutyMode>(() => {
+    if (!user) return 'guru_mapel';
+    if (user.role === 'admin') return 'admin';
+    if (user.role === 'kepsek') return 'kepsek';
+    if (user.role === 'ortu') return 'ortu';
+    if (user.role === 'piket') return 'piket';
+
+    // Role === 'guru'
+    if (activeDutyModeState === 'wali_kelas' && canActAsWaliKelas) return 'wali_kelas';
+    if (activeDutyModeState === 'piket' && canActAsPiket) return 'piket';
+    if (activeDutyModeState === 'kepsek' && canActAsKepsek) return 'kepsek';
+    if (activeDutyModeState === 'guru_mapel' && canActAsGuruMapel) return 'guru_mapel';
+
+    // Automatic default for teachers if selected mode isn't available
+    if (canActAsWaliKelas && !canActAsGuruMapel) return 'wali_kelas';
+    return 'guru_mapel';
+  }, [user, activeDutyModeState, canActAsWaliKelas, canActAsPiket, canActAsKepsek, canActAsGuruMapel]);
+
+  const setActiveDutyMode = useCallback((mode: DutyMode) => {
+    setActiveDutyModeState(mode);
+    try {
+      sessionStorage.setItem('presensi_user_active_duty_mode', mode);
+      localStorage.setItem('presensi_user_active_duty_mode', mode);
+    } catch {}
+
+    if (mode === 'piket') {
+      setActingAsPiketState(true);
+      try { localStorage.setItem('presensi_guru_acting_as_piket', 'true'); } catch {}
+    } else {
+      setActingAsPiketState(false);
+      try { localStorage.setItem('presensi_guru_acting_as_piket', 'false'); } catch {}
+    }
+  }, []);
+
   const setActingAsPiket = useCallback((val: boolean) => {
     setActingAsPiketState(val);
     try {
       localStorage.setItem('presensi_guru_acting_as_piket', String(val));
     } catch {}
+    if (val) {
+      setActiveDutyModeState('piket');
+      try { sessionStorage.setItem('presensi_user_active_duty_mode', 'piket'); } catch {}
+    } else {
+      setActiveDutyModeState('guru_mapel');
+      try { sessionStorage.setItem('presensi_user_active_duty_mode', 'guru_mapel'); } catch {}
+    }
   }, []);
 
   const toggleActingAsPiket = useCallback(() => {
@@ -165,12 +261,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         localStorage.setItem('presensi_guru_acting_as_piket', String(next));
       } catch {}
+      const nextMode = next ? 'piket' : 'guru_mapel';
+      setActiveDutyModeState(nextMode);
+      try { sessionStorage.setItem('presensi_user_active_duty_mode', nextMode); } catch {}
       return next;
     });
   }, []);
 
   const effectiveRole: UserRole | 'public' = user 
-    ? (user.role === 'guru' && actingAsPiket ? 'piket' : user.role) 
+    ? (activeDutyMode === 'piket' ? 'piket' : activeDutyMode === 'kepsek' ? 'kepsek' : activeDutyMode === 'admin' ? 'admin' : activeDutyMode === 'ortu' ? 'ortu' : 'guru') 
     : 'public';
 
   const refreshTeachers = useCallback(async () => {
@@ -491,6 +590,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, 
       teachers, 
       adminAccount,
+      activeDutyMode,
+      setActiveDutyMode,
+      canActAsGuruMapel,
+      canActAsWaliKelas,
+      canActAsPiket,
+      canActAsKepsek,
       actingAsPiket, 
       setActingAsPiket, 
       toggleActingAsPiket, 

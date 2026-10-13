@@ -19,7 +19,8 @@ import {
   FileText,
   Award,
   Calendar,
-  MessageSquare
+  MessageSquare,
+  Gauge
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AttendanceSession, SchoolConfig, Student, AttendanceRecord } from '../types';
@@ -66,7 +67,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAgenda,
   onOpenAiAnalysis,
 }) => {
-  const { user, logout, actingAsPiket, setActingAsPiket, effectiveRole } = useAuth();
+  const { 
+    user, 
+    logout, 
+    activeDutyMode, 
+    setActiveDutyMode, 
+    canActAsGuruMapel, 
+    canActAsWaliKelas, 
+    canActAsPiket, 
+    canActAsKepsek, 
+    actingAsPiket, 
+    setActingAsPiket, 
+    effectiveRole 
+  } = useAuth();
   const [isMuted, setIsMuted] = React.useState(soundService.isSoundMuted());
   const [isUserMenuOpen, setIsUserMenuOpen] = React.useState(false);
 
@@ -105,6 +118,8 @@ export const Navbar: React.FC<NavbarProps> = ({
         return 'Portal Informasi & Presensi Real-Time';
       case 'pantau-anak':
         return 'Portal Aktivitas Orang Tua & Siswa';
+      case 'firestore-monitor':
+        return 'Monitor Kuota Database Firestore';
       default:
         return 'E-Presensi Digital';
     }
@@ -137,10 +152,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                   <span className={`hidden xl:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
                     user 
-                      ? (user.role === 'admin' ? 'bg-blue-100 text-blue-900' : user.role === 'guru' ? 'bg-indigo-100 text-indigo-900' : 'bg-emerald-100 text-emerald-900')
+                      ? (activeDutyMode === 'admin' ? 'bg-blue-100 text-blue-900 border border-blue-200' : activeDutyMode === 'wali_kelas' ? 'bg-amber-100 text-amber-900 border border-amber-200' : activeDutyMode === 'piket' ? 'bg-emerald-100 text-emerald-900 border border-emerald-200' : activeDutyMode === 'kepsek' ? 'bg-purple-100 text-purple-900 border border-purple-200' : 'bg-indigo-100 text-indigo-900 border border-indigo-200')
                       : 'bg-amber-100 text-amber-900 border border-amber-200'
                   }`}>
-                    {user ? (user.role === 'admin' ? 'Admin' : user.role === 'guru' ? 'Guru' : 'Piket') : 'Portal Orang Tua'}
+                    {user ? (
+                      activeDutyMode === 'admin' ? 'Admin' :
+                      activeDutyMode === 'wali_kelas' ? `Wali ${user.waliKelas || ''}` :
+                      activeDutyMode === 'piket' ? 'Petugas Piket' :
+                      activeDutyMode === 'kepsek' ? 'Kepala Sekolah' :
+                      'Guru Mapel'
+                    ) : 'Portal Orang Tua'}
                   </span>
                 </div>
                 <p className="text-[11px] font-semibold text-slate-400 hidden 2xl:block truncate">
@@ -506,6 +527,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                           >
                             <Sparkles className="w-3.5 h-3.5 text-purple-600" />
                             <span>Analisis Kehadiran AI (Gemini)</span>
+                          </button>
+                        )}
+
+                        {/* Monitor Kuota Firestore (Khusus Admin) */}
+                        {user?.role === 'admin' && setActiveTab && (
+                          <button
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              setActiveTab('firestore-monitor');
+                            }}
+                            className="w-full py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-blue-200"
+                          >
+                            <Gauge className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Monitor Kuota Firestore</span>
                           </button>
                         )}
 

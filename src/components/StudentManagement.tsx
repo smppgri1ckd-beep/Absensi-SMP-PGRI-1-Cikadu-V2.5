@@ -61,17 +61,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   onOpenWhatsApp,
   onOpenReportCard,
 }) => {
-  const { user, actingAsPiket } = useAuth();
+  const { user, actingAsPiket, activeDutyMode } = useAuth();
   const { toast } = useToast();
   const isTeacher = user?.role === 'guru' && !actingAsPiket;
 
-  // Determine if user is designated as Wali Kelas
+  // Determine if user is currently acting in Wali Kelas mode
   const isWaliKelasUser = Boolean(
-    isTeacher &&
-    user?.isWaliKelas &&
-    user?.waliKelas &&
-    user.waliKelas.trim() !== '-' &&
-    user.waliKelas.trim() !== ''
+    activeDutyMode === 'wali_kelas' ||
+    (isTeacher &&
+      user?.isWaliKelas &&
+      user?.waliKelas &&
+      user.waliKelas.trim() !== '-' &&
+      user.waliKelas.trim() !== '' &&
+      activeDutyMode !== 'guru_mapel')
   );
 
   // Filter State

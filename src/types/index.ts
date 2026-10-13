@@ -181,6 +181,8 @@ export interface ParentUser {
   alamat?: string;
 }
 
+export type DutyMode = 'admin' | 'guru_mapel' | 'wali_kelas' | 'piket' | 'kepsek' | 'ortu';
+
 export interface AuthUser {
   id: string;
   username: string;
@@ -198,10 +200,11 @@ export interface AuthUser {
   avatarColor?: string;
   isAssignedPiketToday?: boolean;
   piketScheduleInfo?: string;
-  // 3 Peran Terfokus
+  // Peran Terfokus
   isGuruMapel?: boolean;
   isWaliKelas?: boolean;
   isGuruPiket?: boolean;
+  isKepsek?: boolean;
   piketDays?: DayOfWeek[];
   piketRole?: string;
 }

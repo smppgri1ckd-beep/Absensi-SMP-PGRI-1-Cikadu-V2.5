@@ -34,7 +34,13 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
   const { 
     user, 
     logout, 
-    actingAsPiket, 
+    activeDutyMode,
+    setActiveDutyMode,
+    canActAsGuruMapel,
+    canActAsWaliKelas,
+    canActAsPiket,
+    canActAsKepsek,
+    actingAsPiket,
     setActingAsPiket,
     isAssignedPiketToday,
     todayPiketAssignment,
@@ -60,20 +66,34 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
       bg: 'bg-gradient-to-r from-emerald-950 via-teal-950 to-slate-900 text-white border-emerald-800',
       badgeBg: 'bg-emerald-500/20 text-emerald-200 border-emerald-400/40',
       icon: UserCheck,
-      title: user.role === 'guru' && actingAsPiket ? 'Petugas Piket (Tugas Guru)' : 'Petugas Piket Presensi',
-      desc: user.role === 'guru' && actingAsPiket
-        ? 'Anda sedang bertindak sebagai Petugas Piket. Memiliki akses operasional scanner kiosk, apel pagi & siang, dan verifikasi izin/sakit.'
-        : 'Bertugas mengoperasikan scanner kiosk, monitoring kehadiran pagi/siang, dan penyesuaian izin/sakit siswa.',
+      title: user.role === 'guru' ? 'Petugas Guru Piket (Moda Operasional Apel)' : 'Petugas Piket Presensi',
+      desc: 'Bertugas mengoperasikan scanner kiosk, monitoring kehadiran apel pagi/siang, dan penyesuaian izin/sakit siswa.',
       accent: 'text-emerald-300',
+    },
+    wali_kelas: {
+      bg: 'bg-gradient-to-r from-amber-950 via-yellow-950 to-slate-900 text-white border-amber-800',
+      badgeBg: 'bg-amber-500/20 text-amber-200 border-amber-400/40',
+      icon: BookOpen,
+      title: `Wali Kelas ${user.waliKelas || ''} (Binaan Kelas)`,
+      desc: `Fokus pembinaan data pokok siswa kelas ${user.waliKelas || ''}, rekap absensi, verifikasi izin, dan cetak rapor.`,
+      accent: 'text-amber-300',
+    },
+    guru_mapel: {
+      bg: 'bg-gradient-to-r from-indigo-950 via-purple-950 to-slate-900 text-white border-indigo-800',
+      badgeBg: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40',
+      icon: GraduationCap,
+      title: 'Guru Mata Pelajaran (KBM)',
+      desc: user.mapel 
+        ? `Guru Pengajar Mapel: ${user.mapel}. Pengisian jurnal mengajar KBM, tugas PR, dan input nilai siswa.`
+        : 'Pengisian Jurnal KBM harian dan pemantauan absensi peserta didik.',
+      accent: 'text-sky-300',
     },
     guru: {
       bg: 'bg-gradient-to-r from-indigo-950 via-purple-950 to-slate-900 text-white border-indigo-800',
       badgeBg: 'bg-indigo-500/20 text-indigo-200 border-indigo-400/40',
       icon: GraduationCap,
-      title: 'Guru Pengajar / Wali Kelas',
-      desc: user.mapel 
-        ? `Guru Mata Pelajaran: ${user.mapel}${user.waliKelas ? ` • Wali Kelas ${user.waliKelas}` : ''}. Pengisian jurnal mengajar & monitoring kelas.`
-        : 'Pengisian Jurnal KBM harian dan pemantauan absensi peserta didik.',
+      title: 'Guru Pengajar / Pendidik',
+      desc: 'Pengisian Jurnal KBM harian dan pemantauan absensi peserta didik.',
       accent: 'text-sky-300',
     },
     kepsek: {
@@ -94,8 +114,8 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
     },
   };
 
-  const activeRoleKey = user.role === 'guru' && actingAsPiket ? 'piket' : user.role;
-  const currentConfig = roleStyles[activeRoleKey] || roleStyles.admin;
+  const activeRoleKey = user.role === 'guru' ? activeDutyMode : user.role;
+  const currentConfig = roleStyles[activeRoleKey as keyof typeof roleStyles] || roleStyles.guru;
   const RoleIcon = currentConfig.icon;
 
   return (
@@ -146,58 +166,6 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
 
           {/* Right action tools: Login Switcher & controls */}
           <div className="flex items-center gap-2 self-end md:self-auto shrink-0">
-            
-            {/* Ganti Akun Button - Membuka Form Login Sandi */}
-            <button
-              onClick={onOpenLoginModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all shadow-xs cursor-pointer"
-              title="Ganti akun pengguna (masukkan username & password)"
-            >
-              <KeyRound className="w-3.5 h-3.5 text-amber-300" />
-              <span>Ganti Akun</span>
-            </button>
-
-            {/* Quick Context Shortcut & Teacher Piket Switcher */}
-            {user.role === 'guru' && (
-              actingAsPiket ? (
-                <button
-                  onClick={() => {
-                    setActingAsPiket(false);
-                    setActiveTab?.('journal');
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black ring-2 ring-emerald-300 transition-all shadow-xs cursor-pointer"
-                  title="Klik untuk kembali ke peran Guru Pengajar (KBM)"
-                >
-                  <GraduationCap className="w-3.5 h-3.5" />
-                  <span>Mode Piket Aktif (Beralih ke KBM)</span>
-                </button>
-              ) : isAssignedPiketToday ? (
-                <button
-                  onClick={() => {
-                    setActingAsPiket(true);
-                    setActiveTab?.('apel-attendance');
-                  }}
-                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 text-xs font-black ring-2 ring-emerald-300 shadow-md shadow-emerald-950/40 transition-all cursor-pointer animate-pulse hover:scale-105"
-                  title="Klik untuk mengaktifkan operasional Petugas Piket Presensi Hari Ini"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-                  <span>Mulai Piket Hari Ini</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    setActingAsPiket(true);
-                    setActiveTab?.('apel-attendance');
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold border border-emerald-400/50 transition-all shadow-xs cursor-pointer"
-                  title="Bertindak sebagai Petugas Piket Pengganti"
-                >
-                  <UserCheck className="w-3.5 h-3.5 text-emerald-200" />
-                  <span>Piket Pengganti</span>
-                </button>
-              )
-            )}
-
             {user.role === 'ortu' && setActiveTab && (
               <button
                 onClick={() => setActiveTab('pantau-anak')}
@@ -206,28 +174,6 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-200" />
                 <span>Pantau Anak</span>
-              </button>
-            )}
-
-            {user.role === 'guru' && !actingAsPiket && setActiveTab && (
-              <button
-                onClick={() => setActiveTab('journal')}
-                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                title="Buka Jurnal KBM"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                <span>Jurnal KBM</span>
-              </button>
-            )}
-
-            {(user.role === 'piket' || (user.role === 'guru' && actingAsPiket)) && setActiveTab && (
-              <button
-                onClick={() => setActiveTab('apel-attendance')}
-                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-                title="Buka Absensi Apel Petugas"
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Absensi Apel</span>
               </button>
             )}
 
@@ -241,6 +187,16 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
                 <span>Pengaturan</span>
               </button>
             )}
+
+            {/* Ganti Akun Button - Membuka Form Login Sandi */}
+            <button
+              onClick={onOpenLoginModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold border border-white/15 transition-all shadow-xs cursor-pointer"
+              title="Ganti akun pengguna (masukkan username & password)"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+              <span>Ganti Akun</span>
+            </button>
 
             {/* Logout button */}
             <button
@@ -260,8 +216,95 @@ export const RoleSessionBanner: React.FC<RoleSessionBannerProps> = ({
               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
-
         </div>
+
+        {/* Multi-Role Duty Switcher Bar for Teachers */}
+        {user.role === 'guru' && (
+          <div className="mt-3 pt-2.5 border-t border-white/10 flex flex-wrap items-center justify-between gap-2.5 animate-in fade-in duration-200">
+            <div className="flex items-center gap-1.5 text-xs text-slate-200 font-extrabold">
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>Ganti Moda Peran Tugas:</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-1.5">
+              {canActAsGuruMapel && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDutyMode('guru_mapel');
+                    setActiveTab?.('journal');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    activeDutyMode === 'guru_mapel'
+                      ? 'bg-blue-600 text-white ring-2 ring-blue-300 shadow-md scale-105'
+                      : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/15'
+                  }`}
+                  title="Klik untuk berpindah ke Moda Guru Mata Pelajaran (KBM)"
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-sky-300" />
+                  <span>Guru Mapel {user.mapel ? `(${user.mapel})` : ''}</span>
+                </button>
+              )}
+
+              {canActAsWaliKelas && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDutyMode('wali_kelas');
+                    setActiveTab?.('students');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    activeDutyMode === 'wali_kelas'
+                      ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 shadow-md scale-105'
+                      : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/15'
+                  }`}
+                  title={`Klik untuk berpindah ke Moda Wali Kelas ${user.waliKelas || ''}`}
+                >
+                  <BookOpen className="w-3.5 h-3.5 text-amber-950" />
+                  <span>Wali Kelas {user.waliKelas}</span>
+                </button>
+              )}
+
+              {canActAsPiket && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDutyMode('piket');
+                    setActiveTab?.('apel-attendance');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    activeDutyMode === 'piket'
+                      ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-300 shadow-md scale-105'
+                      : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/15'
+                  }`}
+                  title="Klik untuk berpindah ke Moda Petugas Piket Presensi"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-emerald-950" />
+                  <span>Petugas Piket {isAssignedPiketToday ? '★ (Tugas Hari Ini)' : ''}</span>
+                </button>
+              )}
+
+              {canActAsKepsek && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveDutyMode('kepsek');
+                    setActiveTab?.('kepsek');
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                    activeDutyMode === 'kepsek'
+                      ? 'bg-purple-600 text-white ring-2 ring-purple-300 shadow-md scale-105'
+                      : 'bg-white/10 hover:bg-white/20 text-slate-200 border border-white/15'
+                  }`}
+                  title="Klik untuk berpindah ke Moda Supervisi Kepala Sekolah"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-purple-200" />
+                  <span>Supervisi Kepsek</span>
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Dedicated Teacher Piket Duty Callout */}
         {user.role === 'guru' && isAssignedPiketToday && (

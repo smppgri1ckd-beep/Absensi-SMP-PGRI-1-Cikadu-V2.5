@@ -22,7 +22,9 @@ import {
   Award,
   Calendar,
   MessageSquare,
-  FileCheck
+  FileCheck,
+  Gauge,
+  Database
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SchoolConfig } from '../types';
@@ -79,6 +81,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { 
     user, 
     logout, 
+    activeDutyMode,
+    setActiveDutyMode,
+    canActAsGuruMapel,
+    canActAsWaliKelas,
+    canActAsPiket,
+    canActAsKepsek,
     actingAsPiket, 
     setActingAsPiket, 
     effectiveRole,
@@ -243,17 +251,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ];
     }
 
-    // 4 & 5. GURU & PETUGAS PIKET (Modular Per 3 Peran: Guru Mapel, Wali Kelas, Guru Piket)
+    // 4 & 5. GURU & PETUGAS PIKET (Modular Per Peran: Guru Mapel, Wali Kelas, Petugas Piket, Kepsek)
     if (user.role === 'guru' || user.role === 'piket') {
-      const isMapelAssigned = user.isGuruMapel !== false && (Boolean(user.mapel) || (user.penugasanMapel && user.penugasanMapel.length > 0));
-      const isWaliAssigned = Boolean(user.isWaliKelas) && Boolean(user.waliKelas && user.waliKelas !== '-' && user.waliKelas !== '');
-      const isPiketAssigned = Boolean(user.isGuruPiket) || user.role === 'piket' || Boolean(isAssignedPiketToday) || Boolean(user.piketDays && user.piketDays.length > 0) || actingAsPiket;
-
       const groups: MenuGroup[] = [];
 
-      // JIKA SEDANG BERTINDAK SEBAGAI PETUGAS PIKET (Mode Ruang Kerja Piket Terisolasi)
-      // Seluruh menu Guru Mapel & Wali Kelas disembunyikan agar fokus pada tugas operasional piket
-      if (actingAsPiket || user.role === 'piket') {
+      // 1. MODA PETUGAS PIKET
+      if (activeDutyMode === 'piket' || user.role === 'piket') {
         groups.push({
           groupTitle: 'Ruang Kerja Petugas Piket',
           items: [
@@ -307,10 +310,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ],
         });
 
-        // Layanan Pendukung & Informasi Sekolah
         groups.push({
           groupTitle: 'Layanan & Info Sekolah',
           items: [
+            {
+              id: 'my-profile',
+              label: 'Profil & Kartu Saya',
+              desc: 'Edit foto & cetak kartu QR individu',
+              icon: GraduationCap,
+            },
             {
               id: 'action-agenda',
               label: 'Agenda Kegiatan Sekolah',
@@ -330,71 +338,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         return groups;
       }
 
-      // JIKA DALAM MODE RUANG KERJA GURU (Guru Mapel & Wali Kelas)
-      // 1. Penugasan Guru Mapel
-      if (isMapelAssigned) {
+      // 2. MODA WALI KELAS
+      if (activeDutyMode === 'wali_kelas') {
         groups.push({
-          groupTitle: `Penugasan Guru Mapel ${user.mapel ? `(${user.mapel})` : ''}`,
-          items: [
-            {
-              id: 'journal',
-              label: 'Absensi & Jurnal Pembelajaran',
-              desc: 'Catat absensi mapel & agenda KBM guru',
-              icon: BookOpen,
-              tag: 'KBM',
-              tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
-            },
-            {
-              id: 'assignments',
-              label: 'Tugas & PR Siswa',
-              desc: 'Input penugasan, PR & deadline siswa',
-              icon: FileCheck,
-              tag: 'Tugas',
-              tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
-            },
-            {
-              id: 'action-grades',
-              label: 'Kelola Nilai Siswa',
-              desc: 'Input nilai tugas, UH, PTS & PAS',
-              icon: Award,
-              isAction: true,
-              tag: 'Nilai',
-              tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
-            },
-            {
-              id: 'reports-kbm',
-              label: 'Rekap Laporan Pembelajaran',
-              desc: 'Laporan KBM mapel & ketuntasan belajar',
-              icon: BookOpen,
-              tag: 'Laporan',
-              tagColor: 'bg-indigo-100 text-indigo-900 font-bold',
-            },
-            {
-              id: 'heb-calendar',
-              label: 'Kalender Efektif (HEB)',
-              desc: 'Target hari belajar mengajar',
-              icon: CalendarDays,
-            },
-          ],
-        });
-      }
-
-      // 2. Penugasan Wali Kelas
-      if (isWaliAssigned) {
-        groups.push({
-          groupTitle: `Penugasan Wali Kelas ${user.waliKelas ? `(${user.waliKelas})` : ''}`,
+          groupTitle: `Ruang Kerja Wali Kelas ${user.waliKelas ? `(${user.waliKelas})` : ''}`,
           items: [
             {
               id: 'students',
-              label: `Data Siswa Kelas ${user.waliKelas || 'Binaan'}`,
-              desc: 'Daftar nama & kontak orang tua kelas binaan',
+              label: `Data Pokok Siswa ${user.waliKelas || 'Binaan'}`,
+              desc: 'Daftar nama, foto, NISN & ortu kelas binaan',
               icon: Users,
               tag: user.waliKelas || 'Wali',
               tagColor: 'bg-amber-100 text-amber-900 font-bold',
             },
             {
               id: 'action-grades',
-              label: `Rekap Nilai & Rapor ${user.waliKelas || 'Binaan'}`,
+              label: `Manajemen Nilai & Rapor ${user.waliKelas || 'Binaan'}`,
               desc: 'Input nilai, rekap leger & cetak rapor kelas',
               icon: Award,
               isAction: true,
@@ -403,16 +362,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
             },
             {
               id: 'pantau-anak',
-              label: `Pantau Siswa ${user.waliKelas || 'Binaan'}`,
-              desc: 'Perkembangan nilai, tugas & presensi siswa binaan',
+              label: `Pantau Perkembangan Siswa ${user.waliKelas || 'Binaan'}`,
+              desc: 'Monitoring nilai, tugas & presensi siswa binaan',
               icon: Sparkles,
               tag: 'Binaan',
               tagColor: 'bg-amber-100 text-amber-900 font-bold',
             },
             {
               id: 'action-leave-approval',
-              label: 'Verifikasi Izin & Sakit',
-              desc: 'Periksa surat izin & permohonan siswa',
+              label: 'Verifikasi Izin & Sakit Siswa',
+              desc: 'Validasi surat permohonan izin kelas binaan',
               icon: FileText,
               isAction: true,
               tag: pendingLeaveCount > 0 ? `${pendingLeaveCount} Pengajuan` : undefined,
@@ -420,8 +379,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             },
             {
               id: 'action-whatsapp',
-              label: 'Kirim Notifikasi WhatsApp Ortu',
-              desc: 'Kirim info presensi & catatan ke wali murid',
+              label: 'Notifikasi WA Wali Murid',
+              desc: 'Kirim pengumuman & catatan ke orang tua',
               icon: MessageSquare,
               isAction: true,
               tag: 'WA',
@@ -429,16 +388,157 @@ export const Sidebar: React.FC<SidebarProps> = ({
             },
           ],
         });
+
+        // KBM pendukung untuk Wali Kelas
+        groups.push({
+          groupTitle: 'Penugasan Mengajar (KBM)',
+          items: [
+            {
+              id: 'journal',
+              label: 'Absensi & Jurnal Pembelajaran',
+              desc: 'Catat absensi KBM & agenda mengajar',
+              icon: BookOpen,
+            },
+            {
+              id: 'assignments',
+              label: 'Kelola Tugas & PR Siswa',
+              desc: 'Input tugas, PR & deadline siswa',
+              icon: FileCheck,
+            },
+          ],
+        });
+
+        groups.push({
+          groupTitle: 'Layanan & Operasional',
+          items: [
+            {
+              id: 'my-profile',
+              label: 'Profil & Kartu Saya',
+              desc: 'Edit foto, NUPTK & cetak kartu QR',
+              icon: GraduationCap,
+            },
+            {
+              id: 'teacher-attendance',
+              label: 'Absensi Saya & Pendidik',
+              desc: 'Absen mandiri, rekap & izin dinas guru',
+              icon: UserCheck,
+            },
+            {
+              id: 'action-agenda',
+              label: 'Agenda Kegiatan Sekolah',
+              desc: 'Kalender kegiatan sekolah',
+              icon: Calendar,
+              isAction: true,
+            },
+            {
+              id: 'public-info',
+              label: 'Jadwal & Info Sekolah',
+              desc: 'Profil & jam operasional sekolah',
+              icon: Info,
+            },
+          ],
+        });
+
+        return groups;
       }
 
-      // 3. Layanan Pendukung & Informasi Sekolah
+      // 3. MODA KEPALA SEKOLAH (JIKA ADA PERAN)
+      if (activeDutyMode === 'kepsek') {
+        groups.push({
+          groupTitle: 'Ruang Kerja Kepala Sekolah',
+          items: [
+            {
+              id: 'kepsek',
+              label: 'Portal Kepala Sekolah',
+              desc: 'Supervisi KBM & persetujuan izin guru',
+              icon: ShieldCheck,
+              tag: 'Supervisi',
+              tagColor: 'bg-purple-100 text-purple-900 font-bold',
+            },
+            {
+              id: 'dashboard',
+              label: 'Monitoring Presensi Apel',
+              desc: 'Pantau kehadiran harian seluruh siswa',
+              icon: LayoutDashboard,
+            },
+            {
+              id: 'journal',
+              label: 'Supervisi Jurnal Mengajar',
+              desc: 'Pantau keterlaksanaan KBM dewan guru',
+              icon: BookOpen,
+            },
+            {
+              id: 'reports-apel',
+              label: 'Rekap Laporan Apel',
+              desc: 'Laporan eksekutif presensi apel',
+              icon: FileSpreadsheet,
+            },
+            {
+              id: 'reports-kbm',
+              label: 'Rekap Laporan Pembelajaran',
+              desc: 'Laporan KBM mata pelajaran',
+              icon: BookOpen,
+            },
+          ],
+        });
+
+        return groups;
+      }
+
+      // 4. MODA GURU MATA PELAJARAN (DEFAULT KBM)
+      groups.push({
+        groupTitle: `Ruang Kerja Guru Mapel ${user.mapel ? `(${user.mapel})` : ''}`,
+        items: [
+          {
+            id: 'journal',
+            label: 'Absensi & Jurnal Pembelajaran',
+            desc: 'Catat absensi mapel & agenda KBM harian',
+            icon: BookOpen,
+            tag: 'KBM',
+            tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
+          },
+          {
+            id: 'assignments',
+            label: 'Kelola Tugas & PR Siswa',
+            desc: 'Input penugasan, PR & deadline siswa',
+            icon: FileCheck,
+            tag: 'Tugas',
+            tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
+          },
+          {
+            id: 'action-grades',
+            label: 'Kelola Nilai Siswa',
+            desc: 'Input nilai tugas, UH, PTS & PAS mapel',
+            icon: Award,
+            isAction: true,
+            tag: 'Nilai',
+            tagColor: 'bg-indigo-100 text-indigo-800 font-bold',
+          },
+          {
+            id: 'reports-kbm',
+            label: 'Rekap Laporan Pembelajaran',
+            desc: 'Laporan KBM mapel & ketuntasan belajar',
+            icon: BookOpen,
+            tag: 'Laporan',
+            tagColor: 'bg-indigo-100 text-indigo-900 font-bold',
+          },
+          {
+            id: 'heb-calendar',
+            label: 'Kalender Efektif (HEB)',
+            desc: 'Target hari belajar mengajar',
+            icon: CalendarDays,
+          },
+        ],
+      });
+
+      // Layanan & Operasional
       groups.push({
         groupTitle: 'Layanan & Operasional Sekolah',
         items: [
           {
             id: 'my-profile',
             label: 'Profil & Kartu Saya',
-            desc: 'Edit foto, NUPTK/ID, penugasan & cetak kartu QR individu',
+            desc: 'Edit foto, NUPTK/ID & cetak kartu QR',
             icon: GraduationCap,
             tag: 'Profil',
             tagColor: 'bg-emerald-100 text-emerald-900 font-bold',
@@ -670,8 +770,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         ],
       },
       {
-        groupTitle: 'Pengaturan Sistem',
+        groupTitle: 'Pengaturan & Infrastruktur Cloud',
         items: [
+          {
+            id: 'firestore-monitor',
+            label: 'Monitor Kuota Firestore',
+            desc: 'Pantau sisa jatah 50.000 pembacaan data harian',
+            icon: Gauge,
+            tag: '50K Limit',
+            tagColor: 'bg-blue-100 text-blue-900 font-extrabold',
+          },
           {
             id: 'settings',
             label: 'Pengaturan & Upload Logo',
@@ -842,83 +950,102 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </button>
                 </div>
 
-                {/* ROLE SWITCHER: Bertindak Sebagai Petugas Piket */}
+                {/* MULTI-ROLE DUTY SWITCHER: Beralih Moda Peran Tugas */}
                 {user.role === 'guru' && (
-                  <div className="pt-2">
-                    {actingAsPiket ? (
-                      <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-1.5 shadow-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase text-emerald-700">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            Petugas Piket Aktif
-                          </span>
-                          <span className="text-[9px] font-bold bg-emerald-200/80 text-emerald-900 px-2 py-0.5 rounded-full">
-                            Penugasan
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-emerald-800 leading-tight">
-                          Anda sedang bertindak sebagai <strong>Petugas Piket</strong>. Seluruh menu presensi apel & monitoring aktif.
-                        </p>
+                  <div className="pt-2 space-y-1">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400 pb-0.5">
+                      <span>Beralih Moda Tugas</span>
+                      <span className="text-amber-600 font-extrabold flex items-center gap-1">
+                        <Sparkles className="w-2.5 h-2.5 text-amber-500" />
+                        Terpisah
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-1">
+                      {canActAsGuruMapel && (
                         <button
                           type="button"
                           onClick={() => {
-                            setActingAsPiket(false);
+                            setActiveDutyMode('guru_mapel');
                             setActiveTab('journal');
                           }}
-                          className="w-full py-1.5 px-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                          className={`w-full p-2 rounded-xl text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
+                            activeDutyMode === 'guru_mapel'
+                              ? 'bg-blue-600 text-white font-black shadow-xs ring-2 ring-blue-300'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
                         >
-                          <GraduationCap className="w-3.5 h-3.5" />
-                          <span>Kembali ke Menu Guru</span>
+                          <div className="flex items-center gap-2 truncate">
+                            <GraduationCap className="w-3.5 h-3.5 shrink-0 text-sky-500" />
+                            <span className="truncate">Guru Mapel {user.mapel ? `(${user.mapel})` : ''}</span>
+                          </div>
+                          {activeDutyMode === 'guru_mapel' && <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.2 rounded-md uppercase font-black">Aktif</span>}
                         </button>
-                      </div>
-                    ) : isAssignedPiketToday ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActingAsPiket(true);
-                          setActiveTab('apel-attendance');
-                        }}
-                        className="w-full p-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs flex items-center justify-between gap-2 transition-all cursor-pointer shadow-md shadow-emerald-950/20 group ring-2 ring-emerald-400/80 animate-pulse"
-                        title="Anda terjadwal piket hari ini! Klik untuk mengaktifkan operasional piket"
-                      >
-                        <div className="flex items-center gap-2 text-left min-w-0">
-                          <div className="p-1 rounded-lg bg-amber-400 text-slate-950 font-black shrink-0">
-                            <Sparkles className="w-4 h-4 text-slate-950" />
+                      )}
+
+                      {canActAsWaliKelas && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveDutyMode('wali_kelas');
+                            setActiveTab('students');
+                          }}
+                          className={`w-full p-2 rounded-xl text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
+                            activeDutyMode === 'wali_kelas'
+                              ? 'bg-amber-500 text-slate-950 font-black shadow-xs ring-2 ring-amber-300'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <BookOpen className="w-3.5 h-3.5 shrink-0 text-amber-600" />
+                            <span className="truncate">Wali Kelas {user.waliKelas}</span>
                           </div>
-                          <div className="min-w-0">
-                            <div className="text-xs font-black leading-tight flex items-center gap-1.5">
-                              <span className="truncate">Tugas Piket Hari Ini!</span>
-                              <span className="text-[9px] bg-amber-400 text-slate-950 font-black px-1.5 py-0.2 rounded-full shrink-0">AKTIF</span>
-                            </div>
-                            <div className="text-[10px] text-emerald-100 font-medium truncate">
-                              {todayPiketRole || 'Operasional presensi & apel'}
-                            </div>
+                          {activeDutyMode === 'wali_kelas' && <span className="text-[9px] bg-slate-950/20 text-slate-950 px-1.5 py-0.2 rounded-md uppercase font-black">Aktif</span>}
+                        </button>
+                      )}
+
+                      {canActAsPiket && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveDutyMode('piket');
+                            setActiveTab('apel-attendance');
+                          }}
+                          className={`w-full p-2 rounded-xl text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
+                            activeDutyMode === 'piket'
+                              ? 'bg-emerald-600 text-white font-black shadow-xs ring-2 ring-emerald-300'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <UserCheck className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                            <span className="truncate">Petugas Piket {isAssignedPiketToday ? '★ Hari Ini' : ''}</span>
                           </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-emerald-200 group-hover:translate-x-0.5 transition-transform shrink-0" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActingAsPiket(true);
-                          setActiveTab('apel-attendance');
-                        }}
-                        className="w-full p-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white font-extrabold text-xs flex items-center justify-between gap-2 transition-all cursor-pointer shadow-xs group"
-                        title="Klik untuk bertindak sebagai Petugas Piket Pengganti"
-                      >
-                        <div className="flex items-center gap-2 text-left">
-                          <div className="p-1 rounded-lg bg-white/20 text-white group-hover:scale-110 transition-transform">
-                            <UserCheck className="w-4 h-4" />
+                          {activeDutyMode === 'piket' && <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.2 rounded-md uppercase font-black">Aktif</span>}
+                        </button>
+                      )}
+
+                      {canActAsKepsek && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveDutyMode('kepsek');
+                            setActiveTab('kepsek');
+                          }}
+                          className={`w-full p-2 rounded-xl text-left font-bold text-xs flex items-center justify-between transition-all cursor-pointer ${
+                            activeDutyMode === 'kepsek'
+                              ? 'bg-purple-600 text-white font-black shadow-xs ring-2 ring-purple-300'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-purple-600" />
+                            <span className="truncate">Supervisi Kepsek</span>
                           </div>
-                          <div>
-                            <div className="text-xs font-black leading-tight">Bertindak Petugas Piket</div>
-                            <div className="text-[10px] text-emerald-100 font-normal">Operasional presensi apel & kiosk</div>
-                          </div>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-emerald-200 group-hover:translate-x-0.5 transition-transform" />
-                      </button>
-                    )}
+                          {activeDutyMode === 'kepsek' && <span className="text-[9px] bg-white/20 text-white px-1.5 py-0.2 rounded-md uppercase font-black">Aktif</span>}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
