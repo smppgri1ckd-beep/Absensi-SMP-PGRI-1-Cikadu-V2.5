@@ -598,6 +598,37 @@ function getInitialAttendanceRecords(): AttendanceRecord[] {
 }
 
 export class DatabaseService {
+  // Synchronous cache-first state getter for instant UI load with zero cloud quota consumption
+  static getInitialLocalState() {
+    const rawConfig = getLocal<Partial<SchoolConfig>>('school_config', DEFAULT_SCHOOL_CONFIG);
+    const schoolConfig: SchoolConfig = {
+      ...DEFAULT_SCHOOL_CONFIG,
+      ...rawConfig,
+      logoUrl: rawConfig?.logoUrl || SCHOOL_LOGO_PNG_DATA_URL,
+      jadwal: {
+        ...DEFAULT_SCHOOL_CONFIG.jadwal,
+        ...(rawConfig?.jadwal || {}),
+      },
+    };
+
+    return {
+      schoolConfig,
+      students: getLocal<Student[]>('students', INITIAL_STUDENTS),
+      records: getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()),
+      kalenderHeb: getLocal<KalenderHeb>('kalender_heb', { kalenderData: {} }),
+      teachers: getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS),
+      journals: getLocal<TeachingJournal[]>('teaching_journals', []),
+      grades: getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES),
+      schedules: getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES),
+      leaveRequests: getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS),
+      jadwalPiket: getLocal<JadwalPiketHarian[]>('jadwal_piket_data', INITIAL_JADWAL_PIKET),
+      schoolEvents: getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS),
+      teacherRecords: getLocal<TeacherAttendanceRecord[]>('teacher_attendance_records', []),
+      teacherLeaves: getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []),
+      assignments: getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS),
+    };
+  }
+
   // --- SCHOOL CONFIG ---
   static async getSchoolConfig(): Promise<SchoolConfig> {
     const rawLocal = getLocal<Partial<SchoolConfig>>('school_config', DEFAULT_SCHOOL_CONFIG);
@@ -1233,7 +1264,10 @@ export class DatabaseService {
         setLocal('jadwal_piket_data', list);
         callback(list);
       }
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_piket', err);
+      callback(getLocal<JadwalPiketHarian[]>('jadwal_piket_data', INITIAL_JADWAL_PIKET));
+    });
   }
 
   // ==========================================================
@@ -1510,7 +1544,10 @@ export class DatabaseService {
       list.sort((a, b) => (b.deadline || '').localeCompare(a.deadline || ''));
       setLocal('assignments_data', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_tugas', err);
+      callback(getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS));
+    });
   }
 
   static async getSubmissions(nisn?: string): Promise<StudentAssignmentSubmission[]> {
@@ -2248,7 +2285,10 @@ export class DatabaseService {
       list.sort((a, b) => a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama));
       setLocal('students', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_siswa', err);
+      callback(getLocal<Student[]>('students', INITIAL_STUDENTS));
+    });
   }
 
   static subscribeAttendance(callback: (records: AttendanceRecord[]) => void): () => void {
@@ -2264,7 +2304,10 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('attendance', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_presensi', err);
+      callback(getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()));
+    });
   }
 
   static subscribeGrades(callback: (grades: StudentGradeItem[]) => void): () => void {
@@ -2280,7 +2323,10 @@ export class DatabaseService {
       list.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
       setLocal('student_grades', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_nilai', err);
+      callback(getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES));
+    });
   }
 
   static subscribeLeaveRequests(callback: (requests: LeaveRequest[]) => void): () => void {
@@ -2296,7 +2342,10 @@ export class DatabaseService {
       list.sort((a, b) => b.tanggalPengajuan.localeCompare(a.tanggalPengajuan));
       setLocal('leave_requests', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_izin', err);
+      callback(getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS));
+    });
   }
 
   static subscribeTeachingJournals(callback: (journals: TeachingJournal[]) => void): () => void {
@@ -2312,7 +2361,10 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt));
       setLocal('teaching_journals', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_jurnal', err);
+      callback(getLocal<TeachingJournal[]>('teaching_journals', []));
+    });
   }
 
   static subscribeTeachers(callback: (teachers: TeacherUser[]) => void): () => void {
@@ -2328,7 +2380,10 @@ export class DatabaseService {
       list.sort((a, b) => a.nama.localeCompare(b.nama));
       setLocal('teachers', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_guru', err);
+      callback(getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS));
+    });
   }
 
   static subscribeTeacherAttendanceRecords(callback: (records: TeacherAttendanceRecord[]) => void): () => void {
@@ -2344,7 +2399,10 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('teacher_attendance_records', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_presensi_guru', err);
+      callback(getLocal<TeacherAttendanceRecord[]>('teacher_attendance_records', []));
+    });
   }
 
   static subscribeTeacherLeaveRequests(callback: (requests: TeacherLeaveRequest[]) => void): () => void {
@@ -2360,7 +2418,10 @@ export class DatabaseService {
       list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
       setLocal('teacher_leave_requests', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_izin_guru', err);
+      callback(getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []));
+    });
   }
 
   static subscribeSchoolConfig(callback: (config: SchoolConfig) => void): () => void {
@@ -2376,7 +2437,10 @@ export class DatabaseService {
         setLocal('school_config', data);
         callback(data);
       }
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_config', err);
+      callback(getLocal<SchoolConfig>('school_config', DEFAULT_SCHOOL_CONFIG));
+    });
   }
 
   static subscribeKalenderHeb(callback: (heb: KalenderHeb) => void): () => void {
@@ -2392,7 +2456,10 @@ export class DatabaseService {
         setLocal('kalender_heb', data);
         callback(data);
       }
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_kalender_heb', err);
+      callback(getLocal<KalenderHeb>('kalender_heb', { kalenderData: {} }));
+    });
   }
 
   // --- AGENDA KEGIATAN SEKOLAH ---
@@ -2486,7 +2553,10 @@ export class DatabaseService {
       list.sort((a, b) => a.tanggalMulai.localeCompare(b.tanggalMulai));
       setLocal('school_events', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_agenda_sekolah', err);
+      callback(getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS));
+    });
   }
 
   // --- WHATSAPP TEMPLATES ---

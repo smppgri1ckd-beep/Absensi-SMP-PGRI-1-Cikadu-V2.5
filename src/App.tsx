@@ -70,25 +70,26 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState<string>('public-info');
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   
-  // Data States
-  const [students, setStudents] = useState<Student[]>([]);
-  const [records, setRecords] = useState<AttendanceRecord[]>([]);
-  const [schoolConfig, setSchoolConfig] = useState<SchoolConfig>(DEFAULT_SCHOOL_CONFIG);
-  const [kalenderHeb, setKalenderHeb] = useState<KalenderHeb>({ kalenderData: {} });
-  const [teachers, setTeachers] = useState<TeacherUser[]>([]);
-  const [journals, setJournals] = useState<TeachingJournal[]>([]);
-  const [grades, setGrades] = useState<StudentGradeItem[]>([]);
-  const [schedules, setSchedules] = useState<ClassScheduleItem[]>([]);
-  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
-  const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>([]);
-  const [schoolEvents, setSchoolEvents] = useState<SchoolEventItem[]>([]);
-  const [teacherRecords, setTeacherRecords] = useState<TeacherAttendanceRecord[]>([]);
-  const [teacherLeaves, setTeacherLeaves] = useState<TeacherLeaveRequest[]>([]);
-  const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
+  // Data States (Cache-First: instan dari penyimpanan lokal/IndexedDB)
+  const initialLocalData = useMemo(() => DatabaseService.getInitialLocalState(), []);
+  const [students, setStudents] = useState<Student[]>(initialLocalData.students);
+  const [records, setRecords] = useState<AttendanceRecord[]>(initialLocalData.records);
+  const [schoolConfig, setSchoolConfig] = useState<SchoolConfig>(initialLocalData.schoolConfig);
+  const [kalenderHeb, setKalenderHeb] = useState<KalenderHeb>(initialLocalData.kalenderHeb);
+  const [teachers, setTeachers] = useState<TeacherUser[]>(initialLocalData.teachers);
+  const [journals, setJournals] = useState<TeachingJournal[]>(initialLocalData.journals);
+  const [grades, setGrades] = useState<StudentGradeItem[]>(initialLocalData.grades);
+  const [schedules, setSchedules] = useState<ClassScheduleItem[]>(initialLocalData.schedules);
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(initialLocalData.leaveRequests);
+  const [jadwalPiket, setJadwalPiket] = useState<JadwalPiketHarian[]>(initialLocalData.jadwalPiket);
+  const [schoolEvents, setSchoolEvents] = useState<SchoolEventItem[]>(initialLocalData.schoolEvents);
+  const [teacherRecords, setTeacherRecords] = useState<TeacherAttendanceRecord[]>(initialLocalData.teacherRecords);
+  const [teacherLeaves, setTeacherLeaves] = useState<TeacherLeaveRequest[]>(initialLocalData.teacherLeaves);
+  const [assignments, setAssignments] = useState<AssignmentItem[]>(initialLocalData.assignments);
   const availableClasses = useMemo(() => Array.from(new Set(students.map((s) => s.kelas))).sort(), [students]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [loadingProgress, setLoadingProgress] = useState<number>(15);
-  const [loadingStepText, setLoadingStepText] = useState<string>('Menghubungkan ke pangkalan data sekolah...');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loadingProgress, setLoadingProgress] = useState<number>(100);
+  const [loadingStepText, setLoadingStepText] = useState<string>('Pangkalan data siap.');
   const [selectedPantauStudent, setSelectedPantauStudent] = useState<Student | null>(null);
 
   // Modals
@@ -133,77 +134,28 @@ function AppContent() {
     prevUserRoleRef.current = currentRole;
   }, [effectiveRole]);
 
-  // Load all initial data from database service with smooth progress tracking
+  // Load initial data from cache-first local storage and sync seamlessly via real-time subscriptions
   const loadAllData = useCallback(async () => {
     try {
-      setLoadingProgress(15);
-      setLoadingStepText('Menghubungkan ke pangkalan data sekolah...');
-
-      let completedCount = 0;
-      const totalSteps = 13;
-      const trackStep = async <T,>(promise: Promise<T>, stepName: string): Promise<T> => {
-        const result = await promise;
-        completedCount += 1;
-        const targetPct = Math.min(95, Math.round(15 + (completedCount / totalSteps) * 80));
-        setLoadingProgress(targetPct);
-        setLoadingStepText(stepName);
-        return result;
-      };
-
-      const [
-        cfg, 
-        studentList, 
-        recordList, 
-        heb, 
-        teacherList, 
-        journalList,
-        gradeList,
-        scheduleList,
-        leaveList,
-        piketList,
-        eventList,
-        teacherRecList,
-        teacherLeaveList,
-        assignmentList
-      ] = await Promise.all([
-        trackStep(DatabaseService.getSchoolConfig(), 'Memuat konfigurasi & jadwal sekolah...'),
-        trackStep(DatabaseService.getStudents(), 'Sinkronisasi profil & data siswa...'),
-        trackStep(DatabaseService.getAttendanceRecords(), 'Memuat rekap presensi & kehadiran apel...'),
-        trackStep(DatabaseService.getKalenderHeb(), 'Sinkronisasi kalender hari efektif belajar...'),
-        trackStep(DatabaseService.getTeachers(), 'Memuat akun pendidik & petugas piket...'),
-        trackStep(DatabaseService.getTeachingJournals(), 'Menyiapkan agenda & jurnal mengajar...'),
-        trackStep(DatabaseService.getStudentGrades(), 'Memuat rekap penilaian & rapor digital...'),
-        trackStep(DatabaseService.getClassSchedules(), 'Memuat jadwal mata pelajaran & KBM...'),
-        trackStep(DatabaseService.getLeaveRequests(), 'Sinkronisasi surat izin & permohonan...'),
-        trackStep(DatabaseService.getJadwalPiket(), 'Memeriksa penugasan piket hari ini...'),
-        trackStep(DatabaseService.getSchoolEvents(), 'Memuat agenda kegiatan sekolah...'),
-        trackStep(DatabaseService.getTeacherAttendanceRecords(), 'Memuat presensi guru & tendik...'),
-        trackStep(DatabaseService.getTeacherLeaveRequests(), 'Memuat permohonan izin guru...'),
-        trackStep(DatabaseService.getAssignments(), 'Memuat daftar tugas & penugasan siswa...'),
-      ]);
-
-      setSchoolConfig(cfg);
-      setStudents(studentList);
-      setRecords(recordList);
-      setKalenderHeb(heb);
-      setTeachers(teacherList);
-      setJournals(journalList);
-      setGrades(gradeList);
-      setSchedules(scheduleList);
-      setLeaveRequests(leaveList);
-      setJadwalPiket(piketList);
-      setSchoolEvents(eventList);
-      setTeacherRecords(teacherRecList);
-      setTeacherLeaves(teacherLeaveList);
-      setAssignments(assignmentList);
-
+      const cached = DatabaseService.getInitialLocalState();
+      setSchoolConfig(cached.schoolConfig);
+      setStudents(cached.students);
+      setRecords(cached.records);
+      setKalenderHeb(cached.kalenderHeb);
+      setTeachers(cached.teachers);
+      setJournals(cached.journals);
+      setGrades(cached.grades);
+      setSchedules(cached.schedules);
+      setLeaveRequests(cached.leaveRequests);
+      setJadwalPiket(cached.jadwalPiket);
+      setSchoolEvents(cached.schoolEvents);
+      setTeacherRecords(cached.teacherRecords);
+      setTeacherLeaves(cached.teacherLeaves);
+      setAssignments(cached.assignments);
       setLoadingProgress(100);
-      setLoadingStepText('Data berhasil disinkronkan, menyiapkan antarmuka...');
-      // Brief pause to let the 100% transition animation complete smoothly
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      setLoadingStepText('Pangkalan data siap.');
     } catch (e) {
       console.error('Error loading data', e);
-      setLoadingStepText('Melanjutkan dengan data lokal...');
     } finally {
       setIsLoading(false);
     }
