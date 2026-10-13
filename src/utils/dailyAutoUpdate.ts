@@ -32,18 +32,22 @@ export function getSystemTodayDate(): string {
 }
 
 export function getActiveDate(): string {
-  const simulated = localStorage.getItem(STORAGE_KEY_SIMULATED_DATE);
-  if (simulated && /^\d{4}-\d{2}-\d{2}$/.test(simulated)) {
-    return simulated;
+  if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+    const simulated = sessionStorage.getItem(STORAGE_KEY_SIMULATED_DATE);
+    if (simulated && /^\d{4}-\d{2}-\d{2}$/.test(simulated)) {
+      return simulated;
+    }
   }
   return getSystemTodayDate();
 }
 
 export function setActiveSimulatedDate(dateStr: string | null): void {
-  if (dateStr) {
-    localStorage.setItem(STORAGE_KEY_SIMULATED_DATE, dateStr);
-  } else {
-    localStorage.removeItem(STORAGE_KEY_SIMULATED_DATE);
+  if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+    if (dateStr) {
+      sessionStorage.setItem(STORAGE_KEY_SIMULATED_DATE, dateStr);
+    } else {
+      sessionStorage.removeItem(STORAGE_KEY_SIMULATED_DATE);
+    }
   }
 }
 
@@ -654,60 +658,38 @@ export class DailyAutoUpdateService {
     message: string;
   }> {
     const activeDate = getActiveDate();
-    const lastDate = localStorage.getItem(STORAGE_KEY_LAST_DATE);
+    const lastDate = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined'
+      ? sessionStorage.getItem(STORAGE_KEY_LAST_DATE)
+      : null;
 
     // If already updated for this activeDate and not forced, skip
     if (!force && lastDate === activeDate) {
       return {
         updated: false,
         activeDate,
-        message: `Data sudah sinkron untuk ${formatIndonesianDate(activeDate)}`,
+        message: `Data sinkron untuk ${formatIndonesianDate(activeDate)}`,
       };
     }
 
     try {
-      console.log(`[DailyAutoUpdate] Menjalankan auto-update data harian untuk tanggal: ${activeDate}`);
+      if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(STORAGE_KEY_LAST_DATE, activeDate);
+      }
 
-      // 1. Load existing data
-      const [students, teachers, currentLeaves, currentRecords, currentLogs, currentJournals, currentTeacherAttendance] = await Promise.all([
-        DatabaseService.getStudents(),
-        DatabaseService.getTeachers(),
-        DatabaseService.getLeaveRequests(),
-        DatabaseService.getAttendanceRecords(),
-        DatabaseService.getStudentActivityLogs(),
-        DatabaseService.getTeachingJournals(),
-        DatabaseService.getTeacherAttendanceRecords(),
-      ]);
-
-      // 2. Generate updated datasets
-      const updatedLeaves = generateAutoLeaveRequests(activeDate, currentLeaves);
-      const updatedRecords = generateAutoAttendanceRecords(activeDate, students, currentRecords, updatedLeaves);
-      const updatedLogs = generateAutoActivityLogs(activeDate, currentLogs);
-      const updatedJournals = generateAutoTeachingJournals(activeDate, currentJournals);
-      const updatedTeacherAttendance = generateAutoTeacherAttendance(activeDate, teachers, currentTeacherAttendance);
-
-      // 3. Persist back to storage
-      localStorage.setItem('leave_requests', JSON.stringify(updatedLeaves));
-      localStorage.setItem('attendance', JSON.stringify(updatedRecords));
-      localStorage.setItem('activity_logs', JSON.stringify(updatedLogs));
-      localStorage.setItem('teaching_journals', JSON.stringify(updatedJournals));
-      localStorage.setItem('teacher_attendance', JSON.stringify(updatedTeacherAttendance));
-      localStorage.setItem(STORAGE_KEY_LAST_DATE, activeDate);
-
-      // 4. Notify listeners
+      // Notify listeners of active date change without injecting fake local data
       this.notifyListeners(activeDate);
 
       return {
         updated: true,
         activeDate,
-        message: `Berhasil memperbarui data otomatis untuk ${formatIndonesianDate(activeDate)}`,
+        message: `Sinkronisasi tanggal ${formatIndonesianDate(activeDate)} aktif`,
       };
     } catch (err) {
-      console.error('[DailyAutoUpdate] Gagal menjalankan auto update harian:', err);
+      console.error('[DailyAutoUpdate] Error updating active date:', err);
       return {
         updated: false,
         activeDate,
-        message: 'Gagal menjalankan pembaruan otomatis',
+        message: 'Gagal menjalankan pembaruan tanggal',
       };
     }
   }
@@ -750,7 +732,9 @@ export class DailyAutoUpdateService {
     // Timer check every 60 seconds
     this.intervalId = window.setInterval(() => {
       const currentActive = getActiveDate();
-      const last = localStorage.getItem(STORAGE_KEY_LAST_DATE);
+      const last = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined'
+        ? sessionStorage.getItem(STORAGE_KEY_LAST_DATE)
+        : null;
       if (currentActive !== last) {
         this.checkAndRunDailyAutoUpdate().catch(console.error);
       }
@@ -760,7 +744,9 @@ export class DailyAutoUpdateService {
     const onFocusOrVisible = () => {
       if (document.visibilityState === 'visible') {
         const currentActive = getActiveDate();
-        const last = localStorage.getItem(STORAGE_KEY_LAST_DATE);
+        const last = typeof window !== 'undefined' && typeof sessionStorage !== 'undefined'
+          ? sessionStorage.getItem(STORAGE_KEY_LAST_DATE)
+          : null;
         if (currentActive !== last) {
           this.checkAndRunDailyAutoUpdate().catch(console.error);
         }

@@ -272,37 +272,53 @@ export const INITIAL_TEACHERS: TeacherUser[] = [
   },
 ];
 
-// Helper for local storage key prefixes and real-time cross-tab broadcast
-const STORAGE_PREFIX = 'presensi_pgri_';
+// In-memory runtime cache for the active session (NO persistent localStorage caching).
+// Ensures all updates are read/written directly to the cloud database (Firestore).
+const memoryStore = new Map<string, any>();
 
 export const syncChannel = typeof window !== 'undefined' && 'BroadcastChannel' in window
   ? new BroadcastChannel('presensi_pgri_sync')
   : null;
 
-function getLocal<T>(key: string, defaultValue: T): T {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-    return defaultValue;
-  }
+// Cleanup legacy localStorage cache so browsers on HP and desktop immediately drop stale data
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
   try {
-    const raw = localStorage.getItem(STORAGE_PREFIX + key);
-    if (!raw) return defaultValue;
-    return JSON.parse(raw);
-  } catch (e) {
-    console.error(`Failed to read ${key} from local storage`, e);
-    return defaultValue;
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (
+        k.startsWith('presensi_pgri_') || 
+        k.startsWith('pgri_') || 
+        k === 'attendance' || 
+        k === 'leave_requests' || 
+        k === 'activity_logs' || 
+        k === 'teaching_journals' || 
+        k === 'teacher_attendance' ||
+        k === 'class_schedules' ||
+        k === 'school_config' ||
+        k === 'students' ||
+        k === 'teachers' ||
+        k === 'student_grades'
+      )) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // Ignore storage errors
   }
 }
 
+function getLocal<T>(key: string, defaultValue: T): T {
+  if (memoryStore.has(key)) {
+    return memoryStore.get(key) as T;
+  }
+  return defaultValue;
+}
+
 function setLocal<T>(key: string, value: T): void {
-  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
-    return;
-  }
-  try {
-    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
-    syncChannel?.postMessage({ type: 'SYNC_UPDATE', key, timestamp: Date.now() });
-  } catch (e) {
-    console.error(`Failed to write ${key} to local storage`, e);
-  }
+  memoryStore.set(key, value);
+  syncChannel?.postMessage({ type: 'SYNC_UPDATE', key, timestamp: Date.now() });
 }
 
 // Clean object helper: ensures no unsupported 'undefined' values are passed to Firestore
@@ -777,32 +793,22 @@ export class DatabaseService {
 
   // --- ATTENDANCE ---
   static async getAttendanceRecords(): Promise<AttendanceRecord[]> {
-    const local = getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords());
-    if (!db) return local;
+    if (!db) return getLocal<AttendanceRecord[]>('attendance', []);
 
     try {
       const colRef = collection(db, 'presensi');
       const snap = await getDocs(colRef);
-      if (!snap.empty) {
-        const records: AttendanceRecord[] = [];
-        snap.forEach((docSnap) => {
-          records.push(docSnap.data() as AttendanceRecord);
-        });
-        setLocal('attendance', records);
-        return records;
-      } else {
-        // Seed remote collection if empty
-        const batch = writeBatch(db);
-        local.forEach((a) => {
-          const docRef = doc(db!, 'presensi', a.id);
-          batch.set(docRef, cleanData(a));
-        });
-        await batch.commit().catch(() => {});
-      }
+      const records: AttendanceRecord[] = [];
+      snap.forEach((docSnap) => {
+        records.push(docSnap.data() as AttendanceRecord);
+      });
+      records.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
+      setLocal('attendance', records);
+      return records;
     } catch (e) {
-      console.warn('Firestore getAttendanceRecords fallback to local', e);
+      console.warn('Firestore getAttendanceRecords error:', e);
     }
-    return local;
+    return getLocal<AttendanceRecord[]>('attendance', []);
   }
 
   static async addAttendanceRecord(record: AttendanceRecord): Promise<void> {
@@ -1476,12 +1482,10 @@ export class DatabaseService {
     }
     const colRef = collection(db, 'jadwal_pelajaran');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: ClassScheduleItem[] = [];
-        snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
-        setLocal('class_schedules', list);
-        callback(list);
-      }
+      const list: ClassScheduleItem[] = [];
+      snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
+      setLocal('class_schedules', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (jadwal_pelajaran):', err));
   }
 
@@ -2325,67 +2329,59 @@ export class DatabaseService {
     }
     const colRef = collection(db, 'siswa');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: Student[] = [];
-        snap.forEach((d) => list.push(d.data() as Student));
-        list.sort((a, b) => a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama));
-        setLocal('students', list);
-        callback(list);
-      }
+      const list: Student[] = [];
+      snap.forEach((d) => list.push(d.data() as Student));
+      list.sort((a, b) => a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama));
+      setLocal('students', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (siswa):', err));
   }
 
   static subscribeAttendance(callback: (records: AttendanceRecord[]) => void): () => void {
     if (!db) {
-      const handler = () => callback(getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()));
+      const handler = () => callback(getLocal<AttendanceRecord[]>('attendance', []));
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'presensi');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: AttendanceRecord[] = [];
-        snap.forEach((d) => list.push(d.data() as AttendanceRecord));
-        list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
-        setLocal('attendance', list);
-        callback(list);
-      }
+      const list: AttendanceRecord[] = [];
+      snap.forEach((d) => list.push(d.data() as AttendanceRecord));
+      list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
+      setLocal('attendance', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (presensi):', err));
   }
 
   static subscribeGrades(callback: (grades: StudentGradeItem[]) => void): () => void {
     if (!db) {
-      const handler = () => callback(getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES));
+      const handler = () => callback(getLocal<StudentGradeItem[]>('student_grades', []));
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'nilai_siswa');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: StudentGradeItem[] = [];
-        snap.forEach((d) => list.push(d.data() as StudentGradeItem));
-        list.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
-        setLocal('student_grades', list);
-        callback(list);
-      }
+      const list: StudentGradeItem[] = [];
+      snap.forEach((d) => list.push(d.data() as StudentGradeItem));
+      list.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+      setLocal('student_grades', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (nilai_siswa):', err));
   }
 
   static subscribeLeaveRequests(callback: (requests: LeaveRequest[]) => void): () => void {
     if (!db) {
-      const handler = () => callback(getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS));
+      const handler = () => callback(getLocal<LeaveRequest[]>('leave_requests', []));
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'permohonan_izin');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: LeaveRequest[] = [];
-        snap.forEach((d) => list.push(d.data() as LeaveRequest));
-        list.sort((a, b) => b.tanggalPengajuan.localeCompare(a.tanggalPengajuan));
-        setLocal('leave_requests', list);
-        callback(list);
-      }
+      const list: LeaveRequest[] = [];
+      snap.forEach((d) => list.push(d.data() as LeaveRequest));
+      list.sort((a, b) => b.tanggalPengajuan.localeCompare(a.tanggalPengajuan));
+      setLocal('leave_requests', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (permohonan_izin):', err));
   }
 
@@ -2397,13 +2393,11 @@ export class DatabaseService {
     }
     const colRef = collection(db, 'jurnal_mengajar');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: TeachingJournal[] = [];
-        snap.forEach((d) => list.push(d.data() as TeachingJournal));
-        list.sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt));
-        setLocal('teaching_journals', list);
-        callback(list);
-      }
+      const list: TeachingJournal[] = [];
+      snap.forEach((d) => list.push(d.data() as TeachingJournal));
+      list.sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt));
+      setLocal('teaching_journals', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (jurnal_mengajar):', err));
   }
 
@@ -2415,13 +2409,11 @@ export class DatabaseService {
     }
     const colRef = collection(db, 'guru_users');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: TeacherUser[] = [];
-        snap.forEach((d) => list.push(d.data() as TeacherUser));
-        list.sort((a, b) => a.nama.localeCompare(b.nama));
-        setLocal('teachers', list);
-        callback(list);
-      }
+      const list: TeacherUser[] = [];
+      snap.forEach((d) => list.push(d.data() as TeacherUser));
+      list.sort((a, b) => a.nama.localeCompare(b.nama));
+      setLocal('teachers', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (guru_users):', err));
   }
 
@@ -2433,13 +2425,11 @@ export class DatabaseService {
     }
     const colRef = collection(db, 'presensi_guru');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: TeacherAttendanceRecord[] = [];
-        snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
-        list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
-        setLocal('teacher_attendance_records', list);
-        callback(list);
-      }
+      const list: TeacherAttendanceRecord[] = [];
+      snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
+      list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
+      setLocal('teacher_attendance_records', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (presensi_guru):', err));
   }
 
@@ -2451,13 +2441,11 @@ export class DatabaseService {
     }
     const colRef = collection(db, 'permohonan_izin_guru');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: TeacherLeaveRequest[] = [];
-        snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
-        list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
-        setLocal('teacher_leave_requests', list);
-        callback(list);
-      }
+      const list: TeacherLeaveRequest[] = [];
+      snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
+      list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
+      setLocal('teacher_leave_requests', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (permohonan_izin_guru):', err));
   }
 
@@ -2475,6 +2463,22 @@ export class DatabaseService {
         callback(data);
       }
     }, (err) => console.warn('Firestore onSnapshot error (pengaturan):', err));
+  }
+
+  static subscribeKalenderHeb(callback: (heb: KalenderHeb) => void): () => void {
+    if (!db) {
+      const handler = () => callback(getLocal<KalenderHeb>('kalender_heb', { kalenderData: {} }));
+      syncChannel?.addEventListener('message', handler);
+      return () => syncChannel?.removeEventListener('message', handler);
+    }
+    const docRef = doc(db, 'kalender_heb', 'active');
+    return onSnapshot(docRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as KalenderHeb;
+        setLocal('kalender_heb', data);
+        callback(data);
+      }
+    }, (err) => console.warn('Firestore onSnapshot error (kalender_heb):', err));
   }
 
   // --- AGENDA KEGIATAN SEKOLAH ---
@@ -2573,13 +2577,11 @@ export class DatabaseService {
     }
     const colRef = collection(db, 'agenda_sekolah');
     return onSnapshot(colRef, (snap) => {
-      if (!snap.empty) {
-        const list: SchoolEventItem[] = [];
-        snap.forEach((d) => list.push(d.data() as SchoolEventItem));
-        list.sort((a, b) => a.tanggalMulai.localeCompare(b.tanggalMulai));
-        setLocal('school_events', list);
-        callback(list);
-      }
+      const list: SchoolEventItem[] = [];
+      snap.forEach((d) => list.push(d.data() as SchoolEventItem));
+      list.sort((a, b) => a.tanggalMulai.localeCompare(b.tanggalMulai));
+      setLocal('school_events', list);
+      callback(list);
     }, (err) => console.warn('Firestore onSnapshot error (agenda_sekolah):', err));
   }
 

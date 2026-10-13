@@ -219,6 +219,7 @@ function AppContent() {
     const unsubTeacherRecs = DatabaseService.subscribeTeacherAttendanceRecords((data) => setTeacherRecords(data));
     const unsubTeacherLeaves = DatabaseService.subscribeTeacherLeaveRequests((data) => setTeacherLeaves(data));
     const unsubConfig = DatabaseService.subscribeSchoolConfig((data) => setSchoolConfig(data));
+    const unsubHeb = DatabaseService.subscribeKalenderHeb((data) => setKalenderHeb(data));
     const unsubPiket = DatabaseService.subscribeJadwalPiket((data) => setJadwalPiket(data));
     const unsubEvents = DatabaseService.subscribeSchoolEvents((data) => setSchoolEvents(data));
 
@@ -234,6 +235,7 @@ function AppContent() {
       unsubTeacherRecs();
       unsubTeacherLeaves();
       unsubConfig();
+      unsubHeb();
       unsubPiket();
       unsubEvents();
     };

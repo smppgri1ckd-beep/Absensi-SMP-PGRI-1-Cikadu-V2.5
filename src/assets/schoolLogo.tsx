@@ -27,20 +27,11 @@ export const SchoolLogo: React.FC<SchoolLogoProps> = ({
 
   // Automatically resolve the active logo:
   // 1. Explicitly passed src
-  // 2. Cached school_config logoUrl from localStorage
+  // Automatically resolve the active logo:
+  // 1. Explicitly passed src
+  // 2. Default official logo
   const resolvedSrc = React.useMemo(() => {
     if (src && src.trim().length > 0) return src;
-    try {
-      const raw = localStorage.getItem('school_config');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.logoUrl && typeof parsed.logoUrl === 'string' && parsed.logoUrl.trim().length > 0) {
-          return parsed.logoUrl;
-        }
-      }
-    } catch {
-      // ignore
-    }
     return null;
   }, [src]);
 
