@@ -24,6 +24,7 @@ import {
 import { AssignmentItem, TeacherUser, SchoolConfig } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
+import { getTeacherAccessibleClasses, normalizeClassName, isClassMatch } from '../utils/teacherFilter';
 
 interface AssignmentManagementProps {
   assignments: AssignmentItem[];
@@ -55,9 +56,21 @@ export const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
   const [editingAssignment, setEditingAssignment] = useState<AssignmentItem | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Scoped classes for teacher vs admin
+  const teacherAccessibleClasses = useMemo(() => {
+    return user?.role === 'guru' ? getTeacherAccessibleClasses(user) : [];
+  }, [user]);
+
+  const targetClassesList = useMemo(() => {
+    if (user?.role === 'guru' && teacherAccessibleClasses.length > 0) {
+      return teacherAccessibleClasses;
+    }
+    return availableClasses.length > 0 ? availableClasses : ['7A', '7B', '8A', '8B', '9A', '9B'];
+  }, [user, teacherAccessibleClasses, availableClasses]);
+
   // Form State
   const todayStr = new Date().toISOString().split('T')[0];
-  const [formKelas, setFormKelas] = useState(availableClasses[0] || '7A');
+  const [formKelas, setFormKelas] = useState(targetClassesList[0] || '7A');
   const [formMapel, setFormMapel] = useState(user?.mapel || 'Matematika');
   const [formJudul, setFormJudul] = useState('');
   const [formDeskripsi, setFormDeskripsi] = useState('');
@@ -85,7 +98,7 @@ export const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
   // Open Create Modal
   const handleOpenCreate = () => {
     setEditingAssignment(null);
-    setFormKelas(availableClasses[0] || '7A');
+    setFormKelas(targetClassesList[0] || '7A');
     setFormMapel(user?.mapel || teacherSubjects[0] || 'Matematika');
     setFormJudul('');
     setFormDeskripsi('');
@@ -171,16 +184,21 @@ export const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
 
   // Filtered Assignments
   const filteredAssignments = useMemo(() => {
-    const today = new Date().toISOString().split('T')[0];
     return assignments.filter((a) => {
-      // Guru Scope
+      // Guru Scope: Only display assignments for classes assigned to this teacher!
+      if (user?.role === 'guru' && teacherAccessibleClasses.length > 0) {
+        if (!teacherAccessibleClasses.includes(normalizeClassName(a.kelas))) {
+          return false;
+        }
+      }
+      // Author filter (if toggled)
       if (onlyMyAssignments && user?.role === 'guru') {
         const isAuthor = (a.guruId && a.guruId === user.id) || 
           (a.guruNama && user.nama && a.guruNama.toLowerCase().trim() === user.nama.toLowerCase().trim());
         if (!isAuthor) return false;
       }
       // Class Filter
-      if (selectedClassFilter !== 'Semua' && a.kelas !== selectedClassFilter) {
+      if (selectedClassFilter !== 'Semua' && !isClassMatch(a.kelas, selectedClassFilter)) {
         return false;
       }
       // Type Filter
@@ -298,7 +316,7 @@ export const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
                 className="bg-transparent focus:outline-hidden cursor-pointer"
               >
                 <option value="Semua">Semua Kelas</option>
-                {availableClasses.map((c) => (
+                {targetClassesList.map((c) => (
                   <option key={c} value={c}>Kelas {c}</option>
                 ))}
               </select>
@@ -517,7 +535,7 @@ export const AssignmentManagement: React.FC<AssignmentManagementProps> = ({
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 focus:bg-white cursor-pointer"
                     required
                   >
-                    {Array.from(new Set([...availableClasses, '7A', '7B', '8A', '8B', '9A', '9B'])).map((c) => (
+                    {targetClassesList.map((c) => (
                       <option key={c} value={c}>Kelas {c}</option>
                     ))}
                   </select>

@@ -1299,10 +1299,10 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
               : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
           }`}
         >
-          Semua Kelas ({journals.length})
+          Semua Kelas ({teacherScopedJournals.length})
         </button>
         {displayClasses.map((c) => {
-          const count = journals.filter((j) => isClassMatch(j.kelas, c)).length;
+          const count = teacherScopedJournals.filter((j) => isClassMatch(j.kelas, c)).length;
           return (
             <button
               key={c}
@@ -1383,7 +1383,11 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
         ) : (
           filteredJournals.map((j) => {
             const isSelected = selectedJournalIds.includes(j.id);
-            const canDeleteCard = user?.role === 'admin' || j.guruId === user?.id;
+            const isAuthor = Boolean(
+              (j.guruId && user?.id && j.guruId === user.id) ||
+              (j.guruNama && user?.nama && j.guruNama.toLowerCase().trim() === user.nama.toLowerCase().trim())
+            );
+            const canDeleteCard = user?.role === 'admin' || isAuthor;
 
             return (
               <div
@@ -1432,7 +1436,11 @@ export const TeachingJournalComponent: React.FC<TeachingJournalProps> = ({
                     </span>
                     {canDeleteCard && (
                       <button
-                        onClick={() => onDeleteJournal(j.id)}
+                        onClick={() => {
+                          if (window.confirm(`Yakin ingin menghapus jurnal pertemuan ke-${j.pertemuanKe} kelas ${j.kelas} (${j.mapel})?\n\nData presensi dan refleksi akan dihapus permanen dari sistem dan cloud Firestore.`)) {
+                            onDeleteJournal(j.id);
+                          }
+                        }}
                         className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                         title="Hapus Jurnal"
                       >

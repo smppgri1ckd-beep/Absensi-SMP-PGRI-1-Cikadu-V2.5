@@ -12,25 +12,27 @@ import {
   QrCode, 
   Sparkles, 
   CheckCheck, 
-  RotateCcw,
-  Sun,
-  Moon,
-  Info,
-  Check,
-  ChevronRight,
-  Printer,
-  FileSpreadsheet,
-  FileText,
-  X
+  RotateCcw, 
+  Sun, 
+  Moon, 
+  Info, 
+  Check, 
+  ChevronRight, 
+  Printer, 
+  FileSpreadsheet, 
+  FileText, 
+  X,
+  Trash2
 } from 'lucide-react';
 import { 
   Student, 
   AttendanceRecord, 
   SchoolConfig, 
   AttendanceStatus, 
-  AttendanceSession,
+  AttendanceSession, 
   TeacherUser 
 } from '../types';
+import { DatabaseService } from '../services/db';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { SchoolLogo } from '../assets/schoolLogo';
@@ -45,6 +47,8 @@ interface PetugasApelAttendanceProps {
   currentSession: AttendanceSession;
   teachers?: TeacherUser[];
   onBulkSave: (records: AttendanceRecord[]) => Promise<void>;
+  onDeleteRecord?: (id: string) => Promise<void>;
+  onBulkDeleteRecords?: (ids: string[]) => Promise<void>;
   onOpenScanner?: () => void;
   onRefresh?: () => Promise<void>;
 }
@@ -56,6 +60,8 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
   currentSession,
   teachers = [],
   onBulkSave,
+  onDeleteRecord,
+  onBulkDeleteRecords,
   onOpenScanner,
   onRefresh,
 }) => {
@@ -256,6 +262,72 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
       soundService.playError();
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Delete individual student's attendance record
+  const handleDeleteStudentRecord = async (student: Student) => {
+    const existing = records.find(
+      (r) => (r.nisn === student.nisn && r.tanggal === selectedDate && r.sesi === selectedSession) &&
+             (r.kategori === 'APEL' || (!r.kategori && !r.id.startsWith('PRESENSI_KBM_') && !r.mapel))
+    );
+
+    if (!existing) {
+      setClassAttendanceMap((prev) => {
+        const copy = { ...prev };
+        delete copy[student.nisn];
+        return copy;
+      });
+      toast.info('Status Direset', `Presensi untuk ${student.nama} dikembalikan ke belum absen.`);
+      return;
+    }
+
+    if (window.confirm(`Hapus catatan presensi apel ${selectedSession} untuk ${student.nama} (${selectedDate})?\n\nData akan dihapus permanen dari Firestore dan sistem.`)) {
+      try {
+        if (onDeleteRecord) {
+          await onDeleteRecord(existing.id);
+        } else {
+          await DatabaseService.deleteAttendanceRecord(existing.id);
+        }
+        setClassAttendanceMap((prev) => {
+          const copy = { ...prev };
+          delete copy[student.nisn];
+          return copy;
+        });
+        toast.delete('Presensi Dihapus', `Catatan presensi apel ${student.nama} berhasil dihapus.`);
+      } catch (err) {
+        console.error('Failed to delete attendance record', err);
+        toast.error('Gagal Menghapus', 'Terjadi kesalahan saat menghapus data.');
+      }
+    }
+  };
+
+  // Reset or bulk delete class session attendance
+  const handleResetClassAttendance = async () => {
+    const matchingRecords = records.filter(
+      (r) => r.kelas === selectedClass && r.tanggal === selectedDate && r.sesi === selectedSession &&
+             (r.kategori === 'APEL' || (!r.kategori && !r.id.startsWith('PRESENSI_KBM_') && !r.mapel))
+    );
+
+    if (matchingRecords.length === 0) {
+      toast.warning('Tidak Ada Data', `Belum ada rekaman tersimpan untuk Kelas ${selectedClass} pada sesi ${selectedSession} (${selectedDate}).`);
+      return;
+    }
+
+    if (window.confirm(`YAKIN INGIN MENGHAPUS SELURUH (${matchingRecords.length}) REKAMAN PRESENSI APEL KELAS ${selectedClass}?\n\nSesi: ${selectedSession}\nTanggal: ${selectedDate}\n\nData akan dihapus permanen dari database cloud dan lokal.`)) {
+      try {
+        const ids = matchingRecords.map((r) => r.id);
+        if (onBulkDeleteRecords) {
+          await onBulkDeleteRecords(ids);
+        } else {
+          await DatabaseService.bulkDeleteAttendanceRecords(ids);
+        }
+        setClassAttendanceMap({});
+        toast.delete('Presensi Direset', `Seluruh presensi sesi ${selectedSession} Kelas ${selectedClass} berhasil dihapus.`);
+      } catch (err) {
+        console.error('Failed to reset attendance', err);
+        toast.error('Gagal Mereset', 'Terjadi kesalahan saat menghapus data.');
+      }
     }
   };
 
@@ -531,6 +603,7 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
                 <th className="py-3 px-4 w-20 text-center">L/P</th>
                 <th className="py-3 px-4 min-w-[340px]">Status Kehadiran Apel</th>
                 <th className="py-3 px-4 min-w-[200px]">Catatan / Keterangan</th>
+                <th className="py-3 px-3 w-16 text-center">Hapus</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -655,6 +728,40 @@ export const PetugasApelAttendance: React.FC<PetugasApelAttendanceProps> = ({
                           onChange={(e) => handleSetCatatan(student.nisn, e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1 text-xs text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
                         />
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {(() => {
+                          const existingRecord = records.find(
+                            (r) => r.nisn === student.nisn && r.tanggal === selectedDate && r.sesi === selectedSession &&
+                                   (r.kategori === 'APEL' || (!r.kategori && !r.id.startsWith('PRESENSI_KBM_') && !r.mapel))
+                          );
+                          return existingRecord ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (confirm(`Hapus catatan presensi apel untuk ${student.nama} (${student.nisn})? Data akan dihapus permanen.`)) {
+                                  if (onDeleteRecord) {
+                                    await onDeleteRecord(existingRecord.id);
+                                  } else {
+                                    await DatabaseService.deleteAttendanceRecord(existingRecord.id);
+                                  }
+                                  setClassAttendanceMap((prev) => {
+                                    const next = { ...prev };
+                                    delete next[student.nisn];
+                                    return next;
+                                  });
+                                  toast.delete('Presensi Dihapus', `Data presensi apel ${student.nama} berhasil dihapus.`);
+                                }
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Hapus / Batalkan data presensi apel ini"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-300">-</span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

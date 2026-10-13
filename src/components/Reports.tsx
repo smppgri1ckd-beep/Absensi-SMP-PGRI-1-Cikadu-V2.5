@@ -154,11 +154,11 @@ export const Reports: React.FC<ReportsProps> = ({
 
   // Classes list to display in the dropdown
   const displayedClassesList = useMemo(() => {
-    if (reportType === 'kbm' && isTeacher) {
+    if (isTeacher) {
       return teacherAccessibleClasses;
     }
     return allClassesList;
-  }, [reportType, isTeacher, teacherAccessibleClasses, allClassesList]);
+  }, [isTeacher, teacherAccessibleClasses, allClassesList]);
 
   // Auto-set teacher state on login
   useEffect(() => {
@@ -228,7 +228,7 @@ export const Reports: React.FC<ReportsProps> = ({
   const filteredStudents = useMemo(() => {
     let list = students;
 
-    if (reportType === 'kbm' && isTeacher) {
+    if (isTeacher) {
       if (selectedClass !== 'Semua') {
         list = list.filter((s) => isClassMatch(s.kelas, selectedClass));
       } else {
@@ -249,7 +249,7 @@ export const Reports: React.FC<ReportsProps> = ({
       if (a.kelas !== b.kelas) return a.kelas.localeCompare(b.kelas);
       return a.nama.localeCompare(b.nama);
     });
-  }, [students, reportType, isTeacher, selectedClass, teacherAccessibleClasses, searchQuery]);
+  }, [students, isTeacher, selectedClass, teacherAccessibleClasses, searchQuery]);
 
   const apelSummaryRows = useMemo(() => {
     const targetKehadiran = apelSessionFilter === 'Semua' ? totalHebDays * 2 : totalHebDays;

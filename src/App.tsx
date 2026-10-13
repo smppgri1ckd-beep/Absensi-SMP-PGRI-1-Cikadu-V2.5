@@ -1090,6 +1090,8 @@ function AppContent() {
                     currentSession={currentSession}
                     teachers={teachers}
                     onBulkSave={handleBulkSaveAttendance}
+                    onDeleteRecord={handleDeleteRecord}
+                    onBulkDeleteRecords={handleBulkDeleteRecords}
                     onOpenScanner={() => setActiveTab('kiosk')}
                     onRefresh={loadAllData}
                   />

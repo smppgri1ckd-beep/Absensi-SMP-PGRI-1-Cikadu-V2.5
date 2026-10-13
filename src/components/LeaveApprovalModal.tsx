@@ -517,16 +517,21 @@ export const LeaveApprovalModal: React.FC<LeaveApprovalModalProps> = ({
                     </div>
                   )}
 
-                  {/* Delete option if needed */}
-                  {onDeleteRequest && !isPending && (
-                    <div className="mt-2 pt-2 flex justify-end">
+                  {/* Delete option */}
+                  {onDeleteRequest && (
+                    <div className="mt-2 pt-2 border-t border-slate-100 flex justify-end">
                       <button
                         type="button"
-                        onClick={() => onDeleteRequest(req.id)}
-                        className="text-[11px] text-slate-400 hover:text-rose-600 flex items-center gap-1 cursor-pointer"
+                        onClick={() => {
+                          if (confirm(`Hapus permohonan ${req.jenis.toLowerCase()} "${req.nama}" (${req.kelas})? Data akan dihapus permanen.`)) {
+                            onDeleteRequest(req.id);
+                          }
+                        }}
+                        className="text-[11px] text-slate-400 hover:text-rose-600 flex items-center gap-1 cursor-pointer font-semibold transition-colors"
+                        title="Hapus permohonan ini"
                       >
-                        <Trash2 className="w-3 h-3" />
-                        <span>Hapus Arsip</span>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Hapus Permohonan</span>
                       </button>
                     </div>
                   )}

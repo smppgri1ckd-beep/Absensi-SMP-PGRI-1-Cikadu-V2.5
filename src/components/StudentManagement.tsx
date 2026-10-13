@@ -65,8 +65,19 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const { toast } = useToast();
   const isTeacher = user?.role === 'guru' && !actingAsPiket;
 
+  // Determine if user is designated as Wali Kelas
+  const isWaliKelasUser = Boolean(
+    isTeacher &&
+    user?.isWaliKelas &&
+    user?.waliKelas &&
+    user.waliKelas.trim() !== '-' &&
+    user.waliKelas.trim() !== ''
+  );
+
   // Filter State
-  const [selectedClass, setSelectedClass] = useState<string>('Semua');
+  const [selectedClass, setSelectedClass] = useState<string>(
+    isWaliKelasUser ? (user?.waliKelas || 'Semua') : 'Semua'
+  );
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [isEditingStudent, setIsEditingStudent] = useState(false);
@@ -77,7 +88,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [formNisn, setFormNisn] = useState('');
   const [formNama, setFormNama] = useState('');
   const [formJk, setFormJk] = useState<'L' | 'P'>('L');
-  const [formKelas, setFormKelas] = useState('7A');
+  const [formKelas, setFormKelas] = useState(isWaliKelasUser ? (user?.waliKelas || '7A') : '7A');
   const [formPhone, setFormPhone] = useState('');
   const [formFotoUrl, setFormFotoUrl] = useState('');
   const [previewStudent, setPreviewStudent] = useState<Student | null>(null);
@@ -94,17 +105,32 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   const [isPromoting, setIsPromoting] = useState(false);
 
   // Scoped students based on user role and teacher assignments
+  // If Wali Kelas, strictly filter to their homeroom class only!
   const scopedStudents = useMemo(() => {
+    if (isWaliKelasUser && user?.waliKelas) {
+      return students.filter((s) => isClassMatch(s.kelas, user.waliKelas));
+    }
     return filterStudentsForTeacher(students, user, actingAsPiket);
-  }, [students, user, actingAsPiket]);
+  }, [students, user, actingAsPiket, isWaliKelasUser]);
 
   const teacherAccessibleClasses = useMemo(() => {
+    if (isWaliKelasUser && user?.waliKelas) return [normalizeClassName(user.waliKelas)];
     return isTeacher ? getTeacherAccessibleClasses(user) : [];
-  }, [isTeacher, user]);
+  }, [isTeacher, isWaliKelasUser, user]);
 
   const classesList = useMemo(() => {
+    if (isWaliKelasUser && user?.waliKelas) {
+      return [normalizeClassName(user.waliKelas)];
+    }
     return Array.from(new Set(scopedStudents.map((s) => s.kelas))).sort();
-  }, [scopedStudents]);
+  }, [scopedStudents, isWaliKelasUser, user]);
+
+  // Keep selectedClass synchronized if Wali Kelas
+  React.useEffect(() => {
+    if (isWaliKelasUser && user?.waliKelas) {
+      setSelectedClass(normalizeClassName(user.waliKelas));
+    }
+  }, [isWaliKelasUser, user?.waliKelas]);
 
   // Filtered Students
   const filteredStudents = useMemo(() => {
@@ -130,7 +156,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setFormNisn('');
     setFormNama('');
     setFormJk('L');
-    setFormKelas(classesList[0] || '9A');
+    setFormKelas(isWaliKelasUser ? (user?.waliKelas || '7A') : (classesList[0] || '7A'));
     setFormPhone('');
     setFormFotoUrl('');
     setModalError(null);
@@ -142,7 +168,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     setFormNisn(student.nisn);
     setFormNama(student.nama);
     setFormJk(student.jk);
-    setFormKelas(student.kelas);
+    setFormKelas(isWaliKelasUser ? (user?.waliKelas || student.kelas) : student.kelas);
     setFormPhone(student.nomorTeleponOrtu || '');
     setFormFotoUrl(student.fotoUrl || '');
     setModalError(null);
@@ -208,7 +234,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
           const nisn = String(row['NISN'] || row['nisn'] || row['Nisn'] || '').trim();
           const nama = String(row['Nama Siswa'] || row['nama'] || row['Nama'] || row['NAMA'] || '').trim();
           const jkRaw = String(row['Jenis Kelamin (L/P)'] || row['jk'] || row['JK'] || row['L/P'] || 'L').trim().toUpperCase();
-          const kelas = String(row['Kelas'] || row['kelas'] || row['KELAS'] || '7A').trim().toUpperCase();
+          const rawKelas = String(row['Kelas'] || row['kelas'] || row['KELAS'] || '7A').trim().toUpperCase();
+          const kelas = isWaliKelasUser ? (user?.waliKelas?.toUpperCase() || '7A') : (rawKelas || '7A');
           const phone = String(row['Nomor WhatsApp Orang Tua'] || row['phone'] || row['telepon'] || '').trim();
 
           if (nisn && nama) {
@@ -224,7 +251,11 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
 
         if (parsedStudents.length > 0) {
           await onBulkSaveStudents(parsedStudents);
-          setImportStatus(`Berhasil mengimpor ${parsedStudents.length} siswa baru!`);
+          setImportStatus(
+            isWaliKelasUser
+              ? `Berhasil mengimpor ${parsedStudents.length} siswa baru ke Kelas ${user?.waliKelas}!`
+              : `Berhasil mengimpor ${parsedStudents.length} siswa baru!`
+          );
           setTimeout(() => setImportStatus(null), 5000);
         } else {
           setImportStatus('Tidak ada data valid yang ditemukan pada file.');
@@ -243,7 +274,7 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
   };
 
   const handleDelete = async (nisn: string, nama: string) => {
-    if (confirm(`Yakin ingin menghapus data siswa "${nama}" (NISN: ${nisn})?`)) {
+    if (confirm(`Yakin ingin menghapus data siswa "${nama}" (NISN: ${nisn})?\n\nData akan dihapus permanen dari sistem dan cloud Firestore.`)) {
       await onDeleteStudent(nisn);
       setSelectedNisns((prev) => prev.filter((n) => n !== nisn));
     }
@@ -335,7 +366,8 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
     }
   };
 
-  const canManage = user?.role === 'admin';
+  // Admin and Wali Kelas have full student management capabilities
+  const canManage = user?.role === 'admin' || isWaliKelasUser;
 
   return (
     <div className="space-y-6">
@@ -349,17 +381,23 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
               <h2 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                 <Users className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 <span>
-                  {isTeacher 
+                  {isWaliKelasUser
+                    ? `Data Siswa Kelas Binaan ${user?.waliKelas} (${scopedStudents.length} Siswa)`
+                    : isTeacher 
                     ? `Data Siswa Binaan (${scopedStudents.length} Siswa)` 
                     : `Data Pokok Siswa (${students.length} Siswa)`}
                 </span>
               </h2>
-              <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider bg-blue-100 text-blue-900 border border-blue-200">
-                Dapodik Sekolah
+              <span className={`px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider border ${
+                isWaliKelasUser ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-blue-100 text-blue-900 border-blue-200'
+              }`}>
+                {isWaliKelasUser ? `Wali Kelas ${user?.waliKelas}` : 'Dapodik Sekolah'}
               </span>
             </div>
             <p className="text-[11px] sm:text-xs text-slate-500 font-medium">
-              {schoolConfig.namaSekolah} • Kelola data siswa, foto profil, impor massal dari file Excel Dapodik, dan unduh berkas QR Code digital.
+              {isWaliKelasUser
+                ? `${schoolConfig.namaSekolah} • Kelola data siswa kelas binaan ${user?.waliKelas}, impor/ekspor Excel Dapodik, unduh QR Code, dan hapus siswa.`
+                : `${schoolConfig.namaSekolah} • Kelola data siswa, foto profil, impor massal dari file Excel Dapodik, dan unduh berkas QR Code digital.`}
             </p>
           </div>
         </div>
@@ -390,28 +428,29 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
             <span>Cetak PDF</span>
           </button>
 
-          {canManage && (
-            <>
-              <button
-                onClick={() => setIsPromoteModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition-colors cursor-pointer"
-                title="Proses Kenaikan atau Mutasi Kelas Massal Siswa"
-              >
-                <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Naik Kelas</span>
-              </button>
+          {/* Only School Admin can run mass promotion */}
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setIsPromoteModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition-colors cursor-pointer"
+              title="Proses Kenaikan atau Mutasi Kelas Massal Siswa"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Naik Kelas</span>
+            </button>
+          )}
 
-              <label className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Impor Excel</span>
-                <input
-                  type="file"
-                  accept=".xlsx, .xls"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-              </label>
-            </>
+          {canManage && (
+            <label className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 transition-colors cursor-pointer">
+              <Upload className="w-3.5 h-3.5" />
+              <span>Impor Excel</span>
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </label>
           )}
 
           <button
@@ -989,8 +1028,14 @@ export const StudentManagement: React.FC<StudentManagementProps> = ({
                     placeholder="Contoh: 7A, 8B, 9A"
                     value={formKelas}
                     onChange={(e) => setFormKelas(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold uppercase focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+                    disabled={isWaliKelasUser}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold uppercase focus:outline-hidden focus:ring-2 focus:ring-blue-500 disabled:bg-amber-50 disabled:text-amber-900 disabled:border-amber-300"
                   />
+                  {isWaliKelasUser && (
+                    <span className="text-[10px] text-amber-700 font-bold mt-0.5 block">
+                      ★ Terkunci kelas binaan ({user?.waliKelas})
+                    </span>
+                  )}
                 </div>
               </div>
 

@@ -316,6 +316,44 @@ function getLocal<T>(key: string, defaultValue: T): T {
   return defaultValue;
 }
 
+const TOMBSTONE_PREFIX = 'smp_pgri_tombstones_v1_';
+
+export function getTombstones(category: string): Set<string> {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem(TOMBSTONE_PREFIX + category);
+      if (saved) {
+        const arr = JSON.parse(saved);
+        if (Array.isArray(arr)) {
+          return new Set(arr);
+        }
+      }
+    }
+  } catch {}
+  return new Set();
+}
+
+export function addTombstones(category: string, ids: string[]): void {
+  try {
+    const current = getTombstones(category);
+    ids.forEach((id) => current.add(id));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(TOMBSTONE_PREFIX + category, JSON.stringify(Array.from(current)));
+    }
+  } catch {}
+}
+
+export function removeTombstone(category: string, id: string): void {
+  try {
+    const current = getTombstones(category);
+    if (current.delete(id)) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(TOMBSTONE_PREFIX + category, JSON.stringify(Array.from(current)));
+      }
+    }
+  } catch {}
+}
+
 let hasLoggedQuotaWarning = false;
 export function handleFirestoreError(context: string, error?: unknown): void {
   const errMsg = error ? (error instanceof Error ? error.message : String(error)) : '';
@@ -611,21 +649,33 @@ export class DatabaseService {
       },
     };
 
+    const deadStudents = getTombstones('students');
+    const deadRecords = getTombstones('attendance');
+    const deadTeachers = getTombstones('teachers');
+    const deadJournals = getTombstones('teaching_journals');
+    const deadGrades = getTombstones('student_grades');
+    const deadSchedules = getTombstones('class_schedules');
+    const deadLeaves = getTombstones('leave_requests');
+    const deadEvents = getTombstones('school_events');
+    const deadAssignments = getTombstones('assignments');
+    const deadTeacherRecords = getTombstones('teacher_attendance');
+    const deadTeacherLeaves = getTombstones('teacher_leaves');
+
     return {
       schoolConfig,
-      students: getLocal<Student[]>('students', INITIAL_STUDENTS),
-      records: getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()),
+      students: getLocal<Student[]>('students', INITIAL_STUDENTS).filter((s) => !deadStudents.has(s.nisn)),
+      records: getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()).filter((r) => !deadRecords.has(r.id)),
       kalenderHeb: getLocal<KalenderHeb>('kalender_heb', { kalenderData: {} }),
-      teachers: getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS),
-      journals: getLocal<TeachingJournal[]>('teaching_journals', []),
-      grades: getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES),
-      schedules: getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES),
-      leaveRequests: getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS),
+      teachers: getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS).filter((t) => !deadTeachers.has(t.id)),
+      journals: getLocal<TeachingJournal[]>('teaching_journals', []).filter((j) => !deadJournals.has(j.id)),
+      grades: getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES).filter((g) => !deadGrades.has(g.id)),
+      schedules: getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES).filter((s) => !deadSchedules.has(s.id)),
+      leaveRequests: getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS).filter((l) => !deadLeaves.has(l.id)),
       jadwalPiket: getLocal<JadwalPiketHarian[]>('jadwal_piket_data', INITIAL_JADWAL_PIKET),
-      schoolEvents: getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS),
-      teacherRecords: getLocal<TeacherAttendanceRecord[]>('teacher_attendance_records', []),
-      teacherLeaves: getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []),
-      assignments: getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS),
+      schoolEvents: getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS).filter((e) => !deadEvents.has(e.id)),
+      teacherRecords: getLocal<TeacherAttendanceRecord[]>('teacher_attendance_records', []).filter((r) => !deadTeacherRecords.has(r.id)),
+      teacherLeaves: getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []).filter((l) => !deadTeacherLeaves.has(l.id)),
+      assignments: getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS).filter((a) => !deadAssignments.has(a.id)),
     };
   }
 
@@ -747,14 +797,20 @@ export class DatabaseService {
 
   // --- STUDENTS ---
   static async getStudents(): Promise<Student[]> {
-    if (!db) return getLocal<Student[]>('students', INITIAL_STUDENTS);
+    const dead = getTombstones('students');
+    if (!db) {
+      return getLocal<Student[]>('students', INITIAL_STUDENTS).filter((s) => !dead.has(s.nisn));
+    }
 
     try {
       const colRef = collection(db, 'siswa');
       const snap = await getDocs(colRef);
       const students: Student[] = [];
       snap.forEach((docSnap) => {
-        students.push(docSnap.data() as Student);
+        const item = docSnap.data() as Student;
+        if (!dead.has(item.nisn)) {
+          students.push(item);
+        }
       });
       students.sort((a, b) => a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama));
       setLocal('students', students);
@@ -762,10 +818,11 @@ export class DatabaseService {
     } catch (e) {
       handleFirestoreError('', );
     }
-    return getLocal<Student[]>('students', INITIAL_STUDENTS);
+    return getLocal<Student[]>('students', INITIAL_STUDENTS).filter((s) => !dead.has(s.nisn));
   }
 
   static async saveStudent(student: Student): Promise<void> {
+    removeTombstone('students', student.nisn);
     const students = await this.getStudents();
     const idx = students.findIndex((s) => s.nisn === student.nisn);
     if (idx >= 0) {
@@ -785,6 +842,7 @@ export class DatabaseService {
   }
 
   static async deleteStudent(nisn: string): Promise<void> {
+    addTombstones('students', [nisn]);
     const students = await this.getStudents();
     const filtered = students.filter((s) => s.nisn !== nisn);
     setLocal('students', filtered);
@@ -800,6 +858,7 @@ export class DatabaseService {
 
   static async bulkDeleteStudents(nisns: string[]): Promise<void> {
     if (!nisns || nisns.length === 0) return;
+    addTombstones('students', nisns);
     const nisnSet = new Set(nisns);
     const students = await this.getStudents();
     const filtered = students.filter((s) => !nisnSet.has(s.nisn));
@@ -823,6 +882,7 @@ export class DatabaseService {
   }
 
   static async bulkSaveStudents(newStudents: Student[]): Promise<void> {
+    newStudents.forEach((s) => removeTombstone('students', s.nisn));
     const students = await this.getStudents();
     const map = new Map<string, Student>();
     students.forEach((s) => map.set(s.nisn, s));
@@ -850,14 +910,20 @@ export class DatabaseService {
 
   // --- ATTENDANCE ---
   static async getAttendanceRecords(): Promise<AttendanceRecord[]> {
-    if (!db) return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords());
+    const dead = getTombstones('attendance');
+    if (!db) {
+      return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()).filter((r) => !dead.has(r.id));
+    }
 
     try {
       const colRef = collection(db, 'presensi');
       const snap = await getDocs(colRef);
       const records: AttendanceRecord[] = [];
       snap.forEach((docSnap) => {
-        records.push(docSnap.data() as AttendanceRecord);
+        const item = docSnap.data() as AttendanceRecord;
+        if (!dead.has(item.id)) {
+          records.push(item);
+        }
       });
       records.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('attendance', records);
@@ -865,10 +931,11 @@ export class DatabaseService {
     } catch (e) {
       handleFirestoreError('', );
     }
-    return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords());
+    return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()).filter((r) => !dead.has(r.id));
   }
 
   static async addAttendanceRecord(record: AttendanceRecord): Promise<void> {
+    removeTombstone('attendance', record.id);
     const records = await this.getAttendanceRecords();
     const existsIdx = records.findIndex((r) => r.id === record.id);
     if (existsIdx >= 0) {
@@ -896,6 +963,7 @@ export class DatabaseService {
     status: AttendanceRecord['status'], 
     catatan?: string
   ): Promise<void> {
+    removeTombstone('attendance', id);
     const records = await this.getAttendanceRecords();
     const item = records.find((r) => r.id === id);
     if (!item) return;
@@ -914,6 +982,7 @@ export class DatabaseService {
   }
 
   static async deleteAttendanceRecord(id: string): Promise<void> {
+    addTombstones('attendance', [id]);
     const records = await this.getAttendanceRecords();
     const filtered = records.filter((r) => r.id !== id);
     setLocal('attendance', filtered);
@@ -929,6 +998,7 @@ export class DatabaseService {
 
   static async bulkDeleteAttendanceRecords(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
+    addTombstones('attendance', ids);
     const idSet = new Set(ids);
     const records = await this.getAttendanceRecords();
     const filtered = records.filter((r) => !idSet.has(r.id));
@@ -953,6 +1023,7 @@ export class DatabaseService {
 
   static async bulkSaveAttendanceRecords(newRecords: AttendanceRecord[]): Promise<void> {
     if (!newRecords || newRecords.length === 0) return;
+    newRecords.forEach((r) => removeTombstone('attendance', r.id));
     const records = await this.getAttendanceRecords();
     const map = new Map<string, AttendanceRecord>();
     records.forEach((r) => map.set(r.id, r));
@@ -981,7 +1052,10 @@ export class DatabaseService {
 
   // --- TEACHERS ---
   static async getTeachers(): Promise<TeacherUser[]> {
-    if (!db) return getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS);
+    const dead = getTombstones('teachers');
+    if (!db) {
+      return getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS).filter((t) => !dead.has(t.id));
+    }
 
     try {
       const colRef = collection(db, 'guru_users');
@@ -989,15 +1063,17 @@ export class DatabaseService {
       const teachers: TeacherUser[] = [];
       snap.forEach((docSnap) => {
         const t = docSnap.data() as TeacherUser;
-        if (t.penugasanMapel) {
-          t.penugasanMapel = parseList<TeachingAssignment>(t.penugasanMapel).map((asgn) => ({
-            ...asgn,
-            kelas: parseList<string>(asgn.kelas),
-          }));
-        } else {
-          t.penugasanMapel = [];
+        if (!dead.has(t.id)) {
+          if (t.penugasanMapel) {
+            t.penugasanMapel = parseList<TeachingAssignment>(t.penugasanMapel).map((asgn) => ({
+              ...asgn,
+              kelas: parseList<string>(asgn.kelas),
+            }));
+          } else {
+            t.penugasanMapel = [];
+          }
+          teachers.push(t);
         }
-        teachers.push(t);
       });
       teachers.sort((a, b) => a.nama.localeCompare(b.nama));
       if (teachers.length > 0) {
@@ -1007,10 +1083,11 @@ export class DatabaseService {
     } catch (e) {
       handleFirestoreError('', );
     }
-    return getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS);
+    return getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS).filter((t) => !dead.has(t.id));
   }
 
   static async saveTeacher(teacher: TeacherUser): Promise<void> {
+    removeTombstone('teachers', teacher.id);
     const teachers = getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS);
     const idx = teachers.findIndex((t) => t.id === teacher.id);
     if (idx >= 0) {
@@ -1030,6 +1107,7 @@ export class DatabaseService {
   }
 
   static async bulkSaveTeachers(newTeachers: TeacherUser[]): Promise<void> {
+    newTeachers.forEach((t) => removeTombstone('teachers', t.id));
     const teachers = await this.getTeachers();
     const map = new Map<string, TeacherUser>();
     teachers.forEach((t) => map.set(t.id, t));
@@ -1056,6 +1134,7 @@ export class DatabaseService {
   }
 
   static async deleteTeacher(id: string): Promise<void> {
+    addTombstones('teachers', [id]);
     const teachers = await this.getTeachers();
     const filtered = teachers.filter((t) => t.id !== id);
     setLocal('teachers', filtered);
@@ -1071,6 +1150,7 @@ export class DatabaseService {
 
   static async bulkDeleteTeachers(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
+    addTombstones('teachers', ids);
     const idSet = new Set(ids);
     const teachers = await this.getTeachers();
     const filtered = teachers.filter((t) => !idSet.has(t.id));
@@ -1095,14 +1175,20 @@ export class DatabaseService {
 
   // --- TEACHING JOURNALS ---
   static async getTeachingJournals(): Promise<TeachingJournal[]> {
-    if (!db) return getLocal<TeachingJournal[]>('teaching_journals', []);
+    const dead = getTombstones('teaching_journals');
+    if (!db) {
+      return getLocal<TeachingJournal[]>('teaching_journals', []).filter((j) => !dead.has(j.id));
+    }
 
     try {
       const colRef = collection(db, 'jurnal_mengajar');
       const snap = await getDocs(colRef);
       const journals: TeachingJournal[] = [];
       snap.forEach((docSnap) => {
-        journals.push(docSnap.data() as TeachingJournal);
+        const item = docSnap.data() as TeachingJournal;
+        if (!dead.has(item.id)) {
+          journals.push(item);
+        }
       });
       journals.sort((a, b) => (b.tanggal + (b.createdAt || '')).localeCompare(a.tanggal + (a.createdAt || '')));
       setLocal('teaching_journals', journals);
@@ -1110,10 +1196,11 @@ export class DatabaseService {
     } catch (e) {
       handleFirestoreError('', );
     }
-    return getLocal<TeachingJournal[]>('teaching_journals', []);
+    return getLocal<TeachingJournal[]>('teaching_journals', []).filter((j) => !dead.has(j.id));
   }
 
   static async saveTeachingJournal(journal: TeachingJournal): Promise<void> {
+    removeTombstone('teaching_journals', journal.id);
     const journals = await this.getTeachingJournals();
     const idx = journals.findIndex((j) => j.id === journal.id);
     if (idx >= 0) {
@@ -1133,6 +1220,7 @@ export class DatabaseService {
   }
 
   static async deleteTeachingJournal(id: string): Promise<void> {
+    addTombstones('teaching_journals', [id]);
     const journals = await this.getTeachingJournals();
     const filtered = journals.filter((j) => j.id !== id);
     setLocal('teaching_journals', filtered);
@@ -1148,6 +1236,7 @@ export class DatabaseService {
 
   static async bulkDeleteTeachingJournals(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
+    addTombstones('teaching_journals', ids);
     const idSet = new Set(ids);
     const journals = await this.getTeachingJournals();
     const filtered = journals.filter((j) => !idSet.has(j.id));
@@ -1299,8 +1388,9 @@ export class DatabaseService {
   }
 
   static async getClassSchedules(kelas?: string): Promise<ClassScheduleItem[]> {
+    const dead = getTombstones('class_schedules');
     if (!db) {
-      const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
+      const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES).filter((s) => !dead.has(s.id));
       if (kelas && kelas !== 'Semua') {
         return local.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
       }
@@ -1310,19 +1400,24 @@ export class DatabaseService {
       const colRef = collection(db, 'jadwal_pelajaran');
       const snap = await getDocs(colRef);
       const list: ClassScheduleItem[] = [];
-      snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
+      snap.forEach((d) => {
+        const item = d.data() as ClassScheduleItem;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       if (list.length > 0) {
         setLocal('class_schedules', list);
       }
-      const effectiveList = list.length > 0 ? list : getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
+      const effectiveList = list.length > 0 ? list : getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES).filter((s) => !dead.has(s.id));
       if (kelas && kelas !== 'Semua') {
         return effectiveList.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
       }
       return effectiveList;
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('getClassSchedules', e);
     }
-    const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
+    const local = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES).filter((s) => !dead.has(s.id));
     if (kelas && kelas !== 'Semua') {
       return local.filter((s) => s.kelas.toLowerCase() === kelas.toLowerCase());
     }
@@ -1330,6 +1425,7 @@ export class DatabaseService {
   }
 
   static async saveClassSchedule(schedule: ClassScheduleItem): Promise<void> {
+    removeTombstone('class_schedules', schedule.id);
     const list = getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES);
     const idx = list.findIndex((s) => s.id === schedule.id);
     if (idx >= 0) {
@@ -1344,11 +1440,12 @@ export class DatabaseService {
       const docRef = doc(db, 'jadwal_pelajaran', schedule.id);
       await setDoc(docRef, cleanData(schedule));
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('saveClassSchedule', e);
     }
   }
 
   static async saveClassSchedules(schedules: ClassScheduleItem[]): Promise<void> {
+    schedules.forEach((s) => removeTombstone('class_schedules', s.id));
     setLocal('class_schedules', schedules);
     if (!db) return;
     try {
@@ -1363,7 +1460,7 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('saveClassSchedules', e);
     }
   }
 
@@ -1380,7 +1477,7 @@ export class DatabaseService {
         return list;
       }
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('getAgendaSekolah', e);
     }
     return local;
   }
@@ -1400,11 +1497,12 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('saveAgendaSekolah', e);
     }
   }
 
   static async deleteClassSchedule(id: string): Promise<void> {
+    addTombstones('class_schedules', [id]);
     const list = await this.getClassSchedules();
     const filtered = list.filter((s) => s.id !== id);
     setLocal('class_schedules', filtered);
@@ -1414,12 +1512,13 @@ export class DatabaseService {
       const docRef = doc(db, 'jadwal_pelajaran', id);
       await deleteDoc(docRef);
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('deleteClassSchedule', e);
     }
   }
 
   static async bulkDeleteClassSchedules(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
+    addTombstones('class_schedules', ids);
     const idSet = new Set(ids);
     const list = await this.getClassSchedules();
     const filtered = list.filter((s) => !idSet.has(s.id));
@@ -1434,7 +1533,7 @@ export class DatabaseService {
       });
       await batch.commit();
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('bulkDeleteClassSchedules', e);
     }
   }
 
@@ -1452,31 +1551,45 @@ export class DatabaseService {
         });
         await batch.commit();
       } catch (e) {
-        handleFirestoreError('', );
+        handleFirestoreError('resetClassSchedulesToDefault', e);
       }
     }
     return INITIAL_SCHEDULES;
   }
 
   static subscribeClassSchedules(callback: (schedules: ClassScheduleItem[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('class_schedules');
+      return getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES).filter((s) => !dead.has(s.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<ClassScheduleItem[]>('class_schedules', INITIAL_SCHEDULES));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'jadwal_pelajaran');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('class_schedules');
       const list: ClassScheduleItem[] = [];
-      snap.forEach((d) => list.push(d.data() as ClassScheduleItem));
+      snap.forEach((d) => {
+        const item = d.data() as ClassScheduleItem;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       setLocal('class_schedules', list);
       callback(list);
-    }, (err) => handleFirestoreError('', ));
+    }, (err) => {
+      handleFirestoreError('subscribe_jadwal', err);
+      callback(getFiltered());
+    });
   }
 
   // --- ASSIGNMENTS (TUGAS SISWA) ---
   static async getAssignments(kelas?: string): Promise<AssignmentItem[]> {
+    const dead = getTombstones('assignments');
     if (!db) {
-      const local = getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS);
+      const local = getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS).filter((a) => !dead.has(a.id));
       return (kelas && kelas !== 'Semua') ? local.filter((a) => a.kelas.toLowerCase() === kelas.toLowerCase()) : local;
     }
 
@@ -1484,7 +1597,12 @@ export class DatabaseService {
       const colRef = collection(db, 'tugas_siswa');
       const snap = await getDocs(colRef);
       const list: AssignmentItem[] = [];
-      snap.forEach((d) => list.push(d.data() as AssignmentItem));
+      snap.forEach((d) => {
+        const item = d.data() as AssignmentItem;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.deadline || '').localeCompare(a.deadline || ''));
       setLocal('assignments_data', list);
       if (kelas && kelas !== 'Semua') {
@@ -1492,13 +1610,14 @@ export class DatabaseService {
       }
       return list;
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('getAssignments', e);
     }
-    const local = getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS);
+    const local = getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS).filter((a) => !dead.has(a.id));
     return (kelas && kelas !== 'Semua') ? local.filter((a) => a.kelas.toLowerCase() === kelas.toLowerCase()) : local;
   }
 
   static async saveAssignment(assignment: AssignmentItem): Promise<void> {
+    removeTombstone('assignments', assignment.id);
     const list = await this.getAssignments();
     const idx = list.findIndex((a) => a.id === assignment.id);
     if (idx >= 0) {
@@ -1513,11 +1632,12 @@ export class DatabaseService {
       const docRef = doc(db, 'tugas_siswa', assignment.id);
       await setDoc(docRef, cleanData(assignment));
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('saveAssignment', e);
     }
   }
 
   static async deleteAssignment(id: string): Promise<void> {
+    addTombstones('assignments', [id]);
     const list = await this.getAssignments();
     const filtered = list.filter((a) => a.id !== id);
     setLocal('assignments_data', filtered);
@@ -1532,21 +1652,27 @@ export class DatabaseService {
   }
 
   static subscribeAssignments(callback: (assignments: AssignmentItem[]) => void): () => void {
+    const dead = getTombstones('assignments');
     if (!db) {
-      const handler = () => callback(getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS));
+      const handler = () => callback(getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS).filter((a) => !dead.has(a.id)));
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'tugas_siswa');
     return onSnapshot(colRef, (snap) => {
       const list: AssignmentItem[] = [];
-      snap.forEach((d) => list.push(d.data() as AssignmentItem));
+      snap.forEach((d) => {
+        const item = d.data() as AssignmentItem;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.deadline || '').localeCompare(a.deadline || ''));
       setLocal('assignments_data', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_tugas', err);
-      callback(getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS));
+      callback(getLocal<AssignmentItem[]>('assignments_data', INITIAL_ASSIGNMENTS).filter((a) => !dead.has(a.id)));
     });
   }
 
@@ -1559,26 +1685,33 @@ export class DatabaseService {
   }
 
   static async getStudentGrades(nisn?: string): Promise<StudentGradeItem[]> {
+    const dead = getTombstones('student_grades');
     if (!db) {
-      const local = getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES);
+      const local = getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES).filter((g) => !dead.has(g.id));
       return nisn ? local.filter((g) => g.nisn === nisn) : local;
     }
     try {
       const colRef = collection(db, 'nilai_siswa');
       const snap = await getDocs(colRef);
       const list: StudentGradeItem[] = [];
-      snap.forEach((d) => list.push(d.data() as StudentGradeItem));
+      snap.forEach((d) => {
+        const item = d.data() as StudentGradeItem;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.tanggal || '').localeCompare(a.tanggal || ''));
       setLocal('student_grades', list);
       return nisn ? list.filter((g) => g.nisn === nisn) : list;
     } catch (e) {
       handleFirestoreError('', );
     }
-    const local = getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES);
+    const local = getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES).filter((g) => !dead.has(g.id));
     return nisn ? local.filter((g) => g.nisn === nisn) : local;
   }
 
   static async saveStudentGrade(grade: StudentGradeItem): Promise<void> {
+    removeTombstone('student_grades', grade.id);
     const list = await this.getStudentGrades();
     const idx = list.findIndex((g) => g.id === grade.id);
     if (idx >= 0) {
@@ -1598,6 +1731,7 @@ export class DatabaseService {
   }
 
   static async deleteStudentGrade(id: string): Promise<void> {
+    addTombstones('student_grades', [id]);
     const list = await this.getStudentGrades();
     const filtered = list.filter((g) => g.id !== id);
     setLocal('student_grades', filtered);
@@ -1613,6 +1747,7 @@ export class DatabaseService {
 
   static async bulkDeleteStudentGrades(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
+    addTombstones('student_grades', ids);
     const idSet = new Set(ids);
     const list = await this.getStudentGrades();
     const filtered = list.filter((g) => !idSet.has(g.id));
@@ -1662,23 +1797,30 @@ export class DatabaseService {
 
   // --- LEAVE REQUESTS (PENGAJUAN IZIN / SAKIT MANDIRI) ---
   static async getLeaveRequests(): Promise<LeaveRequest[]> {
-    if (!db) return getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS);
+    const dead = getTombstones('leave_requests');
+    if (!db) return getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS).filter((r) => !dead.has(r.id));
 
     try {
       const colRef = collection(db, 'permohonan_izin');
       const snap = await getDocs(colRef);
       const list: LeaveRequest[] = [];
-      snap.forEach((d) => list.push(d.data() as LeaveRequest));
+      snap.forEach((d) => {
+        const item = d.data() as LeaveRequest;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => b.tanggalPengajuan.localeCompare(a.tanggalPengajuan));
       setLocal('leave_requests', list);
       return list;
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('getLeaveRequests', e);
     }
-    return getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS);
+    return getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS).filter((r) => !dead.has(r.id));
   }
 
   static async saveLeaveRequest(req: LeaveRequest): Promise<void> {
+    removeTombstone('leave_requests', req.id);
     const list = await this.getLeaveRequests();
     const idx = list.findIndex((r) => r.id === req.id);
     if (idx >= 0) {
@@ -1693,7 +1835,7 @@ export class DatabaseService {
       const docRef = doc(db, 'permohonan_izin', req.id);
       await setDoc(docRef, cleanData(req));
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('saveLeaveRequest', e);
     }
   }
 
@@ -1815,6 +1957,7 @@ export class DatabaseService {
   }
 
   static async deleteLeaveRequest(id: string): Promise<void> {
+    addTombstones('leave_requests', [id]);
     const list = await this.getLeaveRequests();
     const filtered = list.filter((r) => r.id !== id);
     setLocal('leave_requests', filtered);
@@ -1830,6 +1973,7 @@ export class DatabaseService {
 
   static async bulkDeleteLeaveRequests(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
+    addTombstones('leave_requests', ids);
     const idSet = new Set(ids);
     const list = await this.getLeaveRequests();
     const filtered = list.filter((r) => !idSet.has(r.id));
@@ -1854,23 +1998,30 @@ export class DatabaseService {
 
   // --- ABSENSI GURU & TENDIK ---
   static async getTeacherAttendanceRecords(): Promise<TeacherAttendanceRecord[]> {
-    if (!db) return getLocal<TeacherAttendanceRecord[]>('teacher_attendance', []);
+    const dead = getTombstones('teacher_attendance');
+    if (!db) return getLocal<TeacherAttendanceRecord[]>('teacher_attendance', []).filter((r) => !dead.has(r.id));
 
     try {
       const colRef = collection(db, 'presensi_guru');
       const snap = await getDocs(colRef);
       const list: TeacherAttendanceRecord[] = [];
-      snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
+      snap.forEach((d) => {
+        const item = d.data() as TeacherAttendanceRecord;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('teacher_attendance', list);
       return list;
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('getTeacherAttendanceRecords', e);
     }
-    return getLocal<TeacherAttendanceRecord[]>('teacher_attendance', []);
+    return getLocal<TeacherAttendanceRecord[]>('teacher_attendance', []).filter((r) => !dead.has(r.id));
   }
 
   static async saveTeacherAttendanceRecord(rec: TeacherAttendanceRecord): Promise<void> {
+    removeTombstone('teacher_attendance', rec.id);
     const list = await this.getTeacherAttendanceRecords();
     const idx = list.findIndex((r) => r.id === rec.id);
     if (idx >= 0) {
@@ -1885,12 +2036,13 @@ export class DatabaseService {
       const docRef = doc(db, 'presensi_guru', rec.id);
       await setDoc(docRef, cleanData(rec));
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('saveTeacherAttendanceRecord', e);
     }
   }
 
   static async bulkSaveTeacherAttendance(newRecords: TeacherAttendanceRecord[]): Promise<void> {
     if (!newRecords || newRecords.length === 0) return;
+    newRecords.forEach((r) => removeTombstone('teacher_attendance', r.id));
     const list = await this.getTeacherAttendanceRecords();
     const map = new Map<string, TeacherAttendanceRecord>();
     list.forEach((r) => map.set(r.id, r));
@@ -1912,11 +2064,12 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('bulkSaveTeacherAttendance', e);
     }
   }
 
   static async deleteTeacherAttendanceRecord(id: string): Promise<void> {
+    addTombstones('teacher_attendance', [id]);
     const list = await this.getTeacherAttendanceRecords();
     const filtered = list.filter((r) => r.id !== id);
     setLocal('teacher_attendance', filtered);
@@ -1932,23 +2085,30 @@ export class DatabaseService {
 
   // --- PERMOHONAN IZIN & SAKIT GURU ---
   static async getTeacherLeaveRequests(): Promise<TeacherLeaveRequest[]> {
-    if (!db) return getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []);
+    const dead = getTombstones('teacher_leaves');
+    if (!db) return getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []).filter((r) => !dead.has(r.id));
 
     try {
       const colRef = collection(db, 'permohonan_izin_guru');
       const snap = await getDocs(colRef);
       const list: TeacherLeaveRequest[] = [];
-      snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
+      snap.forEach((d) => {
+        const item = d.data() as TeacherLeaveRequest;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
       setLocal('teacher_leave_requests', list);
       return list;
     } catch (e) {
       handleFirestoreError('', );
     }
-    return getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []);
+    return getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []).filter((r) => !dead.has(r.id));
   }
 
   static async saveTeacherLeaveRequest(req: TeacherLeaveRequest): Promise<void> {
+    removeTombstone('teacher_leaves', req.id);
     const list = await this.getTeacherLeaveRequests();
     const idx = list.findIndex((r) => r.id === req.id);
     if (idx >= 0) {
@@ -1968,6 +2128,7 @@ export class DatabaseService {
   }
 
   static async deleteTeacherLeaveRequest(id: string): Promise<void> {
+    addTombstones('teacher_leaves', [id]);
     const list = await this.getTeacherLeaveRequests();
     const filtered = list.filter((r) => r.id !== id);
     setLocal('teacher_leave_requests', filtered);
@@ -2273,154 +2434,234 @@ export class DatabaseService {
   // ==========================================================
 
   static subscribeStudents(callback: (students: Student[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('students');
+      return getLocal<Student[]>('students', INITIAL_STUDENTS).filter((s) => !dead.has(s.nisn));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<Student[]>('students', INITIAL_STUDENTS));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'siswa');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('students');
       const list: Student[] = [];
-      snap.forEach((d) => list.push(d.data() as Student));
+      snap.forEach((d) => {
+        const item = d.data() as Student;
+        if (!dead.has(item.nisn)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => a.kelas.localeCompare(b.kelas) || a.nama.localeCompare(b.nama));
       setLocal('students', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_siswa', err);
-      callback(getLocal<Student[]>('students', INITIAL_STUDENTS));
+      callback(getFiltered());
     });
   }
 
   static subscribeAttendance(callback: (records: AttendanceRecord[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('attendance');
+      return getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()).filter((r) => !dead.has(r.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'presensi');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('attendance');
       const list: AttendanceRecord[] = [];
-      snap.forEach((d) => list.push(d.data() as AttendanceRecord));
+      snap.forEach((d) => {
+        const item = d.data() as AttendanceRecord;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('attendance', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_presensi', err);
-      callback(getLocal<AttendanceRecord[]>('attendance', getInitialAttendanceRecords()));
+      callback(getFiltered());
     });
   }
 
   static subscribeGrades(callback: (grades: StudentGradeItem[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('student_grades');
+      return getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES).filter((g) => !dead.has(g.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'nilai_siswa');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('student_grades');
       const list: StudentGradeItem[] = [];
-      snap.forEach((d) => list.push(d.data() as StudentGradeItem));
+      snap.forEach((d) => {
+        const item = d.data() as StudentGradeItem;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
       setLocal('student_grades', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_nilai', err);
-      callback(getLocal<StudentGradeItem[]>('student_grades', INITIAL_GRADES));
+      callback(getFiltered());
     });
   }
 
   static subscribeLeaveRequests(callback: (requests: LeaveRequest[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('leave_requests');
+      return getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS).filter((r) => !dead.has(r.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'permohonan_izin');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('leave_requests');
       const list: LeaveRequest[] = [];
-      snap.forEach((d) => list.push(d.data() as LeaveRequest));
+      snap.forEach((d) => {
+        const item = d.data() as LeaveRequest;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => b.tanggalPengajuan.localeCompare(a.tanggalPengajuan));
       setLocal('leave_requests', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_izin', err);
-      callback(getLocal<LeaveRequest[]>('leave_requests', INITIAL_LEAVE_REQUESTS));
+      callback(getFiltered());
     });
   }
 
   static subscribeTeachingJournals(callback: (journals: TeachingJournal[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('teaching_journals');
+      return getLocal<TeachingJournal[]>('teaching_journals', []).filter((j) => !dead.has(j.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<TeachingJournal[]>('teaching_journals', []));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'jurnal_mengajar');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('teaching_journals');
       const list: TeachingJournal[] = [];
-      snap.forEach((d) => list.push(d.data() as TeachingJournal));
+      snap.forEach((d) => {
+        const item = d.data() as TeachingJournal;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.tanggal + b.createdAt).localeCompare(a.tanggal + a.createdAt));
       setLocal('teaching_journals', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_jurnal', err);
-      callback(getLocal<TeachingJournal[]>('teaching_journals', []));
+      callback(getFiltered());
     });
   }
 
   static subscribeTeachers(callback: (teachers: TeacherUser[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('teachers');
+      return getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS).filter((t) => !dead.has(t.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'guru_users');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('teachers');
       const list: TeacherUser[] = [];
-      snap.forEach((d) => list.push(d.data() as TeacherUser));
+      snap.forEach((d) => {
+        const t = d.data() as TeacherUser;
+        if (!dead.has(t.id)) {
+          list.push(t);
+        }
+      });
       list.sort((a, b) => a.nama.localeCompare(b.nama));
       setLocal('teachers', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_guru', err);
-      callback(getLocal<TeacherUser[]>('teachers', INITIAL_TEACHERS));
+      callback(getFiltered());
     });
   }
 
   static subscribeTeacherAttendanceRecords(callback: (records: TeacherAttendanceRecord[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('teacher_attendance');
+      return getLocal<TeacherAttendanceRecord[]>('teacher_attendance', []).filter((r) => !dead.has(r.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<TeacherAttendanceRecord[]>('teacher_attendance_records', []));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'presensi_guru');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('teacher_attendance');
       const list: TeacherAttendanceRecord[] = [];
-      snap.forEach((d) => list.push(d.data() as TeacherAttendanceRecord));
+      snap.forEach((d) => {
+        const item = d.data() as TeacherAttendanceRecord;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.tanggal + b.waktu).localeCompare(a.tanggal + a.waktu));
       setLocal('teacher_attendance_records', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_presensi_guru', err);
-      callback(getLocal<TeacherAttendanceRecord[]>('teacher_attendance_records', []));
+      callback(getFiltered());
     });
   }
 
   static subscribeTeacherLeaveRequests(callback: (requests: TeacherLeaveRequest[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('teacher_leaves');
+      return getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []).filter((l) => !dead.has(l.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'permohonan_izin_guru');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('teacher_leaves');
       const list: TeacherLeaveRequest[] = [];
-      snap.forEach((d) => list.push(d.data() as TeacherLeaveRequest));
+      snap.forEach((d) => {
+        const item = d.data() as TeacherLeaveRequest;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => (b.tanggalPengajuan || b.tanggalMulai).localeCompare(a.tanggalPengajuan || a.tanggalMulai));
       setLocal('teacher_leave_requests', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_izin_guru', err);
-      callback(getLocal<TeacherLeaveRequest[]>('teacher_leave_requests', []));
+      callback(getFiltered());
     });
   }
 
@@ -2481,6 +2722,7 @@ export class DatabaseService {
   }
 
   static async saveSchoolEvent(event: SchoolEventItem): Promise<void> {
+    removeTombstone('school_events', event.id);
     const list = await this.getSchoolEvents();
     const idx = list.findIndex((e) => e.id === event.id);
     if (idx >= 0) {
@@ -2496,12 +2738,13 @@ export class DatabaseService {
         const docRef = doc(db, 'agenda_sekolah', event.id);
         await setDoc(docRef, cleanData(event));
       } catch (e) {
-        handleFirestoreError('', );
+        handleFirestoreError('saveSchoolEvent', e);
       }
     }
   }
 
   static async deleteSchoolEvent(id: string): Promise<void> {
+    addTombstones('school_events', [id]);
     const list = await this.getSchoolEvents();
     const filtered = list.filter((e) => e.id !== id);
     setLocal('school_events', filtered);
@@ -2511,13 +2754,14 @@ export class DatabaseService {
         const docRef = doc(db, 'agenda_sekolah', id);
         await deleteDoc(docRef);
       } catch (e) {
-        handleFirestoreError('', );
+        handleFirestoreError('deleteSchoolEvent', e);
       }
     }
   }
 
   static async bulkDeleteSchoolEvents(ids: string[]): Promise<void> {
     if (!ids || ids.length === 0) return;
+    addTombstones('school_events', ids);
     const idSet = new Set(ids);
     const list = await this.getSchoolEvents();
     const filtered = list.filter((e) => !idSet.has(e.id));
@@ -2536,26 +2780,36 @@ export class DatabaseService {
         await batch.commit();
       }
     } catch (e) {
-      handleFirestoreError('', );
+      handleFirestoreError('bulkDeleteSchoolEvents', e);
     }
   }
 
   static subscribeSchoolEvents(callback: (events: SchoolEventItem[]) => void): () => void {
+    const getFiltered = () => {
+      const dead = getTombstones('school_events');
+      return getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS).filter((e) => !dead.has(e.id));
+    };
     if (!db) {
-      const handler = () => callback(getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS));
+      const handler = () => callback(getFiltered());
       syncChannel?.addEventListener('message', handler);
       return () => syncChannel?.removeEventListener('message', handler);
     }
     const colRef = collection(db, 'agenda_sekolah');
     return onSnapshot(colRef, (snap) => {
+      const dead = getTombstones('school_events');
       const list: SchoolEventItem[] = [];
-      snap.forEach((d) => list.push(d.data() as SchoolEventItem));
+      snap.forEach((d) => {
+        const item = d.data() as SchoolEventItem;
+        if (!dead.has(item.id)) {
+          list.push(item);
+        }
+      });
       list.sort((a, b) => a.tanggalMulai.localeCompare(b.tanggalMulai));
       setLocal('school_events', list);
       callback(list);
     }, (err) => {
       handleFirestoreError('subscribe_agenda_sekolah', err);
-      callback(getLocal<SchoolEventItem[]>('school_events', INITIAL_SCHOOL_EVENTS));
+      callback(getFiltered());
     });
   }
 

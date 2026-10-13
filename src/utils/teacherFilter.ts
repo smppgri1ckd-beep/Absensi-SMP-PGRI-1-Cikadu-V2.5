@@ -200,6 +200,20 @@ export function isTeacherWaliKelas(
 }
 
 /**
+ * Filters students strictly for a Wali Kelas homeroom class.
+ */
+export function filterStudentsForWaliKelas(
+  students: Student[],
+  user?: AuthUser | null
+): Student[] {
+  if (!user?.waliKelas || user.waliKelas.trim() === '-' || user.waliKelas.trim() === '') {
+    return [];
+  }
+  const normWali = normalizeClassName(user.waliKelas);
+  return students.filter((s) => normalizeClassName(s.kelas) === normWali);
+}
+
+/**
  * Filters the master student list according to the teacher's assigned classes and homeroom duties.
  * If the user is an admin or is currently acting as piket, returns all students.
  */
@@ -213,9 +227,13 @@ export function filterStudentsForTeacher(
   }
 
   if (user.role === 'guru') {
+    // If teacher is designated as Wali Kelas and user has no teaching assignments, scope strictly to homeroom
     const assignedClasses = getTeacherAccessibleClasses(user);
     if (assignedClasses.length === 0) {
-      return students;
+      if (user.waliKelas && user.waliKelas.trim() !== '-' && user.waliKelas.trim() !== '') {
+        return filterStudentsForWaliKelas(students, user);
+      }
+      return [];
     }
 
     return students.filter((s) => {
