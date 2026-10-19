@@ -168,6 +168,18 @@
         "lokasi": { "type": "string" }
       },
       "required": ["id", "judul", "tanggalMulai", "kategori"]
+    },
+    "PwaAdoptionStats": {
+      "title": "PwaAdoptionStats",
+      "description": "PWA Android app installation tracking and adoption statistics for administrators",
+      "type": "object",
+      "properties": {
+        "totalInstallClicks": { "type": "number" },
+        "totalAcceptedInstalls": { "type": "number" },
+        "totalQrAndShares": { "type": "number" },
+        "lastUpdatedAt": { "type": "string" }
+      },
+      "required": ["totalInstallClicks", "totalAcceptedInstalls"]
     }
   },
   "firestore": {
@@ -194,6 +206,10 @@
     "/pengaturan/identitas_sekolah": {
       "schema": { "$ref": "#/entities/SchoolConfig" },
       "description": "Document holding school profile, schedule, and settings"
+    },
+    "/pengaturan/statistik_instalasi_pwa": {
+      "schema": { "$ref": "#/entities/PwaAdoptionStats" },
+      "description": "Document storing PWA Android installation tracking and adoption metrics"
     },
     "/kalender_heb/active": {
       "schema": { "$ref": "#/entities/KalenderHeb" },

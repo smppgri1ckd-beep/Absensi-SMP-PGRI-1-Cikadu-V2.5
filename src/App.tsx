@@ -63,6 +63,7 @@ import { StudentReportCardModal } from './components/StudentReportCardModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { AutoUpdateStatusBar } from './components/AutoUpdateStatusBar';
 import { FirestoreQuotaDashboard } from './components/FirestoreQuotaDashboard';
+import { InstallPwaPrompt, OnlineConnectionBanner } from './components/InstallPwaPrompt';
 import { BellRing, ShieldCheck, LogIn, CalendarDays, Sparkles, Loader2, School, QrCode, Gauge } from 'lucide-react';
 
 function AppContent() {
@@ -1031,6 +1032,16 @@ function AppContent() {
                 onOpenQuotaMonitor={() => setActiveTab('firestore-monitor')}
                 className="mb-5" 
               />
+
+              {/* Banner Instal Aplikasi Android di Dashboard Utama */}
+              {(user || activeTab !== 'public-info') && (
+                <InstallPwaPrompt
+                  variant="dashboard-banner"
+                  schoolName={schoolConfig.namaSekolah}
+                  logoUrl={schoolConfig.logoUrl}
+                  className="mb-5"
+                />
+              )}
 
               {/* Tab: KIOSK SCANNER (Khusus Guru Piket, Guru Mapel & Staf Sekolah) */}
               {activeTab === 'kiosk' && (

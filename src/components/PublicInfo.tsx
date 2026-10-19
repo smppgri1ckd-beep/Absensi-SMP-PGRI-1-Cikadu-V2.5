@@ -50,6 +50,7 @@ import { PeriodFilterBar } from './PeriodFilterBar';
 import { TimePeriodFilter, isDateInPeriod } from '../utils/datePeriodUtils';
 import { getActiveDate } from '../utils/dailyAutoUpdate';
 import { SchoolLogo } from '../assets/schoolLogo';
+import { InstallPwaPrompt } from './InstallPwaPrompt';
 
 interface PublicInfoProps {
   schoolConfig: SchoolConfig;
