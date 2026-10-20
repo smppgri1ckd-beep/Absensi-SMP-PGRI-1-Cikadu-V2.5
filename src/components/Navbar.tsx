@@ -27,7 +27,6 @@ import { AttendanceSession, SchoolConfig, Student, AttendanceRecord } from '../t
 import { soundService } from '../utils/audio';
 import { GlobalStudentSearch } from './GlobalStudentSearch';
 import { SchoolLogo } from '../assets/schoolLogo';
-import { InstallPwaPrompt } from './InstallPwaPrompt';
 
 interface NavbarProps {
   activeTab: string;
@@ -217,13 +216,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <CloudCheck className="w-4 h-4" />
             </div>
-
-            {/* Tombol Instal Aplikasi Android Gratis (Tampil di Header untuk Semua Peran) */}
-            <InstallPwaPrompt
-              variant="header"
-              schoolName={schoolConfig.namaSekolah}
-              logoUrl={schoolConfig.logoUrl}
-            />
 
             {/* Quick Button: Izin / Sakit Mandiri (Hanya untuk Admin/Piket/Guru untuk Verifikasi; Mode Publik cukup 1 tombol utama di beranda) */}
             {user && (
@@ -551,13 +543,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                             <span>Monitor Kuota Firestore</span>
                           </button>
                         )}
-
-                        {/* Tombol Instal Aplikasi Android di Menu Profil */}
-                        <InstallPwaPrompt
-                          variant="menu-item"
-                          schoolName={schoolConfig.namaSekolah}
-                          logoUrl={schoolConfig.logoUrl}
-                        />
 
                         <button
                           onClick={() => {

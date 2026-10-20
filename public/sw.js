@@ -1,5 +1,5 @@
-// Service Worker ringan untuk Aplikasi Android (PWA) SMP PGRI 1 Cikidang
-// Mode: Online-Only / Network Pass-Through (Memastikan data selalu real-time dari server)
+// Self-unregistering Service Worker untuk membersihkan Service Worker lama dari browser
+// Tanpa listener fetch agar koneksi streaming real-time Firebase Firestore berjalan langsung 100%
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -7,31 +7,18 @@ self.addEventListener('install', () => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.map((key) => caches.delete(key)))
-    ).then(() => self.clients.claim())
-  );
-});
-
-self.addEventListener('fetch', (event) => {
-  // Abaikan request non-GET, HMR Vite (@vite), atau ekstensi browser agar tidak mengganggu koneksi
-  if (event.request.method !== 'GET') return;
-  const url = event.request.url || '';
-  if (
-    url.includes('/@vite/') ||
-    url.includes('/@react-refresh') ||
-    url.includes('/node_modules/') ||
-    url.includes('?t=') ||
-    !url.startsWith('http')
-  ) {
-    return;
-  }
-  event.respondWith(
-    fetch(event.request).catch(() => {
-      return new Response('Offline - Periksa koneksi internet Anda', {
-        status: 503,
-        statusText: 'Service Unavailable',
-      });
-    })
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+      .then(() => self.registration.unregister())
+      .then(() => self.clients.matchAll())
+      .then((clients) => {
+        clients.forEach((client) => {
+          // Lepaskan kendali service worker tanpa mengganggu halaman
+          if (client && 'navigate' in client) {
+            // Biarkan halaman berjalan langsung tanpa intervensi SW
+          }
+        });
+      })
   );
 });

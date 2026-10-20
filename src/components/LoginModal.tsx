@@ -234,14 +234,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, schoolC
             </button>
           </form>
 
-          {/* Kartu Instal Aplikasi Android Gratis di Halaman Login */}
-          <InstallPwaPrompt
-            variant="login-card"
-            schoolName={schoolConfig?.namaSekolah}
-            logoUrl={schoolConfig?.logoUrl}
-            className="mt-4"
-          />
-
         </div>
 
         {/* Modal Footer */}
