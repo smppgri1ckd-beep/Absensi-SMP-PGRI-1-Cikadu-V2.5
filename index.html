@@ -44,26 +44,39 @@
       }
 
       // Gracefully ignore Vite development HMR WebSocket notifications in iframe/cloud environments
-      window.addEventListener('unhandledrejection', function(event) {
-        var reason = event.reason;
-        if (
-          reason &&
-          (String(reason).includes('WebSocket') ||
-           String(reason.message || '').includes('WebSocket') ||
-           String(reason).includes('failed to connect to websocket'))
-        ) {
-          event.preventDefault();
-        }
-      });
-      window.addEventListener('error', function(event) {
-        var msg = event.message || '';
-        if (
-          msg.includes('WebSocket') ||
-          msg.includes('[vite] failed to connect to websocket')
-        ) {
-          event.preventDefault();
-        }
-      });
+      (function() {
+        var isViteWsNoise = function(val) {
+          if (!val) return false;
+          var str = typeof val === 'string' ? val : (val.message || val.stack || String(val));
+          return (
+            str.indexOf('WebSocket closed without opened') !== -1 ||
+            str.indexOf('failed to connect to websocket') !== -1 ||
+            (str.indexOf('[vite]') !== -1 && str.indexOf('WebSocket') !== -1)
+          );
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (isViteWsNoise(event.reason)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', function(event) {
+          if (isViteWsNoise(event.message) || isViteWsNoise(event.error)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        var origConsoleError = console.error;
+        console.error = function() {
+          for (var i = 0; i < arguments.length; i++) {
+            if (isViteWsNoise(arguments[i])) return;
+          }
+          return origConsoleError.apply(console, arguments);
+        };
+      })();
     </script>
   </head>
   <body>

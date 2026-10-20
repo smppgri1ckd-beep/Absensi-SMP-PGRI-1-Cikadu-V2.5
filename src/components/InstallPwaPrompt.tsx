@@ -20,10 +20,16 @@ import {
   Users,
   Activity,
   RefreshCw,
+  FileDown,
 } from 'lucide-react';
 import { generateQrDataUrl } from '../utils/qr';
 import { SchoolLogo } from '../assets/schoolLogo';
 import { useAuth } from '../context/AuthContext';
+import {
+  downloadAndroidInstallerFile,
+  getPublicShareableAppUrl,
+  getDirectInstallTabUrl,
+} from '../utils/androidInstallerFile';
 import {
   logPwaInstallClick,
   getLocalPwaAdoptionStats,
@@ -230,12 +236,16 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
   const [installSuccessToast, setInstallSuccessToast] = useState(false);
+  const [fileDownloadedToast, setFileDownloadedToast] = useState(false);
   const [adoptionStats, setAdoptionStats] = useState<PwaAdoptionStats>(() =>
     getLocalPwaAdoptionStats()
   );
   const [isSyncingStats, setIsSyncingStats] = useState(false);
 
-  const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const appUrl = getPublicShareableAppUrl();
+  const directInstallTabUrl = getDirectInstallTabUrl();
+  const isInIframe =
+    typeof window !== 'undefined' ? window.self !== window.top : false;
 
   useEffect(() => {
     const unsubscribe = subscribePwaAdoptionStats((updated) => {
@@ -243,6 +253,15 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
     });
     return unsubscribe;
   }, []);
+
+  // Jika dibuka dengan parameter ?install=1 di tab penuh, otomatis buka dialog instalasi sekali
+  useEffect(() => {
+    if (typeof window === 'undefined' || variant !== 'header') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('install') === '1' && !isInstalled) {
+      setIsGuideOpen(true);
+    }
+  }, [variant, isInstalled]);
 
   useEffect(() => {
     if ((isGuideOpen && activeGuideTab === 'stats') || (isAdminOrKepsek && variant === 'dashboard-banner')) {
@@ -255,7 +274,7 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
 
   useEffect(() => {
     if (isGuideOpen && appUrl) {
-      generateQrDataUrl(appUrl, 320)
+      generateQrDataUrl(`${appUrl}/?install=1`, 320)
         .then((url) => setQrDataUrl(url))
         .catch(() => {});
     }
@@ -286,9 +305,22 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
         return;
       }
     }
-    // Jika browser belum memicu native prompt (misal di iOS, iframe preview, atau browser in-app), tampilkan modal panduan & QR
+    // Jika browser belum memicu native prompt (misal di iOS, iframe preview, atau browser in-app), tampilkan modal panduan & unduh file
     setActiveGuideTab('steps');
     setIsGuideOpen(true);
+  };
+
+  const handleDownloadInstallerFile = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    downloadAndroidInstallerFile(schoolName);
+    setFileDownloadedToast(true);
+    setTimeout(() => setFileDownloadedToast(false), 5000);
+    await logPwaInstallClick({
+      action: 'installer_downloaded',
+      placement: variant,
+      userRole: user?.role || 'publik',
+      userName: user?.nama,
+    });
   };
 
   const handleOpenQrModal = (e: React.MouseEvent) => {
@@ -312,28 +344,22 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
   const handleCopyLink = async () => {
     if (!appUrl) return;
     try {
-      await navigator.clipboard.writeText(appUrl);
+      await navigator.clipboard.writeText(`${appUrl}/?install=1`);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
     } catch {}
   };
 
-  const handleShareWhatsApp = () => {
-    logPwaInstallClick({
-      action: 'whatsapp_shared',
-      placement: 'guide-modal',
-      userRole: user?.role || 'publik',
-      userName: user?.nama,
-    }).catch(() => {});
-
-    const text = encodeURIComponent(
-      `*Aplikasi Android Resmi ${schoolName}*\n\n` +
+  const whatsappShareHref = `https://wa.me/?text=${encodeURIComponent(
+    `*Aplikasi Android Resmi ${schoolName}*\n\n` +
       `Instal secara *GRATIS* di HP Android (Tanpa Play Store) untuk kemudahan Presensi Siswa, Jurnal Mengajar Guru, dan Portal Pantau Anak:\n\n` +
-      `👉 ${appUrl}\n\n` +
+      `👉 ${appUrl}/?install=1\n\n` +
       `_Buka tautan di atas menggunakan browser Chrome di HP Android lalu ketuk tombol "Instal Aplikasi Android"._`
-    );
-    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener,noreferrer');
-  };
+  )}`;
+
+  const pwaBuilderApkHref = `https://www.pwabuilder.com/reportcard?site=${encodeURIComponent(
+    appUrl
+  )}`;
 
   const conversionRate =
     adoptionStats.totalInstallClicks > 0
@@ -351,6 +377,11 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
       case 'app_installed':
         return {
           label: 'Terinstal di HP',
+          cls: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        };
+      case 'installer_downloaded':
+        return {
+          label: 'Unduh File Pemasang',
           cls: 'bg-emerald-100 text-emerald-800 border-emerald-200',
         };
       case 'install_clicked':
@@ -398,7 +429,7 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
                     <span>100% Gratis • Tanpa Play Store</span>
                   </div>
                   <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                    Instal Aplikasi Android
+                    Instal &amp; Unduh Aplikasi Android
                   </h3>
                   <p className="text-xs text-slate-500 font-medium">
                     {schoolName}
@@ -430,8 +461,8 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                <Smartphone className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Cara Instal</span>
+                <FileDown className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Unduh &amp; Instal</span>
               </button>
               <button
                 type="button"
@@ -470,20 +501,83 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
             </div>
 
             {activeGuideTab === 'steps' && (
-              <div className="mt-4 space-y-4">
+              <div className="mt-4 space-y-3.5">
+                {/* Opsi 1: Unduh File Pemasang & Peluncur Aplikasi (.HTML) Langsung */}
+                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-800 text-white shadow-md">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider bg-white/20 px-2.5 py-0.5 rounded-full">
+                        <FileDown className="w-3 h-3" />
+                        <span>File Pemasang Aplikasi Siap Diunduh</span>
+                      </span>
+                      <h4 className="font-black text-sm mt-1.5">
+                        Unduh File Peluncur &amp; Pemasang Android
+                      </h4>
+                      <p className="text-[11px] text-emerald-50 mt-0.5 leading-relaxed">
+                        Unduh file <strong>Aplikasi-Android-SMP-PGRI-1-Cikidang.html</strong> ke perangkat Anda. File ini dapat dibuka langsung di HP Android atau dikirimkan sebagai file dokumen ke Grup WhatsApp Guru, Siswa &amp; Wali Murid.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownloadInstallerFile}
+                      className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shrink-0 shadow-sm cursor-pointer transition-transform hover:scale-105 flex items-center justify-center gap-1.5"
+                    >
+                      <Download className="w-4 h-4 shrink-0" />
+                      <span>Unduh File Aplikasi</span>
+                    </button>
+                  </div>
+
+                  {fileDownloadedToast && (
+                    <div className="mt-3 pt-2.5 border-t border-white/20 flex items-center gap-2 text-[11px] font-extrabold text-amber-200">
+                      <CheckCircle2 className="w-4 h-4 text-amber-300 shrink-0" />
+                      <span>
+                        File pemasang berhasil diunduh ke folder Download! Buka file tersebut di Chrome Android atau bagikan ke WhatsApp.
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Deteksi Iframe Pratinjau: Jelaskan mengapa instalasi otomatis butuh Tab Penuh */}
+                {isInIframe && !isInstallable && (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/90 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                          Info Mode Pratinjau (Iframe)
+                        </span>
+                        <h4 className="text-xs font-black text-amber-950 mt-1">
+                          Ingin Pasang Otomatis Tanpa File? Buka di Tab Penuh
+                        </h4>
+                        <p className="text-[11px] text-amber-900 mt-0.5 leading-relaxed">
+                          Sistem keamanan browser Chrome memblokir pop-up instalasi WebAPK di dalam jendela pratinjau (iframe). Buka aplikasi di tab browser penuh agar Chrome dapat menginstal aplikasi secara otomatis:
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={directInstallTabUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Buka di Tab Browser Penuh &amp; Instal Otomatis</span>
+                    </a>
+                  </div>
+                )}
+
                 {/* Native Direct Install Callout if available */}
                 {isInstallable && (
                   <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full">
-                          Instalasi Instan Siap
+                          WebAPK Chrome Siap
                         </span>
                         <h4 className="font-black text-sm mt-1">
-                          Pasang Langsung Sekarang
+                          Pasang Langsung ke Layar Utama (1-Klik)
                         </h4>
                         <p className="text-[11px] text-blue-100 mt-0.5">
-                          Perangkat Anda mendukung pemasangan aplikasi otomatis 1-klik.
+                          Perangkat Anda mendukung pemasangan aplikasi otomatis langsung ke menu HP.
                         </p>
                       </div>
                       <button
@@ -511,10 +605,10 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                       <Smartphone className="w-4 h-4 text-blue-600" />
-                      <span>Panduan Instal di HP Android (Chrome)</span>
+                      <span>Cara Pasang via Menu Chrome di HP Android</span>
                     </span>
                     <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">
-                      2 Langkah Mudah
+                      Tanpa File .APK
                     </span>
                   </div>
 
@@ -532,7 +626,7 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
                           <span>di pojok kanan atas browser Chrome.</span>
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Pastikan Anda membuka halaman ini langsung di aplikasi Google Chrome pada HP Android.
+                          Teknologi PWA Android menginstal aplikasi resmi langsung dari Chrome sehingga bebas peringatan blokir Play Protect.
                         </p>
                       </div>
                     </div>
@@ -553,11 +647,32 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
                           </span>
                         </p>
                         <p className="text-[11px] text-slate-500 mt-0.5">
-                          Konfirmasi dengan menekan <strong>Instal</strong>. Ikon aplikasi <strong>Absensi PGRI</strong> akan langsung muncul di layar utama HP Anda!
+                          Konfirmasi dengan menekan <strong>Instal</strong>. Ikon aplikasi <strong>Absensi PGRI</strong> akan langsung muncul di daftar aplikasi HP Anda!
                         </p>
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Opsi Khusus Admin/Pengguna yang Ingin File .APK Murni */}
+                <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                  <div>
+                    <span className="font-black text-indigo-950 block">
+                      Butuh File Paket .APK Mentah (Android Package)?
+                    </span>
+                    <span className="text-[11px] text-indigo-800 leading-snug block mt-0.5">
+                      Manifest &amp; Service Worker aplikasi ini sudah standar penuh. Anda juga dapat men-generate file <code>.apk</code> murni via PWABuilder gratis:
+                    </span>
+                  </div>
+                  <a
+                    href={pwaBuilderApkHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] shrink-0 flex items-center justify-center gap-1.5 shadow-2xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Buat .APK di PWABuilder</span>
+                  </a>
                 </div>
 
                 {/* Jika pengguna membuka dari iPhone/iPad (iOS Safari) */}
@@ -639,19 +754,28 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
                     )}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={handleShareWhatsApp}
+                  <a
+                    href={whatsappShareHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => {
+                      logPwaInstallClick({
+                        action: 'whatsapp_shared',
+                        placement: 'guide-modal',
+                        userRole: user?.role || 'publik',
+                        userName: user?.nama,
+                      }).catch(() => {});
+                    }}
                     className="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
                   >
                     <Share2 className="w-4 h-4" />
                     <span>Bagikan ke WhatsApp</span>
-                  </button>
+                  </a>
                 </div>
 
-                {appUrl && (
+                {directInstallTabUrl && (
                   <a
-                    href={appUrl}
+                    href={directInstallTabUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-[11px] font-bold text-blue-600 hover:text-blue-800 underline"
@@ -909,7 +1033,7 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={handleInstallClick}
@@ -917,6 +1041,15 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>{isInstallable ? 'Instal Sekarang' : 'Instal Aplikasi'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadInstallerFile}
+                title="Unduh File Pemasang & Peluncur Aplikasi Android (.HTML)"
+                className="px-3 py-2 rounded-xl bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-200 font-extrabold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+              >
+                <FileDown className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Unduh File</span>
               </button>
               <button
                 type="button"
@@ -929,10 +1062,14 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
             </div>
           </div>
 
-          {installSuccessToast && (
+          {(installSuccessToast || fileDownloadedToast) && (
             <div className="mt-2.5 pt-2 border-t border-emerald-200/70 flex items-center gap-1.5 text-[11px] font-bold text-emerald-800">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span>Aplikasi sedang dipasang ke layar utama HP Android Anda!</span>
+              <span>
+                {fileDownloadedToast
+                  ? 'File pemasang Aplikasi-Android berhasil diunduh! Buka file tersebut atau bagikan ke WhatsApp.'
+                  : 'Aplikasi sedang dipasang ke layar utama HP Android Anda!'}
+              </span>
             </div>
           )}
         </div>
@@ -981,6 +1118,12 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
               <p className="text-xs text-emerald-100/85 mt-0.5">
                 Akses absensi apel, jurnal mengajar guru, dan pantau anak langsung dari layar utama HP layaknya aplikasi Android asli tanpa biaya Play Store.
               </p>
+              {fileDownloadedToast && (
+                <p className="text-xs font-extrabold text-amber-300 mt-1.5 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>File pemasang aplikasi berhasil diunduh ke folder Download perangkat Anda!</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -995,6 +1138,15 @@ export const InstallPwaPrompt: React.FC<InstallPwaPromptProps> = ({
                 <span>{isInstallable ? 'Instal Aplikasi Sekarang' : 'Instal di HP Android'}</span>
               </button>
             )}
+            <button
+              type="button"
+              onClick={handleDownloadInstallerFile}
+              className="px-3.5 py-2.5 rounded-xl bg-emerald-600/80 hover:bg-emerald-600 text-white border border-emerald-400/40 font-black text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Unduh File Pemasang & Peluncur Aplikasi Android (.HTML)"
+            >
+              <FileDown className="w-4 h-4 text-amber-300" />
+              <span>Unduh File</span>
+            </button>
             <button
               type="button"
               onClick={handleOpenQrModal}

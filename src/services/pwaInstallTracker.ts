@@ -8,6 +8,7 @@ export type PwaInstallActionType =
   | 'prompt_accepted'
   | 'prompt_dismissed'
   | 'app_installed'
+  | 'installer_downloaded'
   | 'qr_opened'
   | 'whatsapp_shared';
 
@@ -213,7 +214,9 @@ export async function logPwaInstallClick(options: {
 
   const isClick = options.action === 'install_clicked';
   const isAccepted =
-    options.action === 'prompt_accepted' || options.action === 'app_installed';
+    options.action === 'prompt_accepted' ||
+    options.action === 'app_installed' ||
+    options.action === 'installer_downloaded';
   const isShareOrQr =
     options.action === 'qr_opened' || options.action === 'whatsapp_shared';
 

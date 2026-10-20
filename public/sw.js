@@ -1,7 +1,7 @@
 // Service Worker ringan untuk Aplikasi Android (PWA) SMP PGRI 1 Cikidang
 // Mode: Online-Only / Network Pass-Through (Memastikan data selalu real-time dari server)
 
-self.addEventListener('install', (event) => {
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
@@ -14,7 +14,24 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Hanya tangani request GET dan selalu teruskan langsung ke jaringan (Network-Only / Online)
+  // Abaikan request non-GET, HMR Vite (@vite), atau ekstensi browser agar tidak mengganggu koneksi
   if (event.request.method !== 'GET') return;
-  event.respondWith(fetch(event.request));
+  const url = event.request.url || '';
+  if (
+    url.includes('/@vite/') ||
+    url.includes('/@react-refresh') ||
+    url.includes('/node_modules/') ||
+    url.includes('?t=') ||
+    !url.startsWith('http')
+  ) {
+    return;
+  }
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return new Response('Offline - Periksa koneksi internet Anda', {
+        status: 503,
+        statusText: 'Service Unavailable',
+      });
+    })
+  );
 });
